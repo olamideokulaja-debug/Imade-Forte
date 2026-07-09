@@ -31,20 +31,6 @@ const CAPABILITIES = [
   },
 ]
 
-function CompassMark() {
-  return (
-    <svg className="fc-mark" viewBox="0 0 48 48" role="img" aria-label="Forte Compass mark">
-      <circle cx="24" cy="24" r="21" fill="none" stroke="var(--gold)" strokeWidth="1.5" opacity="0.55" />
-      <circle cx="24" cy="24" r="15.5" fill="none" stroke="var(--gold)" strokeWidth="0.75" opacity="0.3" />
-      {/* needle pointing up and to the right, toward the outcome */}
-      <path d="M24 24 L35 13" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round" />
-      <path d="M24 24 L17 31" stroke="var(--parchment)" strokeWidth="1.5" strokeLinecap="round" opacity="0.55" />
-      <circle cx="35" cy="13" r="2.6" fill="var(--gold)" />
-      <circle cx="24" cy="24" r="1.6" fill="var(--parchment)" />
-    </svg>
-  )
-}
-
 export default function App() {
   const [revealed, setRevealed] = useState(false)
 
@@ -53,14 +39,13 @@ export default function App() {
       <style>{css}</style>
 
       <header className="fc-top">
-        <a className="fc-brand" href="#top" aria-label="Forte Compass home">
-          <CompassMark />
+        <a className="fc-brand" href="#top" aria-label="Forte Compass, Imade Forte Holdings">
+          <img className="fc-brand-logo" src="/imade-forte-logo.png" alt="Imade Forte Holdings Ltd." />
           <span className="fc-wordmark">
             Forte <em>Compass</em>
           </span>
         </a>
         <div className="fc-top-right">
-          <span className="fc-tenant">Imade Forte Holdings</span>
           <button className="fc-btn fc-btn-ghost" onClick={() => setRevealed(true)}>
             Sign in
           </button>
@@ -170,8 +155,8 @@ export default function App() {
 
       <footer className="fc-foot">
         <div className="fc-foot-left">
-          <CompassMark />
-          <span>Imade Forte Holdings Ltd. and Subsidiaries · Tenant one</span>
+          <img className="fc-foot-logo" src="/imade-forte-logo.png" alt="Imade Forte Holdings Ltd." />
+          <span className="fc-foot-tenant">Tenant one</span>
         </div>
         <span className="fc-foot-right">
           Forte Compass is tenant-aware and can be licensed to other firms.
@@ -230,12 +215,11 @@ const css = `
   padding: 1.6rem clamp(1.25rem, 5vw, 5rem);
   border-bottom: 1px solid var(--hairline);
 }
-.fc-brand { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; color: var(--parchment); }
-.fc-mark { width: 30px; height: 30px; flex: none; }
-.fc-wordmark { font-size: 1.18rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 500; }
+.fc-brand { display: flex; align-items: center; gap: 0.95rem; text-decoration: none; color: var(--parchment); }
+.fc-brand-logo { height: 48px; width: auto; display: block; flex: none; }
+.fc-wordmark { font-size: 1.12rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 500; padding-left: 0.95rem; border-left: 1px solid var(--hairline); }
 .fc-wordmark em { color: var(--gold); font-style: normal; }
 .fc-top-right { display: flex; align-items: center; gap: 1.1rem; }
-.fc-tenant { color: var(--muted); font-size: 0.9rem; letter-spacing: 0.02em; }
 
 /* Hero */
 .fc-hero {
@@ -333,8 +317,12 @@ const css = `
   padding: 1.8rem clamp(1.25rem, 5vw, 5rem); border-top: 1px solid var(--hairline);
   color: var(--muted); font-size: 0.88rem;
 }
-.fc-foot-left { display: flex; align-items: center; gap: 0.8rem; }
-.fc-foot-left .fc-mark { width: 24px; height: 24px; opacity: 0.85; }
+.fc-foot-left { display: flex; align-items: center; gap: 1rem; }
+.fc-foot-logo { height: 40px; width: auto; display: block; opacity: 0.95; }
+.fc-foot-tenant {
+  color: var(--muted); font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase;
+  padding-left: 1rem; border-left: 1px solid var(--hairline);
+}
 
 /* Responsive */
 @media (max-width: 900px) {

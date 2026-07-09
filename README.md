@@ -14,6 +14,9 @@ Vite + React, deployable to Vercel.
   Gold `#B8924A`, and Lora.
 - `index.html`, `src/main.jsx`, `vite.config.js` — the Vite shell.
 - `vercel.json` — tells Vercel this is a Vite app and serves it as a single page.
+- `public/imade-forte-logo.png` — the real Imade Forte Holdings lockup, background made
+  transparent and trimmed, used in the header and footer. `imade-forte-logo-hires.png` is
+  a larger copy kept for the review-pack exports in Stage 8.
 
 The build was validated locally with `npm run build` (result: "built").
 

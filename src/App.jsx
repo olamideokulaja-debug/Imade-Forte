@@ -83,6 +83,7 @@ const KR = (statement, kr_type, measure, baseline, target, unit, opts = {}) => (
   id: uid(), statement, kr_type, measure, baseline, target, unit,
   current: opts.current ?? '', confidence: opts.confidence ?? 60,
   due: opts.due ?? '2026-05-31', override_reason: opts.override_reason ?? null,
+  checkins: opts.checkins ?? [],
 })
 
 function seedObjectives() {
@@ -107,7 +108,7 @@ function seedObjectives() {
       krs: [
         KR('Migrate all remaining Version 1 clients to Version 2 with a signed data-validation report per client', 'outcome', 'Clients migrated', '0 of remaining', 'All remaining', 'clients', { current: '40', confidence: 70 }),
         KR('Cut client-specific bug-fix effort by 25 to 30 percent', 'outcome', 'Support hours on forked patches', 'Baseline hours', '25 to 30% lower', '%', { confidence: 55 }),
-        KR('Hold every Version 2 deployment within a 99.9 percent stability benchmark', 'outcome', 'Monthly uptime', '99.4%', '99.9%', '%', { current: '99.6' }),
+        KR('Hold every Version 2 deployment within a 99.9 percent stability benchmark', 'outcome', 'Monthly uptime', '99.4%', '99.9%', '%', { current: '99.7', checkins: [{ at: '2026-05-08', value: 99.5, confidence: 60 }, { at: '2026-05-15', value: 99.6, confidence: 65 }, { at: '2026-05-22', value: 99.7, confidence: 70 }] }),
       ],
     },
     {
@@ -116,8 +117,8 @@ function seedObjectives() {
       title: 'Expand facility monitoring coverage',
       description: 'Systematic monitoring of all assigned HEFAMAA facilities.',
       krs: [
-        KR('Achieve 95 percent completion of the HEFAMAA monitoring checklist on each visit', 'outcome', 'Checklist completion', '88%', '95%', '%', { current: '92' }),
-        KR('Reduce average interval between facility re-visits to 45 days', 'outcome', 'Re-visit interval', '68 days', '45 days', 'days', { current: '58' }),
+        KR('Achieve 95 percent completion of the HEFAMAA monitoring checklist on each visit', 'outcome', 'Checklist completion', '88%', '95%', '%', { current: '92', checkins: [{ at: '2026-05-07', value: 89, confidence: 55 }, { at: '2026-05-14', value: 91, confidence: 60 }, { at: '2026-05-21', value: 92, confidence: 65 }] }),
+        KR('Reduce average interval between facility re-visits to 45 days', 'outcome', 'Re-visit interval', '68 days', '45 days', 'days', { current: '58', checkins: [{ at: '2026-05-07', value: 64, confidence: 50 }, { at: '2026-05-14', value: 60, confidence: 55 }, { at: '2026-05-21', value: 58, confidence: 60 }] }),
         KR('Complete physical inspections of all assigned facilities this cycle', 'output', 'Inspections done', '0%', '100%', '%', { current: '70' }),
       ],
     },
@@ -128,7 +129,7 @@ function seedObjectives() {
       description: 'Educate, correct and follow up so compliance holds.',
       krs: [
         KR('Reduce repeat non-compliance cases by 20 percent over 2 months', 'outcome', 'Repeat non-compliance', 'Baseline count', '20% lower', '%', { confidence: 50 }),
-        KR('Ensure 90 percent of flagged facilities receive follow-up within 2 to 4 weeks', 'outcome', 'Follow-up rate', '65%', '90%', '%', { current: '74' }),
+        KR('Ensure 90 percent of flagged facilities receive follow-up within 2 to 4 weeks', 'outcome', 'Follow-up rate', '65%', '90%', '%', { current: '74', checkins: [{ at: '2026-05-07', value: 68, confidence: 45 }, { at: '2026-05-14', value: 71, confidence: 50 }, { at: '2026-05-21', value: 74, confidence: 55 }] }),
         KR('Submit monitoring reports weekly to HEFAMAA', 'output', 'Reports submitted', 'Irregular', '100% weekly', '%', { current: '80' }),
       ],
     },
@@ -345,15 +346,19 @@ async function suggestObjectives(ctx) {
 }
 
 const toNum = (s) => { const m = String(s ?? '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null }
+const krHistory = (k) => k.checkins || []
+const krLatestVal = (k) => { const h = krHistory(k); return h.length ? h[h.length - 1].value : (k.current !== '' && k.current != null ? k.current : null) }
+const krConf = (k) => { const h = krHistory(k); return h.length ? h[h.length - 1].confidence : (k.confidence || 0) }
 function krProgress(k) {
-  const b = toNum(k.baseline), t = toNum(k.target), c = toNum(k.current)
+  const b = toNum(k.baseline), t = toNum(k.target), c = toNum(krLatestVal(k))
   if (b == null || t == null || c == null || t === b) return null
   return Math.max(0, Math.min(1, (c - b) / (t - b)))
 }
 const STALL_LOWCONF = 60
 const STALL_BEHIND = 0.4
 function stallReason(k) {
-  if (k.kr_type === 'outcome' && (k.confidence || 0) > 0 && k.confidence < STALL_LOWCONF) return 'Low confidence'
+  const conf = krConf(k)
+  if (k.kr_type === 'outcome' && conf > 0 && conf < STALL_LOWCONF) return 'Low confidence'
   const p = krProgress(k)
   if (p != null && p < STALL_BEHIND) return 'Behind target'
   return null
@@ -414,6 +419,34 @@ function Move({ v }) {
   if (!v) return <span className="fc-move fc-move-flat" title="No change">—</span>
   const up = v > 0
   return <span className={`fc-move ${up ? 'up' : 'down'}`} title="Versus last cycle">{up ? '▲' : '▼'} {Math.abs(v).toFixed(1)}</span>
+}
+function Sparkline({ values }) {
+  if (!values || values.length < 2) return <span className="fc-spark-empty">no history</span>
+  const w = 96, h = 26, pad = 3
+  const min = Math.min(...values), max = Math.max(...values), span = (max - min) || 1
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - 2 * pad)
+    const y = h - pad - ((v - min) / span) * (h - 2 * pad)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  const last = pts.split(' ').pop().split(',')
+  return (
+    <svg className="fc-spark" viewBox={`0 0 ${w} ${h}`} width={w} height={h} role="img" aria-label="trend">
+      <polyline points={pts} fill="none" stroke="var(--gold)" strokeWidth="1.5" />
+      <circle cx={last[0]} cy={last[1]} r="2" fill="var(--gold-lit)" />
+    </svg>
+  )
+}
+function ProgressBar({ k }) {
+  const p = krProgress(k)
+  if (p == null) return <span className="fc-muted fc-prog-na">tracked qualitatively</span>
+  const pct = Math.round(p * 100)
+  return (
+    <div className="fc-progress" title={`${pct}% to target`}>
+      <div className={`fc-progress-fill ${pct >= 67 ? 'ok' : pct >= 34 ? 'mid' : 'low'}`} style={{ width: `${pct}%` }} />
+      <span className="fc-progress-pct">{pct}%</span>
+    </div>
+  )
 }
 
 /* ------------------------- Gateway (Stage 1) ---------------------- */
@@ -616,11 +649,27 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut }) {
     setTab('objectives')
   }
 
+  function logCheckin(objId, krId, entry) {
+    setData((d) => ({
+      ...d,
+      objectives: d.objectives.map((o) => (o.id !== objId ? o : {
+        ...o,
+        krs: o.krs.map((k) => (k.id !== krId ? k : {
+          ...k,
+          checkins: [...(k.checkins || []), { ...entry, by: me.name }],
+          current: String(entry.value),
+          confidence: entry.confidence,
+        })),
+      })),
+    }))
+  }
+
   const tabs = me.role === 'chairman'
     ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['scorecards', 'Scorecards']]
     : [
         ['dashboard', 'Dashboard'],
         ['objectives', 'My OKRs'],
+        ['checkins', 'Check-ins'],
         ['scorecards', 'Scorecards'],
         canReview && ['review', 'Review & approve'],
         canSeeAll && ['organisations', 'Organisations'],
@@ -663,6 +712,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut }) {
         )}
         {tab === 'review' && <Review data={data} me={me} onApprove={(id) => setStatus(id, 'approved')} onReturn={(id) => setStatus(id, 'draft')} />}
         {tab === 'scorecards' && <Scorecards data={data} me={me} onAdjust={adjustScore} />}
+        {tab === 'checkins' && <CheckIns me={me} objectives={myObjectives} onLog={logCheckin} />}
         {tab === 'organisations' && <Organisations tenant={tenant} data={data} me={me} />}
       </main>
     </div>
@@ -711,7 +761,20 @@ function Dashboard({ tenant, me, data, onAuthor }) {
         </section>
       </div>
       <MyStalls objectives={mine} />
+      <CheckinNudge objectives={mine} />
     </div>
+  )
+}
+function CheckinNudge({ objectives }) {
+  const items = objectives.filter((o) => o.status === 'approved').flatMap((o) => o.krs.map((k) => ({ o, k }))).filter((x) => krHistory(x.k).length === 0)
+  if (items.length === 0) return null
+  return (
+    <section className="fc-panel fc-stallpanel">
+      <div className="fc-panel-head"><h3>Awaiting a check-in</h3><span className="fc-muted">{items.length} key results</span></div>
+      {items.slice(0, 6).map(({ o, k }, i) => (
+        <div key={i} className="fc-stall"><div className="fc-stall-body"><b>{k.statement}</b><span className="fc-muted">{o.title}</span></div></div>
+      ))}
+    </section>
   )
 }
 function MyStalls({ objectives }) {
@@ -805,6 +868,68 @@ function SuggestPanel({ me, objectives, onUse }) {
   )
 }
 
+
+/* ------------------------------ Check-ins ------------------------- */
+function CheckIns({ me, objectives, onLog }) {
+  const active = objectives.filter((o) => o.status === 'approved')
+  return (
+    <div className="fc-checkins">
+      <div className="fc-panel-head">
+        <div><h2>Check-ins</h2><p className="fc-muted">Log progress against baseline and target. {me.tier === 'ops' ? 'Weekly cadence.' : 'Monthly cadence.'}</p></div>
+      </div>
+      {active.length === 0 && <p className="fc-empty">Check-ins open once an objective is approved.</p>}
+      {active.map((o) => (
+        <div key={o.id} className="fc-objcard">
+          <div className="fc-objcard-head"><div><h3>{o.title}</h3><p className="fc-muted">{o.sub} · {o.priority}</p></div></div>
+          <div className="fc-ci-list">
+            {o.krs.map((k) => <CheckInRow key={k.id} k={k} onLog={(entry) => onLog(o.id, k.id, entry)} />)}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CheckInRow({ k, onLog }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState('')
+  const [confidence, setConfidence] = useState(krConf(k) || 60)
+  const [note, setNote] = useState('')
+  const hist = krHistory(k)
+  const values = hist.map((h) => Number(h.value))
+  const latest = krLatestVal(k)
+
+  function save() {
+    const v = parseFloat(value)
+    if (isNaN(v)) { setOpen(false); return }
+    onLog({ at: new Date().toISOString().slice(0, 10), value: v, confidence: Number(confidence), note })
+    setOpen(false); setValue(''); setNote('')
+  }
+
+  return (
+    <div className="fc-ci-row">
+      <div className="fc-ci-main">
+        <div className="fc-ci-statement"><TypeTag t={k.kr_type || 'outcome'} /> <span>{k.statement}</span></div>
+        <div className="fc-ci-metrics">
+          <div className="fc-ci-prog"><ProgressBar k={k} /></div>
+          <Sparkline values={values} />
+          <span className="fc-ci-latest">{latest != null ? `${latest}${/%/.test(k.unit || '') || /%/.test(k.target || '') ? '%' : ''}` : '—'}<span className="fc-muted"> now</span></span>
+          <span className="fc-ci-conf">conf {krConf(k)}%</span>
+          <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setOpen((o) => !o)}>{open ? 'Close' : 'Log check-in'}</button>
+        </div>
+      </div>
+      <div className="fc-ci-meta"><span className="fc-muted">Baseline {k.baseline || '—'} · Target {k.target || '—'}{hist.length ? ` · ${hist.length} updates` : ''}</span></div>
+      {open && (
+        <div className="fc-ci-form">
+          <label className="fc-field"><span>New value</span><input className="fc-input" placeholder={`e.g. ${k.target || '90'}`} value={value} onChange={(e) => setValue(e.target.value)} /></label>
+          <label className="fc-field"><span>Confidence {confidence}%</span><input type="range" min="0" max="100" value={confidence} onChange={(e) => setConfidence(e.target.value)} /></label>
+          <label className="fc-field fc-ci-note"><span>Note (optional)</span><input className="fc-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What moved this week?" /></label>
+          <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={save}>Save check-in</button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 /* ------------------------- Author + outcome engine ---------------- */
 function Author({ tenant, objective, onSave, onCancel }) {
@@ -1626,7 +1751,29 @@ option{color:#111}
 .fc-pd-score{display:flex;align-items:center;gap:.6rem}
 .fc-pd-score b{font-size:1.7rem;color:var(--gold-lit)}
 
-@media(max-width:900px){.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-nav{order:3;width:100%}}
+/* check-ins, sparkline, progress */
+.fc-spark{display:inline-block;vertical-align:middle}
+.fc-spark-empty{font-size:.75rem;color:var(--muted)}
+.fc-progress{position:relative;width:120px;height:14px;border:1px solid var(--hairline);border-radius:8px;background:rgba(237,233,224,.05);overflow:hidden}
+.fc-progress-fill{position:absolute;left:0;top:0;bottom:0;border-radius:8px;background:var(--gold)}
+.fc-progress-fill.ok{background:var(--rag-g)}
+.fc-progress-fill.mid{background:var(--rag-a)}
+.fc-progress-fill.low{background:var(--rag-r)}
+.fc-progress-pct{position:absolute;right:.4rem;top:-.05rem;font-size:.68rem;color:var(--parchment)}
+.fc-prog-na{font-size:.8rem}
+.fc-ci-list{margin-top:.9rem;display:flex;flex-direction:column;gap:.7rem}
+.fc-ci-row{border:1px solid var(--hairline);border-radius:5px;padding:.8rem;background:rgba(9,26,51,.35)}
+.fc-ci-main{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.fc-ci-statement{display:flex;align-items:center;gap:.55rem;font-size:.95rem;flex:1;min-width:240px}
+.fc-ci-metrics{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.fc-ci-latest{font-size:.95rem;font-weight:600}
+.fc-ci-conf{font-size:.8rem;color:var(--muted)}
+.fc-ci-meta{margin-top:.5rem;font-size:.8rem}
+.fc-ci-form{margin-top:.8rem;display:grid;grid-template-columns:1fr 1fr 1.4fr auto;gap:.7rem;align-items:end;border-top:1px solid var(--hairline);padding-top:.8rem}
+.fc-ci-form input[type=range]{width:100%}
+.fc-ci-form .fc-btn{height:fit-content}
+
+@media(max-width:900px){.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-nav{order:3;width:100%}}
 @media(max-width:560px){.fc-field-grid{grid-template-columns:1fr}.fc-col2{grid-column:1}.fc-cap-grid{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:1fr 1fr}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 `

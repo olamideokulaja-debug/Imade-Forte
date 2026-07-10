@@ -14,6 +14,15 @@ This build covers Stages 1 to 5:
 - **Stage 5** The Organisations view, AI-suggested next OKRs, and stall detection with a
   WhatsApp nudge.
 
+## Check-ins and trends
+
+Once an objective is approved, its owner logs progress under the Check-ins tab: a new value, a
+confidence level, and an optional note, on a weekly cadence for operations and monthly for
+leadership. Each key result then carries a history rather than a single figure, shown as a
+progress bar toward target and a small trend line, with the latest value and confidence alongside.
+The dashboard flags any approved key result still awaiting its first check-in. Progress and the
+stall flags read from the most recent check-in, so the picture stays current as the cycle runs.
+
 ## The Chairman's cockpit
 
 Signing in as the Chairman opens a dedicated, read-only oversight view. It leads with the health

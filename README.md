@@ -23,23 +23,35 @@ progress bar toward target and a small trend line, with the latest value and con
 The dashboard flags any approved key result still awaiting its first check-in. Progress and the
 stall flags read from the most recent check-in, so the picture stays current as the cycle runs.
 
+## Organogram
+
+The Organogram tab draws the whole group as a tree: Imade Forte Holdings at the top, then the
+Corporate head office and each subsidiary, and under each one its people arranged by reporting
+line, all the way down to every staff member. Each organisation shows who its head reports to.
+Nodes are interactive: tapping a person opens their profile, tapping an organisation opens its
+panel. Reporting lines are seeded sensibly and can be changed any time in the Roster tab. The
+organogram is available to the Chairman, the MD, HR and a tenant admin.
+
 ## The Chairman's cockpit
 
-Signing in as the Chairman opens a dedicated, read-only oversight view. It leads with the health
-of each organisation (score, band, outcome ratio, RAG and movement side by side), then the
-standing of every staff member with a one-click drill into any person's objectives and
-scorecards, then the risks and stalled results across the whole group, then who is climbing and
-who is slipping against the previous cycle. The Chairman sees everything and changes nothing:
-there are no authoring, approval or adjustment controls in this view.
+Signing in as the Chairman opens a dedicated, read-only view at the level of the holding company.
+It leads with the health of the whole group and a card for the Corporate head office and each
+subsidiary; tapping any card zooms into that organisation's staff, objectives and risks. Below
+that sit the standing of every staff member with a one-click drill into any person's objectives
+and scorecards, the risks and stalled results across the whole group, and who is climbing and who
+is slipping against the previous cycle. The Chairman sees everything and changes nothing: there
+are no authoring, approval or adjustment controls in this view.
 
 ## Organisations
 
-Under the Organisations tab, each subsidiary is its own organisation with its own staff and OKRs:
-Real Estate, Genesys, Realms, Governance and Partnerships, plus a Group overview across all of
-them. Selecting an organisation shows the people under it with their scores, the objectives that
-belong to it, its outcome ratio and weighted average, its strategic priority, and any key results
-that need attention. A subsidiary lead sees only their own organisation; the MD, HR and the
-Chairman see all of them.
+Imade Forte Holdings Limited is the parent. Its four operating subsidiaries each have their own
+tab with their own staff and OKRs: Genesys Health Information Limited, Girard Property Limited,
+Yostrat Business Services, and Realms Healthcare Services Consulting Limited. Head-office
+functions (the Chairman, the MD, the EA, HR and Finance) sit at a Corporate level, and a Holding
+company overview rolls everything up. Selecting an organisation shows the people under it with
+their scores, the objectives that belong to it, its outcome ratio and weighted average, its
+priority, and any key results that need attention. A subsidiary lead sees only their own
+organisation; the MD, HR and the Chairman see all of them.
 
 ## Suggestions and nudges
 
@@ -120,6 +132,13 @@ A subsidiary lead (for their own people), HR or the MD can then adjust any dimen
 adjustment is written to the objective's history with the dimension, the before and after values,
 who made it, their role, the time, and a reason. A person sees only their own scorecard; peers
 never see each other's. Adjusted scores flow straight to the group board.
+
+## Roster and admin
+
+HR, the MD and a tenant admin get a Roster tab to manage people: add someone, edit their name,
+role, organisation and check-in cadence, set who they report to, or remove them. The two profiles
+still missing a surname are highlighted and counted at the top, so they are quick to complete, and
+any change flows straight through to the organisations, the board and the cockpit.
 
 ## Notes for the roster
 

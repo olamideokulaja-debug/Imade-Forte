@@ -14,19 +14,31 @@ const supabase = SB_URL && SB_KEY ? createClient(SB_URL, SB_KEY) : null
 const LIVE = !!supabase
 
 /* ---------------------------- Tenants ----------------------------- */
+// Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
+// companies below. Head-office functions (Chairman, MD, EA, HR, Finance) sit at Corporate.
+const LEGAL = {
+  Genesys: 'Genesys Health Information Limited',
+  Girard: 'Girard Property Limited',
+  Yostrat: 'Yostrat Business Services',
+  Realms: 'Realms Healthcare Services Consulting Limited',
+  Corporate: 'Imade Forte Holdings, Head Office',
+}
+const ORG_LABEL = { Group: 'Holding company' }
+const orgLabel = (o) => ORG_LABEL[o] || o
+const legalName = (o) => LEGAL[o] || o
+
 const TENANTS = {
   'imade-forte': {
     id: 'imade-forte',
     name: 'Imade Forte Holdings Ltd.',
     logo: '/imade-forte-logo.png',
     brand: { navy: '#0E2240', gold: '#B8924A' },
-    subsidiaries: ['Real Estate', 'Genesys', 'Realms', 'Governance', 'Partnerships'],
+    subsidiaries: ['Genesys', 'Girard', 'Yostrat', 'Realms'],
     priorities: [
-      { rank: 'P1', name: 'Real Estate' },
+      { rank: 'P1', name: 'Girard' },
       { rank: 'P2', name: 'Genesys' },
       { rank: 'P3', name: 'Realms' },
-      { rank: 'P4', name: 'Governance' },
-      { rank: 'P5', name: 'Partnerships' },
+      { rank: 'P4', name: 'Yostrat' },
     ],
   },
   demo: {
@@ -57,15 +69,15 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 /* ------------------------ Seeded cohort --------------------------- */
 // Real May 2026 cohort. Bands seed the group board; a subset carries full OKRs.
 const STAFF = [
-  { id: 's_jen', name: 'Jennifer Kaja', role: 'md', sub: 'Group', tier: 'leadership', band: 'green', score: 8.4 },
+  { id: 's_jen', name: 'Jennifer Kaja', role: 'md', sub: 'Corporate', tier: 'leadership', band: 'green', score: 8.4 },
   { id: 's_ose', name: 'Osemeke Anyirah', role: 'lead', sub: 'Genesys', tier: 'leadership', band: 'green', score: 8.0 },
   { id: 's_ebi', name: 'Ebime Abari', role: 'lead', sub: 'Genesys', tier: 'leadership', band: 'green', score: 8.1 },
   { id: 's_sol', name: 'Solomon C. Nweke', role: 'lead', sub: 'Realms', tier: 'leadership', band: 'green', score: 7.6 },
   { id: 's_tha', name: 'Thaddeus U. Oparaocha', role: 'staff', sub: 'Realms', tier: 'ops', band: 'green', score: 7.2 },
   { id: 's_ojo', name: 'Ojuma Joy Ndidi', role: 'staff', sub: 'Realms', tier: 'ops', band: 'green', score: 7.3 },
-  { id: 's_gud', name: 'Goodness Udoka', role: 'staff', sub: 'Governance', tier: 'leadership', band: 'green', score: 7.6 },
+  { id: 's_gud', name: 'Goodness Udoka', role: 'staff', sub: 'Corporate', tier: 'leadership', band: 'green', score: 7.6 },
   { id: 's_chi', name: 'Chinonso (surname pending)', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'green', score: 8.0 },
-  { id: 's_ade', name: 'Adebayo (surname pending)', role: 'lead', sub: 'Governance', tier: 'leadership', band: 'green', score: 7.6 },
+  { id: 's_ade', name: 'Adebayo (surname pending)', role: 'lead', sub: 'Corporate', tier: 'leadership', band: 'green', score: 7.6 },
   { id: 's_sun', name: 'Sunday Orimoyegun', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'amber', score: 6.2 },
   { id: 's_kit', name: 'Kitunde Abayomi', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'amber', score: 5.8 },
   { id: 's_goo', name: 'Goodnews Anele', role: 'staff', sub: 'Realms', tier: 'ops', band: 'amber', score: 6.5 },
@@ -73,11 +85,17 @@ const STAFF = [
   { id: 's_god', name: 'Godwin Idiong', role: 'lead', sub: 'Genesys', tier: 'leadership', band: 'amber', score: 6.5 },
 ]
 // A Chairman and an HR seat, for role coverage.
-STAFF.push({ id: 's_chair', name: 'Office of the Chairman', role: 'chairman', sub: 'Governance', tier: 'leadership', band: 'green', score: 0 })
-STAFF.push({ id: 's_hr', name: 'Ijeoma Balogun', role: 'hr', sub: 'Governance', tier: 'leadership', band: 'green', score: 0 })
+STAFF.push({ id: 's_chair', name: 'Office of the Chairman', role: 'chairman', sub: 'Corporate', tier: 'leadership', band: 'green', score: 0 })
+STAFF.push({ id: 's_hr', name: 'Ijeoma Balogun', role: 'hr', sub: 'Corporate', tier: 'leadership', band: 'green', score: 0 })
 // Prior-cycle standing (April 2026), used to show movement.
 const PREV = { s_jen: 8.1, s_ose: 8.2, s_ebi: 7.5, s_sol: 7.4, s_tha: 7.0, s_ojo: 7.3, s_gud: 7.8, s_chi: 7.7, s_ade: 7.6, s_sun: 6.6, s_kit: 5.5, s_goo: 6.2, s_tiw: 6.4, s_god: 6.3 }
-STAFF.forEach((s) => { s.prev = PREV[s.id] ?? s.score })
+// Reporting lines. Chairman at the top; each subsidiary head reports to the MD.
+const MGR = {
+  s_jen: 's_chair', s_gud: 's_chair', s_hr: 's_jen', s_ade: 's_jen',
+  s_ose: 's_jen', s_ebi: 's_ose', s_god: 's_ose', s_sun: 's_ebi', s_kit: 's_ebi', s_chi: 's_ebi', s_tiw: 's_ose',
+  s_sol: 's_jen', s_tha: 's_sol', s_ojo: 's_sol', s_goo: 's_sol',
+}
+STAFF.forEach((s) => { s.prev = PREV[s.id] ?? s.score; s.managerId = MGR[s.id] ?? null })
 
 const KR = (statement, kr_type, measure, baseline, target, unit, opts = {}) => ({
   id: uid(), statement, kr_type, measure, baseline, target, unit,
@@ -89,7 +107,7 @@ const KR = (statement, kr_type, measure, baseline, target, unit, opts = {}) => (
 function seedObjectives() {
   return [
     {
-      id: uid(), owner: 's_jen', sub: 'Real Estate', priority: 'P1', cycle: 'May 2026',
+      id: uid(), owner: 's_jen', sub: 'Girard', priority: 'P1', cycle: 'May 2026',
       status: 'approved',
       title: 'Execute and close priority real estate transactions',
       description: 'Move the priority developments from intent to signed, funded delivery.',
@@ -145,7 +163,7 @@ function seedObjectives() {
       ],
     },
     {
-      id: uid(), owner: 's_gud', sub: 'Governance', priority: 'P4', cycle: 'May 2026',
+      id: uid(), owner: 's_gud', sub: 'Corporate', priority: 'P4', cycle: 'May 2026',
       status: 'draft',
       title: 'Executive calendar optimisation and time efficiency',
       description: 'Protect the Chairman’s time and remove scheduling friction.',
@@ -303,23 +321,24 @@ const SUGGEST = {
     { title: 'Raise checklist completion', description: 'Complete HEFAMAA checks on every visit.', kr: ['Raise checklist completion on each visit', 'Checklist completion', '88%', '95%', '%'] },
     { title: 'Shorten re-visit interval', description: 'Faster monitoring cycles per facility.', kr: ['Shorten average re-visit interval', 'Re-visit interval', '68 days', '45 days', 'days'] },
   ],
-  'Real Estate': [
+  Girard: [
     { title: 'Lift on-time rent collection', description: 'Collect more of billed rent on time.', kr: ['Raise on-time rent collection', 'Collection rate', 'baseline', '95%', '%'] },
     { title: 'Close priority transactions', description: 'Move priority developments to signed.', kr: ['Execute priority development agreements', 'Agreements executed', '0', 'all priority', 'count'] },
     { title: 'Complete Girard valuations', description: 'Finish the property valuations.', kr: ['Complete property valuations', 'Valuations complete', '0%', '100%', '%'] },
   ],
-  Governance: [
+  Yostrat: [
+    { title: 'Grow serviced client accounts', description: 'Expand the active client base.', kr: ['Increase active serviced accounts', 'Active accounts', 'baseline', '25% higher', '%'] },
+    { title: 'Reduce service turnaround', description: 'Deliver client requests faster.', kr: ['Cut average service turnaround time', 'Turnaround', 'baseline', '30% lower', '%'] },
+    { title: 'Lift client retention', description: 'Keep more clients year on year.', kr: ['Raise client retention rate', 'Retention', 'baseline', '90%', '%'] },
+  ],
+  Corporate: [
     { title: 'Reduce process turnaround', description: 'Faster approvals and fewer delays.', kr: ['Cut approval turnaround time', 'Turnaround', 'baseline', '30% lower', '%'] },
     { title: 'Raise on-time reporting', description: 'Reliable reporting for decisions.', kr: ['Raise on-time report delivery', 'On-time rate', 'baseline', '100%', '%'] },
     { title: 'Cut scheduling conflicts', description: 'Protect the executive calendar.', kr: ['Reduce weekly scheduling conflicts', 'Conflicts per week', '2 to 3', '0', 'count'] },
   ],
-  Partnerships: [
-    { title: 'Advance MOUs to execution', description: 'Turn talks into signed partnerships.', kr: ['Move priority MOUs to executed', 'MOUs executed', '0', '2', 'count'] },
-    { title: 'Grow active partnerships', description: 'More partnerships delivering value.', kr: ['Increase active delivering partnerships', 'Active partnerships', 'baseline', '3', 'count'] },
-  ],
 }
 function heuristicSuggest({ sub, existingTitles = [] }) {
-  const pool = SUGGEST[sub] || SUGGEST.Governance
+  const pool = SUGGEST[sub] || SUGGEST.Corporate
   return pool.filter((s) => !existingTitles.includes(s.title)).slice(0, 3).map((s) => ({
     title: s.title, description: s.description,
     krs: [{ statement: s.kr[0], measure: s.kr[1], baseline: s.kr[2], target: s.kr[3], unit: s.kr[4], kr_type: 'outcome' }],
@@ -613,6 +632,12 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut }) {
   const myObjectives = data.objectives.filter((o) => o.owner === me.id)
   const canReview = me.role === 'lead' || me.role === 'md' || me.role === 'hr'
   const canSeeAll = me.role !== 'staff'
+  const canAdmin = me.role === 'admin' || me.role === 'md' || me.role === 'hr'
+  const canOrg = me.role === 'chairman' || me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+
+  function addStaff(s) { setData((d) => ({ ...d, staff: [...d.staff, s] })) }
+  function updateStaff(id, patch) { setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === id ? { ...x, ...patch } : x)) })) }
+  function removeStaff(id) { setData((d) => ({ ...d, staff: d.staff.filter((x) => x.id !== id), objectives: d.objectives.filter((o) => o.owner !== id) })) }
 
   function upsertObjective(obj) {
     setData((d) => {
@@ -668,7 +693,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut }) {
   }
 
   const tabs = me.role === 'chairman'
-    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['scorecards', 'Scorecards']]
+    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['scorecards', 'Scorecards']]
     : [
         ['dashboard', 'Dashboard'],
         ['objectives', 'My OKRs'],
@@ -676,6 +701,8 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut }) {
         ['scorecards', 'Scorecards'],
         canReview && ['review', 'Review & approve'],
         canSeeAll && ['organisations', 'Organisations'],
+        canOrg && ['organogram', 'Organogram'],
+        canAdmin && ['admin', 'Roster'],
       ].filter(Boolean)
 
   return (
@@ -717,6 +744,8 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut }) {
         {tab === 'scorecards' && <Scorecards data={data} me={me} onAdjust={adjustScore} />}
         {tab === 'checkins' && <CheckIns me={me} objectives={myObjectives} onLog={logCheckin} />}
         {tab === 'organisations' && <Organisations tenant={tenant} data={data} me={me} />}
+        {tab === 'organogram' && <Organogram tenant={tenant} data={data} me={me} />}
+        {tab === 'admin' && <AdminConsole tenant={tenant} data={data} onAdd={addStaff} onUpdate={updateStaff} onRemove={removeStaff} />}
       </main>
     </div>
   )
@@ -1178,18 +1207,19 @@ function ScorecardCard({ obj, me, owner, onAdjust }) {
 
 /* --------------------------- Organisations ------------------------ */
 function Organisations({ tenant, data, me }) {
-  // A subsidiary lead sees only their own organisation; oversight roles see all plus Group.
-  const orgs = me.role === 'lead' ? [me.sub] : ['Group', ...tenant.subsidiaries]
+  // A subsidiary lead sees only their own organisation; oversight roles see the holding
+  // company overview plus head office and every subsidiary.
+  const orgs = me.role === 'lead' ? [me.sub] : ['Group', 'Corporate', ...tenant.subsidiaries]
   const [org, setOrg] = useState(orgs[0])
   const active = orgs.includes(org) ? org : orgs[0]
 
   return (
     <div className="fc-orgs">
-      <div className="fc-panel-head"><div><h2>Organisations</h2><p className="fc-muted">Each organisation carries its own staff and OKRs. May 2026.</p></div></div>
+      <div className="fc-panel-head"><div><h2>Organisations</h2><p className="fc-muted">Imade Forte Holdings and its subsidiaries. Each carries its own staff and OKRs. May 2026.</p></div></div>
       <nav className="fc-orgtabs">
         {orgs.map((o) => (
           <button key={o} className={`fc-orgtab ${active === o ? 'is-on' : ''}`} onClick={() => setOrg(o)}>
-            {o}{o !== 'Group' && <span className="fc-orgtab-count">{data.staff.filter((s) => s.sub === o && s.score > 0).length}</span>}
+            {orgLabel(o)}{o !== 'Group' && <span className="fc-orgtab-count">{data.staff.filter((s) => s.sub === o && s.score > 0).length}</span>}
           </button>
         ))}
       </nav>
@@ -1199,7 +1229,7 @@ function Organisations({ tenant, data, me }) {
 }
 
 function GroupOverview({ tenant, data }) {
-  const bySub = tenant.subsidiaries.map((sub) => {
+  const rows = ['Corporate', ...tenant.subsidiaries].map((sub) => {
     const staff = data.staff.filter((s) => s.sub === sub && s.score > 0)
     const objs = data.objectives.filter((o) => o.sub === sub)
     const avg = staff.length ? (staff.reduce((a, s) => a + personScore(data, s.id).total, 0) / staff.length).toFixed(1) : '—'
@@ -1210,8 +1240,8 @@ function GroupOverview({ tenant, data }) {
     <div className="fc-boardview">
       <div className="fc-boardtable">
         <div className="fc-bt-head"><span>Organisation</span><span>Staff</span><span>Outcome ratio</span><span>Weighted average</span></div>
-        {bySub.map((r) => (
-          <div key={r.sub} className="fc-bt-row"><span>{r.sub}</span><span>{r.count}</span><span>{r.ratio}%</span><span>{r.avg}</span></div>
+        {rows.map((r) => (
+          <div key={r.sub} className="fc-bt-row"><span>{legalName(r.sub)}</span><span>{r.count}</span><span>{r.ratio}%</span><span>{r.avg}</span></div>
         ))}
       </div>
       <div className="fc-staffgrid">
@@ -1234,6 +1264,7 @@ function OrgPanel({ tenant, data, org, me }) {
 
   return (
     <div className="fc-orgpanel">
+      <div className="fc-panel-head"><div><h3 className="fc-orgpanel-h">{legalName(org)}</h3><p className="fc-muted">{org === 'Corporate' ? 'Head office' : 'Subsidiary'} · {prio ? `${prio.rank} priority` : 'support function'}</p></div></div>
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={staff.length} label="Staff under this organisation" />
         <Metric value={`${outcomeRatio(objs)}%`} label="Outcome ratio" />
@@ -1288,6 +1319,7 @@ function OrgPanel({ tenant, data, org, me }) {
 /* --------------------------- Chairman cockpit --------------------- */
 function Cockpit({ tenant, data }) {
   const [sel, setSel] = useState(null)
+  const [selOrg, setSelOrg] = useState(null)
   const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
 
   const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) }))
@@ -1297,7 +1329,7 @@ function Cockpit({ tenant, data }) {
   const avg = people.length ? r1(people.reduce((a, p) => a + p.total, 0) / people.length) : 0
   const ratio = outcomeRatio(data.objectives)
 
-  const orgs = tenant.subsidiaries.map((org) => {
+  const orgs = ['Corporate', ...tenant.subsidiaries].map((org) => {
     const st = people.filter((p) => p.s.sub === org)
     const objs = data.objectives.filter((o) => o.sub === org)
     const oavg = st.length ? r1(st.reduce((a, p) => a + p.total, 0) / st.length) : null
@@ -1305,7 +1337,7 @@ function Cockpit({ tenant, data }) {
     const prio = tenant.priorities.find((p) => p.name === org)
     return {
       org, count: st.length, ratio: outcomeRatio(objs), avg: oavg, band: oavg == null ? null : bandOf(oavg), move: omove,
-      rank: prio ? prio.rank : '—', g: st.filter((p) => p.band === 'green').length, a: st.filter((p) => p.band === 'amber').length, r: st.filter((p) => p.band === 'red').length,
+      rank: prio ? prio.rank : (org === 'Corporate' ? 'Head office' : '—'), g: st.filter((p) => p.band === 'green').length, a: st.filter((p) => p.band === 'amber').length, r: st.filter((p) => p.band === 'red').length,
     }
   })
 
@@ -1315,32 +1347,39 @@ function Cockpit({ tenant, data }) {
   const down = movers.filter((p) => p.move < 0).slice(-3).reverse()
 
   if (sel) return <PersonDetail data={data} id={sel} onBack={() => setSel(null)} />
+  if (selOrg) return (
+    <div className="fc-cockpit">
+      <button className="fc-back" onClick={() => setSelOrg(null)}>← Back to holding company</button>
+      <OrgPanel tenant={tenant} data={data} org={selOrg} me={{ role: 'chairman' }} />
+    </div>
+  )
 
   return (
     <div className="fc-cockpit">
       <div className="fc-panel-head">
-        <div><h2>Chairman's cockpit</h2><p className="fc-muted">Group oversight, read only. May 2026.</p></div>
+        <div><h2>Chairman's cockpit</h2><p className="fc-muted">Imade Forte Holdings, group oversight. Read only. May 2026.</p></div>
         <span className="fc-rubric-key">{tenant.name}</span>
       </div>
 
       <div className="fc-board-grid fc-dash-metrics">
-        <Metric value={`${ratio}%`} label="Group outcome ratio" />
+        <Metric value={`${ratio}%`} label="Holding company outcome ratio" />
         <Metric value={avg.toFixed(1)} unit="/10" label="Weighted average" />
         <div className="fc-metric"><span className="fc-rag"><b className="fc-rag-g">{green}</b><b className="fc-rag-a">{amber}</b><b className="fc-rag-r">{red}</b></span><span className="fc-metric-label">Green · Amber · Red</span></div>
-        <Metric value={people.length} label={`Staff · ${tenant.subsidiaries.length} organisations`} />
+        <Metric value={people.length} label={`Staff · ${tenant.subsidiaries.length} subsidiaries`} />
       </div>
 
       {/* 1. Organisation health */}
       <section className="fc-cockpit-section">
-        <h3 className="fc-cockpit-h">Organisation health</h3>
+        <h3 className="fc-cockpit-h">Organisation health <span className="fc-muted">· tap to zoom in</span></h3>
         <div className="fc-orghealth-grid">
           {orgs.map((o) => (
-            <div key={o.org} className={`fc-orghealth-card ${o.band ? `hb-${o.band}` : 'hb-none'}`}>
+            <button key={o.org} className={`fc-orghealth-card fc-orghealth-btn ${o.band ? `hb-${o.band}` : 'hb-none'}`} onClick={() => setSelOrg(o.org)}>
               <div className="fc-oh-top"><b>{o.org}</b><span className="fc-oh-rank">{o.rank}</span></div>
+              <div className="fc-oh-legal">{legalName(o.org)}</div>
               <div className="fc-oh-score">{o.avg == null ? '—' : o.avg.toFixed(1)}{o.avg != null && <span className="fc-oh-outof">/10</span>} {o.avg != null && <Move v={o.move} />}</div>
               <div className="fc-oh-meta">{o.count} staff · {o.ratio}% outcome</div>
               <div className="fc-oh-rag"><span className="fc-rag-g">{o.g}</span><span className="fc-rag-a">{o.a}</span><span className="fc-rag-r">{o.r}</span></div>
-            </div>
+            </button>
           ))}
         </div>
       </section>
@@ -1404,7 +1443,7 @@ function PersonDetail({ data, id, onBack }) {
   const noop = () => {}
   return (
     <div className="fc-persondetail">
-      <button className="fc-back" onClick={onBack}>← Back to cockpit</button>
+      <button className="fc-back" onClick={onBack}>← Back</button>
       <div className="fc-pd-head">
         <div className="fc-pd-id"><Avatar name={s.name} /><div><h2>{s.name}</h2><p className="fc-muted">{ROLES[s.role]} · {s.sub} · {s.tier === 'ops' ? 'Weekly check-ins' : 'Monthly check-ins'}</p></div></div>
         <div className="fc-pd-score"><b>{ps.total.toFixed(1)}</b><span className="fc-sc-outof">/10</span><Band b={ps.band} /><Move v={move} /></div>
@@ -1428,6 +1467,149 @@ function PersonDetail({ data, id, onBack }) {
           <div key={i} className="fc-stall"><div className="fc-stall-body"><span className="fc-stall-reason">{reason}</span><b>{k.statement}</b><span className="fc-muted">{obj.title}</span></div></div>
         ))}
       </section>}
+    </div>
+  )
+}
+
+/* --------------------------- Roster / admin ----------------------- */
+function AdminConsole({ tenant, data, onAdd, onUpdate, onRemove }) {
+  const [adding, setAdding] = useState(false)
+  const [nf, setNf] = useState({ name: '', role: 'staff', sub: tenant.subsidiaries[0], tier: 'ops' })
+  const roleOpts = ['staff', 'lead', 'md', 'hr', 'chairman', 'admin']
+  const managers = data.staff.filter((s) => ['lead', 'md', 'hr', 'chairman'].includes(s.role))
+  const pending = data.staff.filter((s) => /pending/i.test(s.name)).length
+
+  function add() {
+    if (!nf.name.trim()) return
+    onAdd({ id: uid(), name: nf.name.trim(), role: nf.role, sub: nf.sub, tier: nf.tier, band: 'green', score: 0, prev: 0, managerId: null })
+    setNf({ name: '', role: 'staff', sub: tenant.subsidiaries[0], tier: 'ops' }); setAdding(false)
+  }
+
+  return (
+    <div className="fc-admin">
+      <div className="fc-panel-head">
+        <div><h2>Roster and admin</h2><p className="fc-muted">Manage people, roles, organisations and reporting lines for {tenant.name}.</p></div>
+        <button className="fc-btn fc-btn-gold" onClick={() => setAdding((a) => !a)}>{adding ? 'Close' : '+ Add person'}</button>
+      </div>
+
+      {pending > 0 && <p className="fc-adm-flag">{pending} {pending === 1 ? 'profile needs' : 'profiles need'} a surname. Edit the highlighted rows to complete them.</p>}
+
+      {adding && (
+        <div className="fc-admin-add">
+          <input className="fc-input" placeholder="Full name" value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} />
+          <select className="fc-input" value={nf.role} onChange={(e) => setNf({ ...nf, role: e.target.value })}>{roleOpts.map((r) => <option key={r} value={r}>{ROLES[r]}</option>)}</select>
+          <select className="fc-input" value={nf.sub} onChange={(e) => setNf({ ...nf, sub: e.target.value })}>{tenant.subsidiaries.map((s) => <option key={s}>{s}</option>)}</select>
+          <select className="fc-input" value={nf.tier} onChange={(e) => setNf({ ...nf, tier: e.target.value })}><option value="ops">Weekly check-ins</option><option value="leadership">Monthly check-ins</option></select>
+          <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={add}>Add</button>
+        </div>
+      )}
+
+      <div className="fc-admin-table">
+        <div className="fc-adm-row fc-adm-head"><span>Name</span><span>Role</span><span>Organisation</span><span>Cadence</span><span>Reports to</span><span></span></div>
+        {data.staff.map((s) => (
+          <StaffRow key={s.id} s={s} tenant={tenant} roleOpts={roleOpts} managers={managers.filter((m) => m.id !== s.id)} onUpdate={onUpdate} onRemove={onRemove} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StaffRow({ s, tenant, roleOpts, managers, onUpdate, onRemove }) {
+  const [edit, setEdit] = useState(false)
+  const [f, setF] = useState({ name: s.name, role: s.role, sub: s.sub, tier: s.tier, managerId: s.managerId || '' })
+  const pending = /pending/i.test(s.name)
+  const mgr = managers.find((m) => m.id === s.managerId)
+
+  function save() {
+    onUpdate(s.id, { name: f.name.trim() || s.name, role: f.role, sub: f.sub, tier: f.tier, managerId: f.managerId || null })
+    setEdit(false)
+  }
+
+  if (edit) return (
+    <div className="fc-adm-row fc-adm-edit">
+      <input className="fc-input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+      <select className="fc-input" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{roleOpts.map((r) => <option key={r} value={r}>{ROLES[r]}</option>)}</select>
+      <select className="fc-input" value={f.sub} onChange={(e) => setF({ ...f, sub: e.target.value })}>{tenant.subsidiaries.map((x) => <option key={x}>{x}</option>)}</select>
+      <select className="fc-input" value={f.tier} onChange={(e) => setF({ ...f, tier: e.target.value })}><option value="ops">Weekly</option><option value="leadership">Monthly</option></select>
+      <select className="fc-input" value={f.managerId} onChange={(e) => setF({ ...f, managerId: e.target.value })}><option value="">None</option>{managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+      <span className="fc-adm-actions"><button className="fc-btn fc-btn-gold fc-btn-sm" onClick={save}>Save</button><button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setEdit(false)}>Cancel</button></span>
+    </div>
+  )
+
+  return (
+    <div className={`fc-adm-row ${pending ? 'fc-adm-pending' : ''}`}>
+      <span className="fc-adm-name">{s.name}{pending && <span className="fc-adm-pill">needs surname</span>}</span>
+      <span className="fc-muted">{ROLES[s.role]}</span>
+      <span>{s.sub}</span>
+      <span className="fc-muted">{s.tier === 'ops' ? 'Weekly' : 'Monthly'}</span>
+      <span className="fc-muted">{mgr ? mgr.name : '—'}</span>
+      <span className="fc-adm-actions"><button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setF({ name: s.name, role: s.role, sub: s.sub, tier: s.tier, managerId: s.managerId || '' }); setEdit(true) }}>Edit</button><button className="fc-icon-btn" title="Remove" onClick={() => { if (confirm(`Remove ${s.name}?`)) onRemove(s.id) }}>✕</button></span>
+    </div>
+  )
+}
+
+/* ----------------------------- Organogram ------------------------- */
+function Organogram({ tenant, data, me }) {
+  const [selPerson, setSelPerson] = useState(null)
+  const [selOrg, setSelOrg] = useState(null)
+
+  if (selPerson) return (
+    <div className="fc-cockpit"><PersonDetail data={data} id={selPerson} onBack={() => setSelPerson(null)} /></div>
+  )
+  if (selOrg) return (
+    <div className="fc-cockpit">
+      <button className="fc-back" onClick={() => setSelOrg(null)}>← Back to organogram</button>
+      <OrgPanel tenant={tenant} data={data} org={selOrg} me={me} />
+    </div>
+  )
+
+  return (
+    <div className="fc-organogram">
+      <div className="fc-panel-head"><div><h2>Organogram</h2><p className="fc-muted">Imade Forte Holdings and its people, by reporting line. Tap an organisation or a name to open it.</p></div></div>
+      <div className="fc-og-parent">
+        {tenant.logo && <img className="fc-og-logo" src={tenant.logo} alt={tenant.name} />}
+        <div><b>{tenant.name}</b><span className="fc-muted">Parent holding company</span></div>
+      </div>
+      <div className="fc-og-orgs">
+        {['Corporate', ...tenant.subsidiaries].map((org) => (
+          <OrgBranch key={org} org={org} data={data} onPerson={setSelPerson} onOrg={setSelOrg} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function OrgBranch({ org, data, onPerson, onOrg }) {
+  const members = data.staff.filter((s) => s.sub === org)
+  const roots = members.filter((m) => !m.managerId || !members.some((x) => x.id === m.managerId))
+  const extMgrId = roots.map((r) => r.managerId).find((id) => id && !members.some((x) => x.id === id))
+  const extMgr = extMgrId ? data.staff.find((s) => s.id === extMgrId) : null
+  const headcount = members.length
+
+  return (
+    <div className="fc-og-branch">
+      <button className="fc-og-orgnode" onClick={() => onOrg(org)}>
+        <b>{org}</b>
+        <span className="fc-og-legal">{legalName(org)}</span>
+        <span className="fc-muted">{headcount} {headcount === 1 ? 'person' : 'people'}{extMgr ? ` · reports to ${extMgr.name}` : ''}</span>
+      </button>
+      <div className="fc-og-tree">
+        {members.length === 0 ? <p className="fc-og-empty">No staff yet</p> : roots.map((r) => <PersonNode key={r.id} person={r} members={members} onPerson={onPerson} />)}
+      </div>
+    </div>
+  )
+}
+
+function PersonNode({ person, members, onPerson }) {
+  const reports = members.filter((m) => m.managerId === person.id)
+  return (
+    <div className="fc-og-node">
+      <button className="fc-og-person" onClick={() => onPerson(person.id)}>
+        <Avatar name={person.name} />
+        <span className="fc-og-pbody"><b>{person.name}</b><span className="fc-muted">{ROLES[person.role]}</span></span>
+        {reports.length > 0 && <span className="fc-og-count">{reports.length}</span>}
+      </button>
+      {reports.length > 0 && <div className="fc-og-children">{reports.map((r) => <PersonNode key={r.id} person={r} members={members} onPerson={onPerson} />)}</div>}
     </div>
   )
 }
@@ -1778,6 +1960,11 @@ option{color:#111}
 .fc-orghealth-card.hb-green{border-left-color:var(--rag-g)}
 .fc-orghealth-card.hb-amber{border-left-color:var(--rag-a)}
 .fc-orghealth-card.hb-red{border-left-color:var(--rag-r)}
+.fc-orghealth-btn{cursor:pointer;text-align:left;color:var(--parchment);font-family:inherit;width:100%;transition:border-color .15s,transform .05s}
+.fc-orghealth-btn:hover{border-color:var(--gold)}
+.fc-orghealth-btn:active{transform:translateY(1px)}
+.fc-oh-legal{font-size:.72rem;color:var(--muted);margin-top:.15rem;line-height:1.25}
+.fc-orgpanel-h{margin:0}
 .fc-oh-top{display:flex;align-items:center;justify-content:space-between}
 .fc-oh-top b{font-size:1.02rem}
 .fc-oh-rank{color:var(--gold);font-size:.78rem;font-weight:600}
@@ -1824,7 +2011,42 @@ option{color:#111}
 .fc-ci-form input[type=range]{width:100%}
 .fc-ci-form .fc-btn{height:fit-content}
 
-@media(max-width:900px){.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-nav{order:3;width:100%}}
+/* roster / admin */
+.fc-adm-flag{background:rgba(184,146,74,.1);border:1px solid var(--gold);color:var(--gold-lit);border-radius:4px;padding:.6rem .8rem;font-size:.88rem;margin:0 0 1rem}
+.fc-admin-add{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr auto;gap:.6rem;margin:0 0 1.2rem;align-items:center}
+.fc-admin-table{border:1px solid var(--hairline);border-radius:6px;overflow-x:auto}
+.fc-adm-row{display:grid;grid-template-columns:1.7fr 1.1fr 1fr .8fr 1.1fr 1.3fr;gap:.6rem;align-items:center;padding:.6rem .9rem}
+.fc-adm-row+.fc-adm-row{border-top:1px solid var(--hairline)}
+.fc-adm-head{background:rgba(184,146,74,.08);color:var(--gold-lit);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
+.fc-adm-name{font-weight:600;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.fc-adm-pending{background:rgba(184,146,74,.06)}
+.fc-adm-pill{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--gold-lit);border:1px solid var(--gold);border-radius:2px;padding:.05rem .35rem}
+.fc-adm-actions{display:flex;gap:.4rem;justify-content:flex-end;align-items:center}
+.fc-adm-edit .fc-input{padding:.4rem .5rem;font-size:.85rem}
+
+/* organogram */
+.fc-og-parent{display:flex;align-items:center;gap:1rem;border:1px solid var(--gold);border-radius:8px;padding:1rem 1.2rem;background:linear-gradient(90deg,rgba(184,146,74,.12),rgba(184,146,74,.02));margin-bottom:1.4rem}
+.fc-og-logo{height:40px;width:auto}
+.fc-og-parent b{display:block;font-size:1.05rem}
+.fc-og-parent .fc-muted{font-size:.82rem}
+.fc-og-orgs{display:flex;flex-direction:column;gap:1.1rem}
+.fc-og-branch{border:1px solid var(--hairline);border-radius:8px;padding:1rem 1.2rem;background:rgba(9,26,51,.4)}
+.fc-og-orgnode{display:flex;flex-direction:column;gap:.15rem;text-align:left;width:100%;background:none;border:none;cursor:pointer;color:var(--parchment);font-family:inherit;padding:0 0 .6rem;border-bottom:1px solid var(--hairline);margin-bottom:.8rem}
+.fc-og-orgnode b{font-size:1.05rem}
+.fc-og-orgnode:hover b{color:var(--gold-lit)}
+.fc-og-legal{font-size:.78rem;color:var(--gold)}
+.fc-og-tree{display:flex;flex-direction:column;gap:.15rem}
+.fc-og-empty{color:var(--muted);font-style:italic;margin:.2rem 0}
+.fc-og-node{position:relative}
+.fc-og-person{display:inline-flex;align-items:center;gap:.6rem;background:rgba(237,233,224,.03);border:1px solid var(--hairline);border-radius:6px;padding:.45rem .7rem;margin:.35rem 0;cursor:pointer;color:var(--parchment);font-family:inherit;text-align:left}
+.fc-og-person:hover{border-color:var(--gold)}
+.fc-og-pbody{display:flex;flex-direction:column;line-height:1.2}
+.fc-og-pbody .fc-muted{font-size:.78rem}
+.fc-og-count{margin-left:.4rem;font-size:.7rem;background:var(--navy-soft);border:1px solid var(--gold);color:var(--gold-lit);border-radius:10px;padding:.05rem .4rem}
+.fc-og-children{margin-left:1.3rem;padding-left:1.3rem;border-left:1px solid var(--hairline);position:relative}
+.fc-og-children > .fc-og-node::before{content:'';position:absolute;left:-1.3rem;top:1.35rem;width:1.1rem;height:1px;background:var(--hairline)}
+
+@media(max-width:900px){.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-admin-add{grid-template-columns:1fr 1fr}.fc-adm-row{min-width:660px}.fc-nav{order:3;width:100%}}
 @media(max-width:560px){.fc-field-grid{grid-template-columns:1fr}.fc-col2{grid-column:1}.fc-cap-grid{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:1fr 1fr}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 `

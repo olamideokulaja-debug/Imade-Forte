@@ -529,10 +529,13 @@ function AuthScreen({ tenant, staff, onEnter, onBack }) {
   async function liveAuth(kind) {
     setMsg('')
     try {
-      const fn = kind === 'up' ? supabase.auth.signUp : supabase.auth.signInWithPassword
-      const { error } = await fn({ email, password: pw })
+      const creds = { email: email.trim(), password: pw }
+      const { error } = kind === 'up'
+        ? await supabase.auth.signUp(creds)
+        : await supabase.auth.signInWithPassword(creds)
       if (error) setMsg(error.message)
-    } catch (e) { setMsg(String(e)) }
+      else if (kind === 'up') setMsg('Account created. If email confirmation is on, confirm then sign in.')
+    } catch (e) { setMsg(String(e && e.message ? e.message : e)) }
   }
 
   return (
@@ -1432,8 +1435,9 @@ function PersonDetail({ data, id, onBack }) {
 /* ------------------------------- Root ----------------------------- */
 export default function App() {
   const [tenantId, setTenantId] = useState('imade-forte')
-  const [screen, setScreen] = useState('gateway') // gateway | auth | app
+  const [screen, setScreen] = useState('gateway') // gateway | auth | profile | app
   const [me, setMe] = useState(null)
+  const [authUser, setAuthUser] = useState(null)
   const [data, setData] = useState({ staff: [], objectives: [] })
   const tenant = TENANTS[tenantId]
 
@@ -1455,13 +1459,53 @@ export default function App() {
     try { const raw = localStorage.getItem(SKEY(tenantId)); if (raw) { setMe(JSON.parse(raw)); setScreen('app') } } catch { /* ignore */ }
   }, [tenantId])
 
-  function enter(profile) {
+  // live session wiring
+  useEffect(() => {
+    if (!LIVE) return
+    supabase.auth.getSession().then(({ data }) => setAuthUser((data && data.session && data.session.user) || null))
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      const u = (session && session.user) || null
+      setAuthUser(u)
+      if (!u) { setMe(null); setScreen('gateway') }
+    })
+    return () => { try { sub.subscription.unsubscribe() } catch { /* ignore */ } }
+  }, [])
+
+  // resolve profile for a live-authenticated user
+  useEffect(() => {
+    if (!LIVE || !authUser || me) return
+    let live = true
+    ;(async () => {
+      try {
+        const { data: prof } = await supabase.from('profiles').select('*').eq('id', authUser.id).maybeSingle()
+        if (live && prof && prof.role) {
+          enterProfile({ id: authUser.id, name: prof.name || authUser.email, role: prof.role, sub: prof.subsidiary || tenant.subsidiaries[0], tier: prof.cadence_tier || 'ops' }, false)
+          return
+        }
+      } catch { /* table may not exist yet */ }
+      if (live) setScreen('profile')
+    })()
+    return () => { live = false }
+  }, [authUser])
+
+  function enterProfile(profile, persistDemo = true) {
     setMe(profile); setScreen('app')
-    try { localStorage.setItem(SKEY(tenantId), JSON.stringify(profile)) } catch { /* ignore */ }
-    setData((d) => (d.staff.some((s) => s.id === profile.id) ? d : { ...d, staff: [...d.staff, profile] }))
+    if (!LIVE && persistDemo) { try { localStorage.setItem(SKEY(tenantId), JSON.stringify(profile)) } catch { /* ignore */ } }
+    setData((d) => (d.staff.some((s) => s.id === profile.id) ? d : { ...d, staff: [...d.staff, { band: 'green', score: 0, prev: 0, ...profile }] }))
   }
-  function signOut() {
-    setMe(null); setScreen('gateway')
+  function enter(profile) { enterProfile(profile) }
+
+  async function createLiveProfile(p) {
+    const profile = { id: authUser.id, name: p.name, role: p.role, sub: p.sub, tier: p.tier }
+    try {
+      await supabase.from('profiles').upsert({ id: authUser.id, tenant_id: tenantId, name: p.name, role: p.role, subsidiary: p.sub, cadence_tier: p.tier })
+    } catch { /* best effort; RLS/table may not be set up */ }
+    enterProfile(profile, false)
+  }
+
+  async function signOut() {
+    if (LIVE) { try { await supabase.auth.signOut() } catch { /* ignore */ } }
+    setMe(null); setAuthUser(null); setScreen('gateway')
     try { localStorage.removeItem(SKEY(tenantId)) } catch { /* ignore */ }
   }
 
@@ -1470,6 +1514,13 @@ export default function App() {
       <style>{CSS}</style>
       {screen === 'gateway' && <Gateway tenant={tenant} onSignIn={() => setScreen('auth')} />}
       {screen === 'auth' && <AuthScreen tenant={tenant} staff={data.staff.length ? data.staff : STAFF} onEnter={enter} onBack={() => setScreen('gateway')} />}
+      {screen === 'profile' && (
+        <div className="fc-auth"><div className="fc-auth-card">
+          <h2 className="fc-auth-title">Set up your profile</h2>
+          <p className="fc-auth-sub">{authUser ? authUser.email : ''}</p>
+          <RolePicker tenant={tenant} onCreate={createLiveProfile} />
+        </div></div>
+      )}
       {screen === 'app' && me && <AppShell tenant={tenant} me={me} data={data} setData={setData} onSwitchTenant={setTenantId} onSignOut={signOut} />}
     </div>
   )

@@ -86,6 +86,11 @@ Then, in Supabase, open the **SQL editor** and run the contents of `supabase/sch
 It creates the organisations, profiles and data tables and the tenant row-level security, and
 seeds the Imade Forte and demo tenants. Redeploy in Vercel and the app is live.
 
+New Supabase projects require email confirmation by default, so "Create account" sends a
+confirmation link and you sign in after confirming. To skip that while testing, turn off
+"Confirm email" under Authentication, Providers, Email in Supabase. On first sign-in the app
+asks each person to set their role and organisation once, then remembers it.
+
 ## What is in this build
 
 - `src/App.jsx` The whole application in one file: gateway, sign-in, role router, dashboard,

@@ -75,9 +75,9 @@ const STAFF = [
   { id: 's_sol', name: 'Solomon C. Nweke', role: 'lead', sub: 'Realms', tier: 'leadership', band: 'green', score: 7.6 },
   { id: 's_tha', name: 'Thaddeus U. Oparaocha', role: 'staff', sub: 'Realms', tier: 'ops', band: 'green', score: 7.2 },
   { id: 's_ojo', name: 'Ojuma Joy Ndidi', role: 'staff', sub: 'Realms', tier: 'ops', band: 'green', score: 7.3 },
-  { id: 's_gud', name: 'Goodness Udoka', role: 'staff', sub: 'Corporate', tier: 'leadership', band: 'green', score: 7.6 },
-  { id: 's_chi', name: 'Chinonso (surname pending)', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'green', score: 8.0 },
-  { id: 's_ade', name: 'Adebayo (surname pending)', role: 'lead', sub: 'Corporate', tier: 'leadership', band: 'green', score: 7.6 },
+  { id: 's_gud', name: 'Goodness Udoka', role: 'staff', sub: 'Girard', tier: 'leadership', band: 'green', score: 7.6 },
+  { id: 's_chi', name: 'Chinomso Isdone Ordor', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'green', score: 8.0 },
+  { id: 's_ade', name: 'Adebayo Okediji', role: 'lead', sub: 'Corporate', tier: 'leadership', band: 'green', score: 7.6 },
   { id: 's_sun', name: 'Sunday Orimoyegun', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'amber', score: 6.2 },
   { id: 's_kit', name: 'Kitunde Abayomi', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'amber', score: 5.8 },
   { id: 's_goo', name: 'Goodnews Anele', role: 'staff', sub: 'Realms', tier: 'ops', band: 'amber', score: 6.5 },
@@ -87,11 +87,12 @@ const STAFF = [
 // A Chairman and an HR seat, for role coverage.
 STAFF.push({ id: 's_chair', name: 'Office of the Chairman', role: 'chairman', sub: 'Corporate', tier: 'leadership', band: 'green', score: 0 })
 STAFF.push({ id: 's_hr', name: 'Ijeoma Balogun', role: 'hr', sub: 'Corporate', tier: 'leadership', band: 'green', score: 0 })
+STAFF.push({ id: 's_buchi', name: 'Buchi', role: 'lead', sub: 'Corporate', also: ['Girard'], tier: 'leadership', band: 'green', score: 7.0 })
 // Prior-cycle standing (April 2026), used to show movement.
-const PREV = { s_jen: 8.1, s_ose: 8.2, s_ebi: 7.5, s_sol: 7.4, s_tha: 7.0, s_ojo: 7.3, s_gud: 7.8, s_chi: 7.7, s_ade: 7.6, s_sun: 6.6, s_kit: 5.5, s_goo: 6.2, s_tiw: 6.4, s_god: 6.3 }
+const PREV = { s_jen: 8.1, s_ose: 8.2, s_ebi: 7.5, s_sol: 7.4, s_tha: 7.0, s_ojo: 7.3, s_gud: 7.8, s_chi: 7.7, s_ade: 7.6, s_sun: 6.6, s_kit: 5.5, s_goo: 6.2, s_tiw: 6.4, s_god: 6.3, s_buchi: 6.8 }
 // Reporting lines. Chairman at the top; each subsidiary head reports to the MD.
 const MGR = {
-  s_jen: 's_chair', s_gud: 's_chair', s_hr: 's_jen', s_ade: 's_jen',
+  s_jen: 's_chair', s_gud: 's_buchi', s_hr: 's_jen', s_ade: 's_jen', s_buchi: 's_jen',
   s_ose: 's_jen', s_ebi: 's_ose', s_god: 's_ose', s_sun: 's_ebi', s_kit: 's_ebi', s_chi: 's_ebi', s_tiw: 's_ose',
   s_sol: 's_jen', s_tha: 's_sol', s_ojo: 's_sol', s_goo: 's_sol',
 }
@@ -163,7 +164,7 @@ function seedObjectives() {
       ],
     },
     {
-      id: uid(), owner: 's_gud', sub: 'Corporate', priority: 'P4', cycle: 'May 2026',
+      id: uid(), owner: 's_gud', sub: 'Girard', priority: 'P1', cycle: 'May 2026',
       status: 'draft',
       title: 'Executive calendar optimisation and time efficiency',
       description: 'Protect the Chairman’s time and remove scheduling friction.',
@@ -302,6 +303,8 @@ function movementOf(data, s) {
   const prev = s.prev ?? cur
   return r1(cur - prev)
 }
+// Organisation membership, including any dual roles held via `also`.
+const inOrg = (s, org) => s.sub === org || (Array.isArray(s.also) && s.also.includes(org))
 
 // Visibility: never peers. Own always; lead within subsidiary; md, hr, chairman everywhere.
 const canViewScore = (me, o) =>
@@ -604,6 +607,8 @@ function RolePicker({ tenant, onCreate }) {
   const [role, setRole] = useState('staff')
   const [sub, setSub] = useState(tenant.subsidiaries[0])
   const cards = [['staff', 'Staff'], ['lead', 'Subsidiary Lead'], ['md', 'Managing Director'], ['hr', 'HR Manager'], ['chairman', 'Chairman'], ['admin', 'Tenant Admin']]
+  const corporate = role === 'chairman' || role === 'md' || role === 'admin'
+  const orgSub = corporate ? 'Corporate' : sub
   return (
     <div className="fc-rolepick">
       <p className="fc-rp-q">Which best describes you?</p>
@@ -613,11 +618,15 @@ function RolePicker({ tenant, onCreate }) {
         ))}
       </div>
       <input className="fc-input" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-      <select className="fc-input" value={sub} onChange={(e) => setSub(e.target.value)}>
-        {tenant.subsidiaries.map((s) => <option key={s}>{s}</option>)}
-      </select>
+      {corporate ? (
+        <p className="fc-rp-note">Corporate role at the level of the holding company. No company to choose.</p>
+      ) : (
+        <select className="fc-input" value={sub} onChange={(e) => setSub(e.target.value)}>
+          {tenant.subsidiaries.map((s) => <option key={s}>{s}</option>)}
+        </select>
+      )}
       <button className="fc-btn fc-btn-gold" disabled={!name.trim()}
-        onClick={() => onCreate({ id: uid(), name: name.trim(), role, sub, tier: role === 'staff' ? 'ops' : 'leadership', band: 'green', score: 0 })}>
+        onClick={() => onCreate({ id: uid(), name: name.trim(), role, sub: orgSub, tier: role === 'staff' ? 'ops' : 'leadership', band: 'green', score: 0 })}>
         Enter Forte Compass
       </button>
     </div>
@@ -625,9 +634,10 @@ function RolePicker({ tenant, onCreate }) {
 }
 
 /* ----------------------------- App shell -------------------------- */
-function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut }) {
+function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwitchWorkspace, viewingAs, onReturnHome }) {
   const [tab, setTab] = useState(me.role === 'chairman' ? 'cockpit' : 'dashboard')
   const [editing, setEditing] = useState(null) // objective being authored
+  const [navOpen, setNavOpen] = useState(false)
 
   const myObjectives = data.objectives.filter((o) => o.owner === me.id)
   const canReview = me.role === 'lead' || me.role === 'md' || me.role === 'hr'
@@ -705,48 +715,65 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut }) {
         canAdmin && ['admin', 'Roster'],
       ].filter(Boolean)
 
+  const currentLabel = (tabs.find((t) => t[0] === tab) || [null, ''])[1]
+
   return (
     <div className="fc-app">
-      <header className="fc-appbar">
-        <div className="fc-appbar-left">
+      {navOpen && <div className="fc-nav-scrim" onClick={() => setNavOpen(false)} />}
+      <aside className={`fc-sidebar ${navOpen ? 'is-open' : ''}`}>
+        <div className="fc-sb-brand">
           {tenant.logo && <img className="fc-appbar-logo" src={tenant.logo} alt={tenant.name} />}
           <span className="fc-appbar-word">Forte <em>Compass</em></span>
         </div>
-        <nav className="fc-nav">
+        <nav className="fc-sb-nav">
           {tabs.map((t) => (
-            <button key={t[0]} className={`fc-nav-btn ${tab === t[0] ? 'is-on' : ''}`} onClick={() => { setTab(t[0]); setEditing(null) }}>{t[1]}</button>
+            <button key={t[0]} className={`fc-sb-btn ${tab === t[0] ? 'is-on' : ''}`} onClick={() => { setTab(t[0]); setEditing(null); setNavOpen(false) }}>{t[1]}</button>
           ))}
         </nav>
-        <div className="fc-appbar-right">
+        <div className="fc-sb-foot">
           {me.role === 'admin' && (
             <select className="fc-tenant-switch" value={tenant.id} onChange={(e) => onSwitchTenant(e.target.value)}>
               {Object.values(TENANTS).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           )}
           <span className="fc-me"><Avatar name={me.name} /><span className="fc-me-body"><b>{me.name}</b><i>{ROLES[me.role]}</i></span></span>
-          <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={onSignOut}>Switch</button>
+          <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={onSignOut}>Sign out</button>
         </div>
-      </header>
+      </aside>
 
-      <main className="fc-main">
-        {tab === 'dashboard' && <Dashboard tenant={tenant} me={me} data={data} onAuthor={() => { setTab('objectives') }} />}
-        {tab === 'cockpit' && <Cockpit tenant={tenant} data={data} />}
-        {tab === 'objectives' && !editing && (
-          <Objectives me={me} objectives={myObjectives} tenant={tenant}
-            onNew={() => setEditing({ id: uid(), owner: me.id, sub: me.sub, priority: tenant.priorities[0].rank, cycle: 'May 2026', status: 'draft', title: '', description: '', krs: [] })}
-            onEdit={(o) => setEditing(o)} onSubmit={(id) => setStatus(id, 'submitted')} onUseSuggestion={useSuggestion} />
+      <div className="fc-app-body">
+        <header className="fc-topbar">
+          <button className="fc-hamburger" onClick={() => setNavOpen((o) => !o)} aria-label="Menu">☰</button>
+          <span className="fc-topbar-title">{currentLabel}</span>
+        </header>
+
+        {viewingAs && (
+          <div className="fc-viewas">
+            <span>Viewing as <b>{me.name}</b> · {ROLES[me.role]}</span>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={onReturnHome}>Return to Chairman</button>
+          </div>
         )}
-        {tab === 'objectives' && editing && (
-          <Author tenant={tenant} objective={editing} onCancel={() => setEditing(null)}
-            onSave={(o) => { upsertObjective(o); setEditing(null) }} />
-        )}
-        {tab === 'review' && <Review data={data} me={me} onApprove={(id) => setStatus(id, 'approved')} onReturn={(id) => setStatus(id, 'draft')} />}
-        {tab === 'scorecards' && <Scorecards data={data} me={me} onAdjust={adjustScore} />}
-        {tab === 'checkins' && <CheckIns me={me} objectives={myObjectives} onLog={logCheckin} />}
-        {tab === 'organisations' && <Organisations tenant={tenant} data={data} me={me} />}
-        {tab === 'organogram' && <Organogram tenant={tenant} data={data} me={me} />}
-        {tab === 'admin' && <AdminConsole tenant={tenant} data={data} onAdd={addStaff} onUpdate={updateStaff} onRemove={removeStaff} />}
-      </main>
+
+        <main className="fc-main">
+          {tab === 'dashboard' && <Dashboard tenant={tenant} me={me} data={data} onAuthor={() => { setTab('objectives') }} />}
+          {tab === 'cockpit' && <Cockpit tenant={tenant} data={data} me={me} onSwitchWorkspace={onSwitchWorkspace} />}
+          {tab === 'objectives' && !editing && (
+            <Objectives me={me} objectives={myObjectives} tenant={tenant}
+              onNew={() => setEditing({ id: uid(), owner: me.id, sub: me.sub, priority: tenant.priorities[0].rank, cycle: 'May 2026', status: 'draft', title: '', description: '', krs: [] })}
+              onEdit={(o) => setEditing(o)} onSubmit={(id) => setStatus(id, 'submitted')} onUseSuggestion={useSuggestion} />
+          )}
+          {tab === 'objectives' && editing && (
+            <Author tenant={tenant} objective={editing} onCancel={() => setEditing(null)}
+              onSave={(o) => { upsertObjective(o); setEditing(null) }} />
+          )}
+          {tab === 'review' && <Review data={data} me={me} onApprove={(id) => setStatus(id, 'approved')} onReturn={(id) => setStatus(id, 'draft')} />}
+          {tab === 'scorecards' && <Scorecards data={data} me={me} onAdjust={adjustScore} />}
+          {tab === 'checkins' && <CheckIns me={me} objectives={myObjectives} onLog={logCheckin} />}
+          {tab === 'organisations' && <Organisations tenant={tenant} data={data} me={me} />}
+          {tab === 'organogram' && <Organogram tenant={tenant} data={data} me={me} />}
+          {tab === 'admin' && <AdminConsole tenant={tenant} data={data} onAdd={addStaff} onUpdate={updateStaff} onRemove={removeStaff} />}
+        </main>
+      </div>
     </div>
   )
 }
@@ -1219,7 +1246,7 @@ function Organisations({ tenant, data, me }) {
       <nav className="fc-orgtabs">
         {orgs.map((o) => (
           <button key={o} className={`fc-orgtab ${active === o ? 'is-on' : ''}`} onClick={() => setOrg(o)}>
-            {orgLabel(o)}{o !== 'Group' && <span className="fc-orgtab-count">{data.staff.filter((s) => s.sub === o && s.score > 0).length}</span>}
+            {orgLabel(o)}{o !== 'Group' && <span className="fc-orgtab-count">{data.staff.filter((s) => inOrg(s, o) && s.score > 0).length}</span>}
           </button>
         ))}
       </nav>
@@ -1230,7 +1257,7 @@ function Organisations({ tenant, data, me }) {
 
 function GroupOverview({ tenant, data }) {
   const rows = ['Corporate', ...tenant.subsidiaries].map((sub) => {
-    const staff = data.staff.filter((s) => s.sub === sub && s.score > 0)
+    const staff = data.staff.filter((s) => inOrg(s, sub) && s.score > 0)
     const objs = data.objectives.filter((o) => o.sub === sub)
     const avg = staff.length ? (staff.reduce((a, s) => a + personScore(data, s.id).total, 0) / staff.length).toFixed(1) : '—'
     return { sub, count: staff.length, ratio: outcomeRatio(objs), avg }
@@ -1254,7 +1281,7 @@ function GroupOverview({ tenant, data }) {
 }
 
 function OrgPanel({ tenant, data, org, me }) {
-  const staff = data.staff.filter((s) => s.sub === org && s.score > 0)
+  const staff = data.staff.filter((s) => inOrg(s, org) && s.score > 0)
   const objs = data.objectives.filter((o) => o.sub === org)
   const prio = tenant.priorities.find((p) => p.name === org)
   const avg = staff.length ? (staff.reduce((a, s) => a + personScore(data, s.id).total, 0) / staff.length).toFixed(1) : '—'
@@ -1317,10 +1344,16 @@ function OrgPanel({ tenant, data, org, me }) {
 }
 
 /* --------------------------- Chairman cockpit --------------------- */
-function Cockpit({ tenant, data }) {
+function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   const [sel, setSel] = useState(null)
   const [selOrg, setSelOrg] = useState(null)
   const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
+  const WORKSPACES = [
+    { id: 's_jen', label: 'Managing Director' },
+    { id: 's_ose', label: 'Subsidiary Lead' },
+    { id: 's_hr', label: 'HR Manager' },
+    { id: 's_tiw', label: 'Staff member' },
+  ]
 
   const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) }))
   const green = people.filter((p) => p.band === 'green').length
@@ -1330,7 +1363,7 @@ function Cockpit({ tenant, data }) {
   const ratio = outcomeRatio(data.objectives)
 
   const orgs = ['Corporate', ...tenant.subsidiaries].map((org) => {
-    const st = people.filter((p) => p.s.sub === org)
+    const st = people.filter((p) => inOrg(p.s, org))
     const objs = data.objectives.filter((o) => o.sub === org)
     const oavg = st.length ? r1(st.reduce((a, p) => a + p.total, 0) / st.length) : null
     const omove = st.length ? r1(st.reduce((a, p) => a + p.move, 0) / st.length) : 0
@@ -1360,6 +1393,24 @@ function Cockpit({ tenant, data }) {
         <div><h2>Chairman's cockpit</h2><p className="fc-muted">Imade Forte Holdings, group oversight. Read only. May 2026.</p></div>
         <span className="fc-rubric-key">{tenant.name}</span>
       </div>
+
+      {onSwitchWorkspace && (
+        <section className="fc-ws">
+          <span className="fc-ws-label">Workspaces · step into a role</span>
+          <div className="fc-ws-row">
+            {WORKSPACES.map((w) => {
+              const s = data.staff.find((x) => x.id === w.id)
+              if (!s) return null
+              return (
+                <button key={w.id} className="fc-ws-card" onClick={() => onSwitchWorkspace({ id: s.id, name: s.name, role: s.role, sub: s.sub, tier: s.tier, also: s.also })}>
+                  <Avatar name={s.name} />
+                  <span className="fc-ws-body"><b>{w.label}</b><span className="fc-muted">{s.name}</span></span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={`${ratio}%`} label="Holding company outcome ratio" />
@@ -1580,7 +1631,7 @@ function Organogram({ tenant, data, me }) {
 }
 
 function OrgBranch({ org, data, onPerson, onOrg }) {
-  const members = data.staff.filter((s) => s.sub === org)
+  const members = data.staff.filter((s) => inOrg(s, org))
   const roots = members.filter((m) => !m.managerId || !members.some((x) => x.id === m.managerId))
   const extMgrId = roots.map((r) => r.managerId).find((id) => id && !members.some((x) => x.id === id))
   const extMgr = extMgrId ? data.staff.find((s) => s.id === extMgrId) : null
@@ -1620,6 +1671,7 @@ export default function App() {
   const [screen, setScreen] = useState('gateway') // gateway | auth | profile | app
   const [me, setMe] = useState(null)
   const [authUser, setAuthUser] = useState(null)
+  const [chairmanReturn, setChairmanReturn] = useState(null)
   const [data, setData] = useState({ staff: [], objectives: [] })
   const tenant = TENANTS[tenantId]
 
@@ -1687,8 +1739,20 @@ export default function App() {
 
   async function signOut() {
     if (LIVE) { try { await supabase.auth.signOut() } catch { /* ignore */ } }
-    setMe(null); setAuthUser(null); setScreen('gateway')
+    setMe(null); setAuthUser(null); setChairmanReturn(null); setScreen('gateway')
     try { localStorage.removeItem(SKEY(tenantId)) } catch { /* ignore */ }
+  }
+
+  function switchWorkspace(profile) {
+    setChairmanReturn((prev) => prev || me)
+    setMe(profile)
+    if (!LIVE) { try { localStorage.setItem(SKEY(tenantId), JSON.stringify(profile)) } catch { /* ignore */ } }
+  }
+  function returnHome() {
+    if (!chairmanReturn) return
+    setMe(chairmanReturn)
+    if (!LIVE) { try { localStorage.setItem(SKEY(tenantId), JSON.stringify(chairmanReturn)) } catch { /* ignore */ } }
+    setChairmanReturn(null)
   }
 
   return (
@@ -1703,7 +1767,7 @@ export default function App() {
           <RolePicker tenant={tenant} onCreate={createLiveProfile} />
         </div></div>
       )}
-      {screen === 'app' && me && <AppShell tenant={tenant} me={me} data={data} setData={setData} onSwitchTenant={setTenantId} onSignOut={signOut} />}
+      {screen === 'app' && me && <AppShell tenant={tenant} me={me} data={data} setData={setData} onSwitchTenant={setTenantId} onSignOut={signOut} onSwitchWorkspace={switchWorkspace} viewingAs={!!chairmanReturn} onReturnHome={returnHome} />}
     </div>
   )
 }
@@ -1790,23 +1854,38 @@ option{color:#111}
 .fc-rp-card.is-on{border-color:var(--gold);background:rgba(184,146,74,.12);color:var(--gold-lit)}
 
 /* app shell */
-.fc-app{min-height:100vh;display:flex;flex-direction:column}
-.fc-appbar{display:flex;align-items:center;gap:1.5rem;padding:.9rem clamp(1rem,3vw,2.2rem);border-bottom:1px solid var(--hairline);flex-wrap:wrap}
-.fc-appbar-left{display:flex;align-items:center;gap:.7rem}
-.fc-appbar-logo{height:34px}
-.fc-appbar-word{font-size:.95rem;letter-spacing:.12em;text-transform:uppercase}
+.fc-app{min-height:100vh;display:flex}
+.fc-sidebar{width:232px;flex:none;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;border-right:1px solid var(--hairline);background:rgba(9,26,51,.5);z-index:40}
+.fc-sb-brand{display:flex;align-items:center;gap:.6rem;padding:1.2rem 1.1rem;border-bottom:1px solid var(--hairline)}
+.fc-appbar-logo{height:32px;width:auto}
+.fc-appbar-word{font-size:.9rem;letter-spacing:.12em;text-transform:uppercase}
 .fc-appbar-word em{color:var(--gold);font-style:normal}
-.fc-nav{display:flex;gap:.3rem;flex:1}
-.fc-nav-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-family:inherit;font-size:.95rem;padding:.5rem .85rem;border-radius:3px}
-.fc-nav-btn:hover{color:var(--parchment)}
-.fc-nav-btn.is-on{color:var(--gold-lit);background:rgba(184,146,74,.1)}
-.fc-appbar-right{display:flex;align-items:center;gap:.9rem}
-.fc-tenant-switch{background:transparent;color:var(--parchment);border:1px solid var(--hairline);border-radius:3px;padding:.35rem .5rem;font-family:inherit}
+.fc-sb-nav{display:flex;flex-direction:column;gap:.15rem;padding:.8rem .6rem;flex:1;overflow-y:auto}
+.fc-sb-btn{text-align:left;background:none;border:none;color:var(--muted);cursor:pointer;font-family:inherit;font-size:.95rem;padding:.6rem .8rem;border-radius:5px}
+.fc-sb-btn:hover{color:var(--parchment);background:rgba(237,233,224,.04)}
+.fc-sb-btn.is-on{color:var(--gold-lit);background:rgba(184,146,74,.12)}
+.fc-sb-foot{padding:.9rem .8rem;border-top:1px solid var(--hairline);display:flex;flex-direction:column;gap:.7rem}
+.fc-tenant-switch{background:transparent;color:var(--parchment);border:1px solid var(--hairline);border-radius:3px;padding:.35rem .5rem;font-family:inherit;width:100%}
 .fc-me{display:flex;align-items:center;gap:.55rem}
 .fc-me-body{display:flex;flex-direction:column;line-height:1.15}
 .fc-me-body b{font-size:.9rem}
 .fc-me-body i{font-size:.75rem;color:var(--muted);font-style:normal}
+.fc-app-body{flex:1;min-width:0;display:flex;flex-direction:column}
+.fc-topbar{display:none;align-items:center;gap:.9rem;padding:.7rem 1rem;border-bottom:1px solid var(--hairline)}
+.fc-hamburger{background:none;border:1px solid var(--hairline);color:var(--parchment);border-radius:4px;font-size:1.1rem;line-height:1;padding:.3rem .6rem;cursor:pointer}
+.fc-topbar-title{font-size:1rem;letter-spacing:.02em}
+.fc-nav-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:35}
+.fc-viewas{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.6rem clamp(1rem,4vw,3rem);background:rgba(184,146,74,.12);border-bottom:1px solid var(--gold)}
+.fc-viewas span{font-size:.9rem}
 .fc-main{flex:1;padding:clamp(1.5rem,4vw,3rem) clamp(1rem,4vw,3rem);max-width:1180px;margin:0 auto;width:100%}
+.fc-ws{margin:0 0 1.4rem}
+.fc-ws-label{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--gold-lit)}
+.fc-ws-row{display:flex;gap:.7rem;flex-wrap:wrap;margin-top:.6rem}
+.fc-ws-card{display:flex;align-items:center;gap:.6rem;border:1px solid var(--hairline);border-radius:6px;padding:.55rem .8rem;background:rgba(9,26,51,.4);color:var(--parchment);cursor:pointer;font-family:inherit;text-align:left}
+.fc-ws-card:hover{border-color:var(--gold)}
+.fc-ws-body{display:flex;flex-direction:column;line-height:1.2}
+.fc-ws-body .fc-muted{font-size:.78rem}
+.fc-rp-note{font-size:.85rem;color:var(--muted);border:1px dashed var(--hairline);border-radius:4px;padding:.6rem .7rem;margin:0}
 
 /* dashboard */
 .fc-dash-head h2{margin:0 0 .2rem;font-size:1.7rem}
@@ -2046,7 +2125,7 @@ option{color:#111}
 .fc-og-children{margin-left:1.3rem;padding-left:1.3rem;border-left:1px solid var(--hairline);position:relative}
 .fc-og-children > .fc-og-node::before{content:'';position:absolute;left:-1.3rem;top:1.35rem;width:1.1rem;height:1px;background:var(--hairline)}
 
-@media(max-width:900px){.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-admin-add{grid-template-columns:1fr 1fr}.fc-adm-row{min-width:660px}.fc-nav{order:3;width:100%}}
+@media(max-width:900px){.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-admin-add{grid-template-columns:1fr 1fr}.fc-adm-row{min-width:660px}.fc-sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 24px rgba(0,0,0,.4)}.fc-sidebar.is-open{transform:translateX(0)}.fc-topbar{display:flex}.fc-nav-scrim{display:block}}
 @media(max-width:560px){.fc-field-grid{grid-template-columns:1fr}.fc-col2{grid-column:1}.fc-cap-grid{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:1fr 1fr}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 `

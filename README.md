@@ -40,7 +40,11 @@ subsidiary; tapping any card zooms into that organisation's staff, objectives an
 that sit the standing of every staff member with a one-click drill into any person's objectives
 and scorecards, the risks and stalled results across the whole group, and who is climbing and who
 is slipping against the previous cycle. The Chairman sees everything and changes nothing: there
-are no authoring, approval or adjustment controls in this view.
+are no authoring, approval or adjustment controls in this view. A workspace switcher on the
+cockpit lets the Chairman step into another role (MD, a lead, HR or a staff member) to see what
+they see, with a "Return to Chairman" banner to come straight back. Chairman and MD are corporate
+roles at the level of the holding company, so they are never asked to pick a company. Navigation
+across the app is a left sidebar that collapses to a menu on small screens.
 
 ## Organisations
 

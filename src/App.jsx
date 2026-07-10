@@ -97,6 +97,10 @@ const MGR = {
   s_sol: 's_jen', s_tha: 's_sol', s_ojo: 's_sol', s_goo: 's_sol',
 }
 STAFF.forEach((s) => { s.prev = PREV[s.id] ?? s.score; s.managerId = MGR[s.id] ?? null })
+// Monthly gross salary (NGN) and optional annual rent (for rent relief).
+const SALARY = { s_jen: 2500000, s_ose: 1800000, s_ebi: 1500000, s_god: 1400000, s_ade: 1300000, s_buchi: 1300000, s_sol: 1200000, s_hr: 1100000, s_gud: 700000, s_chi: 550000, s_sun: 500000, s_ojo: 450000, s_tha: 450000, s_goo: 450000, s_tiw: 400000, s_kit: 300000 }
+const RENT = { s_jen: 6000000, s_ebi: 3000000, s_tiw: 1200000 }
+STAFF.forEach((s) => { s.salary = SALARY[s.id] ?? 0; s.rent = RENT[s.id] ?? 0 })
 
 const KR = (statement, kr_type, measure, baseline, target, unit, opts = {}) => ({
   id: uid(), statement, kr_type, measure, baseline, target, unit,
@@ -395,6 +399,187 @@ function nudgeText(name, objTitle, k, reason) {
 }
 const waLink = (text) => `https://wa.me/?text=${encodeURIComponent(text)}`
 
+/* -------------- Reviews, feedback and intervention ---------------- */
+const RATING = {
+  exceeds: { label: 'Exceeds expectations', tone: 'good', neg: 0 },
+  meets: { label: 'Meets expectations', tone: 'ok', neg: 0 },
+  below: { label: 'Below expectations', tone: 'warn', neg: 1 },
+  unsatisfactory: { label: 'Unsatisfactory', tone: 'bad', neg: 2 },
+}
+const RATING_ORDER = ['exceeds', 'meets', 'below', 'unsatisfactory']
+
+function seedReviews() {
+  const r = (subjectId, reviewerId, cycle, rating, summary, strengths, improvements, at, ack = false, response = '') =>
+    ({ id: uid(), subjectId, reviewerId, cycle, rating, summary, strengths, improvements, createdAt: at, ack, response })
+  return [
+    r('s_ebi', 's_ose', 'April 2026', 'exceeds', 'Led Version 2 to production and held stability high.', 'Ownership, technical depth, calm under load.', 'Delegate more so the bus factor improves.', '2026-04-30'),
+    r('s_tha', 's_sol', 'April 2026', 'meets', 'Consistent monitoring coverage and clean reporting.', 'Reliability, field discipline.', 'Push checklist completion above 95 percent.', '2026-04-30'),
+    r('s_tiw', 's_ose', 'April 2026', 'below', 'Dependable at the desk; conversion to booked appointments lagged.', 'Warm with clients, strong attendance.', 'Turn contacts into confirmed, attended appointments; log within 24 hours.', '2026-04-30'),
+    r('s_sun', 's_ebi', 'April 2026', 'below', 'Steady on legacy support; slow on the migration queue.', 'Patient with legacy clients.', 'Clear the high-priority migration tickets within SLA.', '2026-04-30'),
+    r('s_kit', 's_ebi', 'March 2026', 'below', 'Learning fast but output below the module targets.', 'Eager, coachable.', 'Ship the assigned modules on schedule.', '2026-03-31'),
+    r('s_kit', 's_ebi', 'April 2026', 'below', 'Repeat gap on module delivery; needs closer support.', 'Good attitude.', 'Meet the next two module deadlines without slippage.', '2026-04-30'),
+  ]
+}
+function seedFeedback() {
+  const f = (toId, fromId, text, at) => ({ id: uid(), toId, fromId, text, createdAt: at })
+  return [
+    f('s_ebi', 's_jen', 'The migration validation report was excellent, thank you.', '2026-05-18'),
+    f('s_tiw', 's_ose', 'Great save with the walk-in client this morning.', '2026-05-20'),
+    f('s_goo', 's_chair', 'Calendar ran flawlessly through the board week.', '2026-05-16'),
+  ]
+}
+
+const reviewsFor = (data, id) => (data.reviews || []).filter((r) => r.subjectId === id).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+const lastReview = (data, id) => reviewsFor(data, id)[0] || null
+const feedbackFor = (data, id) => (data.feedback || []).filter((f) => f.toId === id).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+const reportsOf = (data, id) => data.staff.filter((s) => s.managerId === id)
+
+// Recommendation from frequency and severity of low performance.
+function interventionFor(data, s) {
+  const revs = reviewsFor(data, s.id)
+  const below = revs.filter((r) => r.rating === 'below').length
+  const unsat = revs.filter((r) => r.rating === 'unsatisfactory').length
+  const negatives = below + unsat
+  const move = movementOf(data, s)
+  const reasons = []
+  if (s.band === 'red') reasons.push('Red band this cycle')
+  if (s.band === 'amber') reasons.push('Amber band this cycle')
+  if (unsat) reasons.push(`${unsat} unsatisfactory review${unsat > 1 ? 's' : ''}`)
+  if (below) reasons.push(`${below} below-expectations review${below > 1 ? 's' : ''}`)
+  if (move < 0) reasons.push(`Down ${Math.abs(move).toFixed(1)} vs last cycle`)
+  let level = 'ok'
+  if (s.band === 'red' || unsat >= 1 || negatives >= 2) level = 'terminate'
+  else if (s.band === 'amber' && negatives >= 1) level = 'pip'
+  else if (s.band === 'amber' || negatives >= 1) level = 'monitor'
+  return { level, frequency: negatives, severity: unsat > 0 ? 'high' : below > 0 ? 'moderate' : (s.band === 'amber' ? 'low' : 'none'), reasons, move }
+}
+const INTERVENTION = {
+  ok: { label: 'On track', tone: 'good' },
+  monitor: { label: 'Monitor', tone: 'ok' },
+  pip: { label: 'Improvement plan', tone: 'warn' },
+  terminate: { label: 'Recommend for termination', tone: 'bad' },
+}
+
+
+/* ---------------------------- Leave ------------------------------- */
+const LEAVE_TYPES = [
+  { key: 'annual', label: 'Annual' },
+  { key: 'sick', label: 'Sick' },
+  { key: 'maternity', label: 'Maternity & Paternity' },
+  { key: 'compassionate', label: 'Compassionate' },
+]
+const LEAVE_ENTITLEMENT = { annual: 20, sick: 12, maternity: 60, compassionate: 5 }
+const leaveLabel = (k) => (LEAVE_TYPES.find((t) => t.key === k) || {}).label || k
+const daysBetween = (a, b) => {
+  const d1 = new Date(a), d2 = new Date(b)
+  if (isNaN(d1) || isNaN(d2) || d2 < d1) return 0
+  return Math.round((d2 - d1) / 86400000) + 1
+}
+function seedLeave() {
+  const L = (staffId, type, start, end, reason, status, decidedBy = null, decidedAt = null) =>
+    ({ id: uid(), staffId, type, start, end, days: daysBetween(start, end), reason, status, decidedBy, decidedAt, note: '' })
+  return [
+    L('s_tiw', 'annual', '2026-06-10', '2026-06-16', 'Family trip', 'pending'),
+    L('s_tha', 'annual', '2026-07-14', '2026-07-18', 'Personal time', 'pending'),
+    L('s_sun', 'sick', '2026-05-22', '2026-05-23', 'Malaria', 'approved', 's_jen', '2026-05-21'),
+    L('s_goo', 'compassionate', '2026-05-05', '2026-05-07', 'Family bereavement', 'approved', 's_jen', '2026-05-04'),
+  ]
+}
+function leaveBalance(data, id) {
+  const mine = (data.leave || []).filter((l) => l.staffId === id && l.status === 'approved')
+  const out = {}
+  LEAVE_TYPES.forEach((t) => {
+    const used = mine.filter((l) => l.type === t.key).reduce((a, l) => a + (l.days || 0), 0)
+    out[t.key] = { entitlement: LEAVE_ENTITLEMENT[t.key], used, left: Math.max(0, LEAVE_ENTITLEMENT[t.key] - used) }
+  })
+  return out
+}
+
+/* --------------------------- Payroll (Nigeria) -------------------- */
+// Nigeria Tax Act 2025, effective 1 Jan 2026. Bands on annual chargeable income.
+const PAYE_BANDS = [
+  { upTo: 800000, rate: 0 },
+  { upTo: 3000000, rate: 0.15 },
+  { upTo: 12000000, rate: 0.18 },
+  { upTo: 25000000, rate: 0.21 },
+  { upTo: 50000000, rate: 0.23 },
+  { upTo: Infinity, rate: 0.25 },
+]
+const PAY_STRUCTURE = { basic: 0.5, housing: 0.25, transport: 0.15, other: 0.1 }
+const EMP_PENSION = 0.08
+const ER_PENSION = 0.1
+const naira = (n) => '₦' + Math.round(n || 0).toLocaleString('en-NG')
+function payeAnnual(chargeable) {
+  let tax = 0, lower = 0
+  for (const b of PAYE_BANDS) {
+    if (chargeable > lower) { tax += (Math.min(chargeable, b.upTo) - lower) * b.rate; lower = b.upTo } else break
+  }
+  return Math.max(0, Math.round(tax))
+}
+const NHF_RATE = 0.025        // 2.5% of basic, tax-deductible
+const NHIS_EMP = 0.05         // employee 5% of basic, not tax-deductible
+const NHIS_ER = 0.10          // employer 10% of basic
+const DEV_LEVY = 4000         // flat NGN per year (NTA 2025)
+function payrollFor(s, opts = {}) {
+  const { nhf = true, nhis = true } = opts
+  const grossM = s.salary || 0
+  if (!grossM) return null
+  const grossA = grossM * 12
+  const basic = grossA * PAY_STRUCTURE.basic
+  const housing = grossA * PAY_STRUCTURE.housing
+  const transport = grossA * PAY_STRUCTURE.transport
+  const other = grossA * PAY_STRUCTURE.other
+  const pensionable = basic + housing + transport
+  const empPensionA = pensionable * EMP_PENSION
+  const erPensionA = pensionable * ER_PENSION
+  const nhfA = nhf ? basic * NHF_RATE : 0
+  const nhisEmpA = nhis ? basic * NHIS_EMP : 0
+  const nhisErA = nhis ? basic * NHIS_ER : 0
+  const rentRelief = Math.min((s.rent || 0) * 0.2, 500000)
+  const chargeable = Math.max(0, grossA - empPensionA - nhfA - rentRelief)
+  const payeA = payeAnnual(chargeable)
+  const netA = grossA - empPensionA - nhfA - payeA - nhisEmpA - DEV_LEVY
+  return {
+    grossM, grossA, basic, housing, transport, other, pensionable,
+    empPensionA, erPensionA, nhfA, nhisEmpA, nhisErA, devLevyA: DEV_LEVY, rentRelief, chargeable, payeA, netA,
+    empPensionM: empPensionA / 12, erPensionM: erPensionA / 12, nhfM: nhfA / 12, nhisEmpM: nhisEmpA / 12, devLevyM: DEV_LEVY / 12, payeM: payeA / 12, netM: netA / 12,
+  }
+}
+
+/* ---------------------------- Onboarding -------------------------- */
+const ONBOARDING_TASKS = [
+  'Signed offer letter', 'Employment contract signed', 'ID and right-to-work documents',
+  'Bank and pension (PFA) details', 'Email and system accounts', 'Workspace and equipment',
+  'Orientation and policies acknowledged', 'First-week check-in with manager',
+]
+const newChecklist = (allDone = false) => ONBOARDING_TASKS.map((label, i) => ({ id: 'ob' + i, label, done: allDone }))
+function seedOnboarding(id) {
+  const recent = { s_buchi: 5, s_kit: 3, s_tiw: 6 } // recent hires: number of tasks completed
+  if (id in recent) return ONBOARDING_TASKS.map((label, i) => ({ id: 'ob' + i, label, done: i < recent[id] }))
+  return newChecklist(true)
+}
+function onboardingProgress(s) {
+  const t = s.onboarding || []
+  const done = t.filter((x) => x.done).length
+  return { done, total: t.length, pct: t.length ? Math.round((done / t.length) * 100) : 100, complete: t.length === 0 || done === t.length }
+}
+
+/* ---------------------------- Documents --------------------------- */
+const DOC_CATEGORIES = ['Contract', 'ID', 'Certificate', 'Tax (TIN)', 'Pension', 'Other']
+// Uploaded file blobs are kept in memory for the session (not persisted to storage).
+const DOC_BLOBS = {}
+function seedDocuments(id) {
+  const D = (name, category, at) => ({ id: uid(), name, category, size: 0, uploadedAt: at, uploadedBy: 'Ijeoma Balogun' })
+  const map = {
+    s_jen: [D('Employment contract.pdf', 'Contract', '2025-11-01'), D('National ID card.pdf', 'ID', '2025-11-01')],
+    s_ebi: [D('Employment contract.pdf', 'Contract', '2025-12-01'), D('Degree certificate.pdf', 'Certificate', '2025-12-01')],
+    s_tiw: [D('National ID card.pdf', 'ID', '2026-01-15')],
+    s_kit: [D('Internship letter.pdf', 'Contract', '2026-02-01')],
+  }
+  return map[id] || []
+}
+const fileSize = (n) => (!n ? 'on file' : n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1) + ' MB')
+
 /* ----------------------------- Store ------------------------------ */
 const LKEY = (t) => `fc:data:${t}`
 const SKEY = (t) => `fc:session:${t}`
@@ -410,7 +595,18 @@ async function loadData(tenantId) {
     const raw = localStorage.getItem(LKEY(tenantId))
     if (raw) return JSON.parse(raw)
   } catch { /* ignore */ }
-  const seeded = { staff: STAFF.map((s) => ({ ...s })), objectives: tenantId === 'imade-forte' ? seedObjectives() : [] }
+  const forte = tenantId === 'imade-forte'
+  const seeded = {
+    staff: STAFF.map((s) => ({ ...s, onboarding: seedOnboarding(s.id), documents: seedDocuments(s.id) })),
+    objectives: forte ? seedObjectives() : [],
+    reviews: forte ? seedReviews() : [],
+    feedback: forte ? seedFeedback() : [],
+    leave: forte ? seedLeave() : [],
+    cycles: forte
+      ? [{ id: 'c_mar', name: 'March 2026', status: 'closed' }, { id: 'c_apr', name: 'April 2026', status: 'closed' }, { id: 'c_may', name: 'May 2026', status: 'active' }]
+      : [{ id: 'c1', name: 'Current cycle', status: 'active' }],
+    activeCycle: forte ? 'May 2026' : 'Current cycle',
+  }
   return seeded
 }
 
@@ -644,10 +840,34 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   const canSeeAll = me.role !== 'staff'
   const canAdmin = me.role === 'admin' || me.role === 'md' || me.role === 'hr'
   const canOrg = me.role === 'chairman' || me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const canPerf = me.role === 'chairman' || me.role === 'md' || me.role === 'hr'
+  const canPay = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const canOnboard = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const canCycle = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const canDocs = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const canExport = me.role === 'chairman' || me.role === 'md' || me.role === 'hr' || me.role === 'admin'
 
-  function addStaff(s) { setData((d) => ({ ...d, staff: [...d.staff, s] })) }
+  function addStaff(s) { setData((d) => ({ ...d, staff: [...d.staff, { ...s, onboarding: newChecklist(false) }] })) }
   function updateStaff(id, patch) { setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === id ? { ...x, ...patch } : x)) })) }
   function removeStaff(id) { setData((d) => ({ ...d, staff: d.staff.filter((x) => x.id !== id), objectives: d.objectives.filter((o) => o.owner !== id) })) }
+  function toggleOnboarding(staffId, taskId) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id !== staffId ? s : { ...s, onboarding: (s.onboarding || []).map((t) => (t.id === taskId ? { ...t, done: !t.done } : t)) })) })) }
+  function rollCycle(newName) {
+    setData((d) => {
+      const cycles = (d.cycles || []).map((c) => (c.status === 'active' ? { ...c, status: 'closed' } : c))
+      cycles.push({ id: uid(), name: newName, status: 'active' })
+      const carried = d.objectives.filter((o) => o.status === 'approved').map((o) => ({
+        ...o, id: uid(), cycle: newName, status: 'draft', score: undefined,
+        krs: (o.krs || []).map((k) => ({ ...k, id: uid(), current: '', confidence: 60, checkins: [] })),
+      }))
+      return { ...d, cycles, activeCycle: newName, objectives: [...d.objectives, ...carried] }
+    })
+  }
+  function activateCycle(name) {
+    setData((d) => ({ ...d, cycles: (d.cycles || []).map((c) => ({ ...c, status: c.name === name ? 'active' : 'closed' })), activeCycle: name }))
+  }
+  function addDocument(staffId, doc) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === staffId ? { ...s, documents: [doc, ...(s.documents || [])] } : s)) })) }
+  function removeDocument(staffId, docId) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === staffId ? { ...s, documents: (s.documents || []).filter((x) => x.id !== docId) } : s)) })) }
+  const activeCycle = data.activeCycle || 'May 2026'
 
   function upsertObjective(obj) {
     setData((d) => {
@@ -680,7 +900,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   }
   function useSuggestion(sugg) {
     setEditing({
-      id: uid(), owner: me.id, sub: me.sub, priority: tenant.priorities[0].rank, cycle: 'May 2026', status: 'draft',
+      id: uid(), owner: me.id, sub: me.sub, priority: tenant.priorities[0].rank, cycle: activeCycle, status: 'draft',
       title: sugg.title || '', description: sugg.description || '',
       krs: (sugg.krs || []).map((k) => ({ id: uid(), statement: k.statement || '', kr_type: k.kr_type || null, measure: k.measure || '', baseline: k.baseline || '', target: k.target || '', unit: k.unit || '', current: '', confidence: 60, due: '2026-05-31', override_reason: null })),
     })
@@ -701,15 +921,29 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
       })),
     }))
   }
+  function saveReview(rev) { setData((d) => ({ ...d, reviews: [...(d.reviews || []), rev] })) }
+  function ackReview(id, response) { setData((d) => ({ ...d, reviews: (d.reviews || []).map((r) => (r.id === id ? { ...r, ack: true, response } : r)) })) }
+  function giveFeedback(fb) { setData((d) => ({ ...d, feedback: [...(d.feedback || []), fb] })) }
+  function requestLeave(req) { setData((d) => ({ ...d, leave: [...(d.leave || []), req] })) }
+  function decideLeave(id, status) { setData((d) => ({ ...d, leave: (d.leave || []).map((l) => (l.id === id ? { ...l, status, decidedBy: me.id, decidedAt: new Date().toISOString().slice(0, 10) } : l)) })) }
+  function setSalary(id, salary) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, salary } : s)) })) }
 
   const tabs = me.role === 'chairman'
-    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['scorecards', 'Scorecards']]
+    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['performance', 'Performance'], ['scorecards', 'Scorecards'], ['export', 'Export']]
     : [
         ['dashboard', 'Dashboard'],
         ['objectives', 'My OKRs'],
         ['checkins', 'Check-ins'],
+        ['reviews', 'Reviews'],
+        ['leave', 'Leave'],
         ['scorecards', 'Scorecards'],
         canReview && ['review', 'Review & approve'],
+        canPerf && ['performance', 'Performance'],
+        canPay && ['payroll', 'Payroll'],
+        canOnboard && ['onboarding', 'Onboarding'],
+        canDocs && ['documents', 'Documents'],
+        canCycle && ['cycles', 'Cycles'],
+        canExport && ['export', 'Export'],
         canSeeAll && ['organisations', 'Organisations'],
         canOrg && ['organogram', 'Organogram'],
         canAdmin && ['admin', 'Roster'],
@@ -736,15 +970,21 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
               {Object.values(TENANTS).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           )}
-          <span className="fc-me"><Avatar name={me.name} /><span className="fc-me-body"><b>{me.name}</b><i>{ROLES[me.role]}</i></span></span>
-          <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={onSignOut}>Sign out</button>
+          <span className="fc-sb-tenant">{tenant.name}</span>
+          <span className={`fc-mode ${LIVE ? 'is-live' : ''}`}>{LIVE ? '● Live · connected' : '● Demo mode'}</span>
         </div>
       </aside>
 
       <div className="fc-app-body">
         <header className="fc-topbar">
-          <button className="fc-hamburger" onClick={() => setNavOpen((o) => !o)} aria-label="Menu">☰</button>
-          <span className="fc-topbar-title">{currentLabel}</span>
+          <div className="fc-topbar-left">
+            <button className="fc-hamburger" onClick={() => setNavOpen((o) => !o)} aria-label="Menu">☰</button>
+            <span className="fc-topbar-title">{currentLabel}</span>
+          </div>
+          <div className="fc-topbar-right">
+            <span className="fc-me"><Avatar name={me.name} /><span className="fc-me-body"><b>{me.name}</b><i>{ROLES[me.role]}</i></span></span>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={onSignOut}>Sign out</button>
+          </div>
         </header>
 
         {viewingAs && (
@@ -759,7 +999,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'cockpit' && <Cockpit tenant={tenant} data={data} me={me} onSwitchWorkspace={onSwitchWorkspace} />}
           {tab === 'objectives' && !editing && (
             <Objectives me={me} objectives={myObjectives} tenant={tenant}
-              onNew={() => setEditing({ id: uid(), owner: me.id, sub: me.sub, priority: tenant.priorities[0].rank, cycle: 'May 2026', status: 'draft', title: '', description: '', krs: [] })}
+              onNew={() => setEditing({ id: uid(), owner: me.id, sub: me.sub, priority: tenant.priorities[0].rank, cycle: activeCycle, status: 'draft', title: '', description: '', krs: [] })}
               onEdit={(o) => setEditing(o)} onSubmit={(id) => setStatus(id, 'submitted')} onUseSuggestion={useSuggestion} />
           )}
           {tab === 'objectives' && editing && (
@@ -771,6 +1011,14 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'checkins' && <CheckIns me={me} objectives={myObjectives} onLog={logCheckin} />}
           {tab === 'organisations' && <Organisations tenant={tenant} data={data} me={me} />}
           {tab === 'organogram' && <Organogram tenant={tenant} data={data} me={me} />}
+          {tab === 'reviews' && <Reviews data={data} me={me} cycle={activeCycle} onSaveReview={saveReview} onAckReview={ackReview} onGiveFeedback={giveFeedback} />}
+          {tab === 'performance' && <Performance data={data} />}
+          {tab === 'leave' && <Leave data={data} me={me} onRequest={requestLeave} onDecide={decideLeave} />}
+          {tab === 'payroll' && <Payroll data={data} me={me} onSetSalary={setSalary} />}
+          {tab === 'onboarding' && <Onboarding data={data} onToggle={toggleOnboarding} />}
+          {tab === 'cycles' && <Cycles data={data} onActivate={activateCycle} onRoll={rollCycle} />}
+          {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
+          {tab === 'export' && <Exports data={data} tenant={tenant} />}
           {tab === 'admin' && <AdminConsole tenant={tenant} data={data} onAdd={addStaff} onUpdate={updateStaff} onRemove={removeStaff} />}
         </main>
       </div>
@@ -821,6 +1069,8 @@ function Dashboard({ tenant, me, data, onAuthor }) {
       </div>
       <MyStalls objectives={mine} />
       <CheckinNudge objectives={mine} />
+      <MyOnboarding meRec={data.staff.find((s) => s.id === me.id)} />
+      <MyDocuments meRec={data.staff.find((s) => s.id === me.id)} />
     </div>
   )
 }
@@ -1128,8 +1378,10 @@ function Review({ data, me, onApprove, onReturn }) {
 /* ----------------------------- Scorecards ------------------------- */
 function Scorecards({ data, me, onAdjust }) {
   const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
+  const cycles = (data.cycles || []).map((c) => c.name)
+  const [cycle, setCycle] = useState(data.activeCycle || (cycles[cycles.length - 1] || 'May 2026'))
   const inScope = data.objectives
-    .filter((o) => (o.status === 'approved' || o.status === 'submitted') && canViewScore(me, o))
+    .filter((o) => (o.status === 'approved' || o.status === 'submitted') && canViewScore(me, o) && o.cycle === cycle)
     .sort((a, b) => (a.sub === b.sub ? ownerName(a.owner).localeCompare(ownerName(b.owner)) : a.sub.localeCompare(b.sub)))
   const mine = me.role === 'staff'
   return (
@@ -1139,9 +1391,12 @@ function Scorecards({ data, me, onAdjust }) {
           <h2>Scorecards</h2>
           <p className="fc-muted">{mine ? 'Your objectives, scored against the house rubric.' : 'Auto-scored against the rubric. Adjust any dimension and the change is logged.'}</p>
         </div>
-        <span className="fc-rubric-key">SMART 30 · Alignment 30 · Ambition 20 · Ownership 20</span>
+        <div className="fc-sc-controls">
+          {cycles.length > 1 && <select className="fc-input fc-cycle-select" value={cycle} onChange={(e) => setCycle(e.target.value)}>{cycles.slice().reverse().map((n) => <option key={n} value={n}>{n}</option>)}</select>}
+          <span className="fc-rubric-key">SMART 30 · Alignment 30 · Ambition 20 · Ownership 20</span>
+        </div>
       </div>
-      {inScope.length === 0 && <p className="fc-empty">No submitted or approved objectives to score yet.</p>}
+      {inScope.length === 0 && <p className="fc-empty">No submitted or approved objectives in {cycle}.</p>}
       {inScope.map((o) => (
         <ScorecardCard key={o.id} obj={o} me={me} owner={ownerName(o.owner)} onAdjust={onAdjust} />
       ))}
@@ -1390,7 +1645,7 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   return (
     <div className="fc-cockpit">
       <div className="fc-panel-head">
-        <div><h2>Chairman's cockpit</h2><p className="fc-muted">Imade Forte Holdings, group oversight. Read only. May 2026.</p></div>
+        <div><h2>Chairman's cockpit</h2><p className="fc-muted">Imade Forte Holdings, group oversight. Read only. {data.activeCycle || 'May 2026'}.</p></div>
         <span className="fc-rubric-key">{tenant.name}</span>
       </div>
 
@@ -1665,6 +1920,543 @@ function PersonNode({ person, members, onPerson }) {
   )
 }
 
+/* --------------------------- Reviews & feedback ------------------- */
+function RatingTag({ rating }) {
+  const r = RATING[rating] || { label: rating, tone: 'ok' }
+  return <span className={`fc-rating fc-rating-${r.tone}`}>{r.label}</span>
+}
+
+function Reviews({ data, me, cycle, onSaveReview, onAckReview, onGiveFeedback }) {
+  const name = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Someone'
+  const myReviews = reviewsFor(data, me.id)
+  const myFeedback = feedbackFor(data, me.id)
+  const reports = reportsOf(data, me.id)
+  const managerScope = me.role === 'hr' || me.role === 'md' ? data.staff.filter((s) => s.id !== me.id && s.role !== 'chairman') : reports
+  const [composeFor, setComposeFor] = useState(null)
+  const [fbTo, setFbTo] = useState('')
+  const [fbText, setFbText] = useState('')
+
+  return (
+    <div className="fc-reviews">
+      <div className="fc-panel-head"><div><h2>Reviews and feedback</h2><p className="fc-muted">Your last review, feedback from the team, and the reviews you run.</p></div></div>
+
+      <section className="fc-panel">
+        <div className="fc-panel-head"><h3>My reviews</h3>{myReviews[0] && <span className="fc-muted">last: {myReviews[0].cycle}</span>}</div>
+        {myReviews.length === 0 && <p className="fc-empty">No reviews on record yet.</p>}
+        {myReviews.map((r) => <ReviewCard key={r.id} r={r} reviewer={name(r.reviewerId)} mine onAck={onAckReview} />)}
+      </section>
+
+      <section className="fc-panel">
+        <div className="fc-panel-head"><h3>Feedback from the team</h3></div>
+        {myFeedback.length === 0 && <p className="fc-empty">No feedback yet.</p>}
+        {myFeedback.map((f) => <div key={f.id} className="fc-fb"><b>{name(f.fromId)}</b><span className="fc-fb-text">{f.text}</span><span className="fc-muted">{f.createdAt}</span></div>)}
+      </section>
+
+      <section className="fc-panel">
+        <div className="fc-panel-head"><h3>Give quick feedback</h3></div>
+        <div className="fc-fb-form">
+          <select className="fc-input" value={fbTo} onChange={(e) => setFbTo(e.target.value)}>
+            <option value="">Choose a colleague</option>
+            {data.staff.filter((s) => s.id !== me.id && s.role !== 'chairman').map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <input className="fc-input" placeholder="A quick note" value={fbText} onChange={(e) => setFbText(e.target.value)} />
+          <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!fbTo || !fbText.trim()}
+            onClick={() => { onGiveFeedback({ id: uid(), toId: fbTo, fromId: me.id, text: fbText.trim(), createdAt: new Date().toISOString().slice(0, 10) }); setFbTo(''); setFbText('') }}>Send feedback</button>
+        </div>
+      </section>
+
+      {managerScope.length > 0 && (
+        <section className="fc-panel">
+          <div className="fc-panel-head"><h3>My team's reviews</h3><span className="fc-muted">{managerScope.length} people</span></div>
+          {managerScope.map((s) => {
+            const lr = lastReview(data, s.id)
+            return (
+              <div key={s.id} className="fc-tr-row">
+                <div className="fc-tr-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {ROLES[s.role]} · {s.sub}</span></span></div>
+                <div className="fc-tr-right">{lr ? <RatingTag rating={lr.rating} /> : <span className="fc-muted">no review</span>}<button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setComposeFor(s.id)}>New review</button></div>
+              </div>
+            )
+          })}
+        </section>
+      )}
+
+      {composeFor && <ReviewComposer subject={data.staff.find((s) => s.id === composeFor)} me={me} cycle={cycle} onCancel={() => setComposeFor(null)} onSave={(rev) => { onSaveReview(rev); setComposeFor(null) }} />}
+    </div>
+  )
+}
+
+function ReviewCard({ r, reviewer, mine, onAck }) {
+  const [resp, setResp] = useState(r.response || '')
+  return (
+    <div className="fc-reviewcard">
+      <div className="fc-rc-head"><div><b>{r.cycle}</b><span className="fc-muted"> · by {reviewer} · {r.createdAt}</span></div><RatingTag rating={r.rating} /></div>
+      <p className="fc-rc-summary">{r.summary}</p>
+      <div className="fc-rc-cols">
+        <div><span className="fc-rc-k">Strengths</span><p>{r.strengths || '—'}</p></div>
+        <div><span className="fc-rc-k">To improve</span><p>{r.improvements || '—'}</p></div>
+      </div>
+      {mine && (r.ack
+        ? <p className="fc-rc-ack">Acknowledged{r.response ? ` · “${r.response}”` : ''}</p>
+        : <div className="fc-rc-ackrow"><input className="fc-input" placeholder="Your response (optional)" value={resp} onChange={(e) => setResp(e.target.value)} /><button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAck(r.id, resp)}>Acknowledge</button></div>
+      )}
+    </div>
+  )
+}
+
+function ReviewComposer({ subject, me, cycle, onSave, onCancel }) {
+  const [rating, setRating] = useState('meets')
+  const [summary, setSummary] = useState('')
+  const [strengths, setStrengths] = useState('')
+  const [improvements, setImprovements] = useState('')
+  return (
+    <div className="fc-composer">
+      <div className="fc-panel-head"><h3>Review session · {subject.name}</h3><button className="fc-icon-btn" onClick={onCancel}>✕</button></div>
+      <label className="fc-field"><span>Overall rating</span>
+        <select className="fc-input" value={rating} onChange={(e) => setRating(e.target.value)}>{RATING_ORDER.map((k) => <option key={k} value={k}>{RATING[k].label}</option>)}</select></label>
+      <label className="fc-field"><span>Summary</span><input className="fc-input" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Overall assessment this cycle" /></label>
+      <label className="fc-field"><span>Strengths</span><input className="fc-input" value={strengths} onChange={(e) => setStrengths(e.target.value)} /></label>
+      <label className="fc-field"><span>Areas to improve</span><input className="fc-input" value={improvements} onChange={(e) => setImprovements(e.target.value)} /></label>
+      <div className="fc-cta-row fc-composer-foot">
+        <button className="fc-btn fc-btn-ghost" onClick={onCancel}>Cancel</button>
+        <button className="fc-btn fc-btn-gold" disabled={!summary.trim()}
+          onClick={() => onSave({ id: uid(), subjectId: subject.id, reviewerId: me.id, cycle: cycle || 'May 2026', rating, summary: summary.trim(), strengths: strengths.trim(), improvements: improvements.trim(), createdAt: new Date().toISOString().slice(0, 10), ack: false, response: '' })}>Save review</button>
+      </div>
+    </div>
+  )
+}
+
+/* ----------------------- Performance intervention ----------------- */
+function Performance({ data }) {
+  const rank = { terminate: 3, pip: 2, monitor: 1, ok: 0 }
+  const rows = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...interventionFor(data, s), ...personScore(data, s.id) }))
+    .sort((a, b) => rank[b.level] - rank[a.level] || a.total - b.total)
+  const flagged = rows.filter((r) => r.level !== 'ok')
+  const count = (lv) => rows.filter((r) => r.level === lv).length
+  return (
+    <div className="fc-performance">
+      <div className="fc-panel-head"><div><h2>Performance and intervention</h2><p className="fc-muted">Recommendations based on the frequency and severity of low performance.</p></div></div>
+      <div className="fc-board-grid fc-dash-metrics">
+        <Metric value={count('terminate')} label="Termination recommended" />
+        <Metric value={count('pip')} label="Improvement plan" />
+        <Metric value={count('monitor')} label="Monitor" />
+        <Metric value={count('ok')} label="On track" />
+      </div>
+      {flagged.length === 0 && <p className="fc-empty">No one is flagged. Everyone is on track.</p>}
+      {flagged.map(({ s, level, frequency, severity, reasons, total, band }) => (
+        <div key={s.id} className="fc-perf-row">
+          <div className="fc-perf-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {ROLES[s.role]} · {s.sub}</span></span></div>
+          <div className="fc-perf-mid"><span className="fc-muted">score {total.toFixed(1)}</span><Band b={band} /><span className="fc-muted">freq {frequency} · sev {severity}</span></div>
+          <div className="fc-perf-reasons">{reasons.map((x, i) => <span key={i} className="fc-perf-reason">{x}</span>)}</div>
+          <span className={`fc-interv fc-interv-${INTERVENTION[level].tone}`}>{INTERVENTION[level].label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ------------------------------- Leave ---------------------------- */
+function LeaveStatus({ s }) {
+  const m = { pending: ['Pending', 'submitted'], approved: ['Approved', 'approved'], declined: ['Declined', 'draft'] }
+  const [label, cls] = m[s] || [s, 'draft']
+  return <span className={`fc-status fc-status-${cls}`}>{label}</span>
+}
+function Leave({ data, me, onRequest, onDecide }) {
+  const name = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Someone'
+  const bal = leaveBalance(data, me.id)
+  const myLeave = (data.leave || []).filter((l) => l.staffId === me.id).sort((a, b) => (a.start < b.start ? 1 : -1))
+  const isMD = me.role === 'md'
+  const canViewAll = me.role === 'hr' || me.role === 'admin'
+  const pending = (data.leave || []).filter((l) => l.status === 'pending')
+  const allLeave = (data.leave || []).slice().sort((a, b) => (a.start < b.start ? 1 : -1))
+  const [type, setType] = useState('annual')
+  const [start, setStart] = useState('')
+  const [end, setEnd] = useState('')
+  const [reason, setReason] = useState('')
+  const reqDays = daysBetween(start, end)
+
+  return (
+    <div className="fc-leave">
+      <div className="fc-panel-head"><div><h2>Leave</h2><p className="fc-muted">Request time off. Approvals go to the Managing Director.</p></div></div>
+
+      <div className="fc-board-grid fc-dash-metrics">
+        {LEAVE_TYPES.map((t) => (
+          <div key={t.key} className="fc-metric"><span className="fc-metric-value">{bal[t.key].left}<span className="fc-metric-unit"> / {bal[t.key].entitlement}</span></span><span className="fc-metric-label">{t.label} days left</span></div>
+        ))}
+      </div>
+
+      <section className="fc-panel">
+        <div className="fc-panel-head"><h3>Request leave</h3></div>
+        <div className="fc-leave-form">
+          <select className="fc-input" value={type} onChange={(e) => setType(e.target.value)}>{LEAVE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
+          <label className="fc-field"><span>From</span><input className="fc-input" type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
+          <label className="fc-field"><span>To</span><input className="fc-input" type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+          <input className="fc-input" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+          <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={reqDays < 1}
+            onClick={() => { onRequest({ id: uid(), staffId: me.id, type, start, end, days: reqDays, reason: reason.trim(), status: 'pending', decidedBy: null, decidedAt: null, note: '' }); setStart(''); setEnd(''); setReason('') }}>
+            Request{reqDays > 0 ? ` · ${reqDays} day${reqDays > 1 ? 's' : ''}` : ''}
+          </button>
+        </div>
+      </section>
+
+      {isMD && (
+        <section className="fc-panel">
+          <div className="fc-panel-head"><h3>Awaiting your approval</h3><span className="fc-muted">{pending.length}</span></div>
+          {pending.length === 0 && <p className="fc-empty">Nothing to approve.</p>}
+          {pending.map((l) => (
+            <div key={l.id} className="fc-leave-row">
+              <div><b>{name(l.staffId)}</b><span className="fc-muted"> · {leaveLabel(l.type)} · {l.start} to {l.end} · {l.days}d</span><div className="fc-muted">{l.reason}</div></div>
+              <div className="fc-leave-actions"><button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onDecide(l.id, 'declined')}>Decline</button><button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onDecide(l.id, 'approved')}>Approve</button></div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <section className="fc-panel">
+        <div className="fc-panel-head"><h3>My requests</h3></div>
+        {myLeave.length === 0 && <p className="fc-empty">No requests yet.</p>}
+        {myLeave.map((l) => (
+          <div key={l.id} className="fc-leave-row">
+            <div><b>{leaveLabel(l.type)}</b><span className="fc-muted"> · {l.start} to {l.end} · {l.days}d</span><div className="fc-muted">{l.reason}</div></div>
+            <LeaveStatus s={l.status} />
+          </div>
+        ))}
+      </section>
+
+      {canViewAll && (
+        <section className="fc-panel">
+          <div className="fc-panel-head"><h3>All leave</h3></div>
+          {allLeave.map((l) => (
+            <div key={l.id} className="fc-leave-row"><div><b>{name(l.staffId)}</b><span className="fc-muted"> · {leaveLabel(l.type)} · {l.start} to {l.end} · {l.days}d</span></div><LeaveStatus s={l.status} /></div>
+          ))}
+        </section>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------ Payroll --------------------------- */
+function Payroll({ data, me, onSetSalary }) {
+  const canEdit = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const [nhf, setNhf] = useState(true)
+  const [nhis, setNhis] = useState(true)
+  const opts = { nhf, nhis }
+  const rows = data.staff.filter((s) => s.role !== 'chairman' && (s.salary || 0) > 0).map((s) => ({ s, pr: payrollFor(s, opts) })).filter((x) => x.pr).sort((a, b) => b.pr.grossM - a.pr.grossM)
+  const tot = rows.reduce((a, { pr }) => ({ gross: a.gross + pr.grossM, paye: a.paye + pr.payeM, ded: a.ded + pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM, net: a.net + pr.netM }), { gross: 0, paye: 0, ded: 0, net: 0 })
+  const [sel, setSel] = useState(null)
+  const [edit, setEdit] = useState(null)
+  const [val, setVal] = useState('')
+
+  if (sel) { const s = data.staff.find((x) => x.id === sel); return <Payslip s={s} opts={opts} onBack={() => setSel(null)} /> }
+
+  return (
+    <div className="fc-payroll">
+      <div className="fc-panel-head"><div><h2>Payroll</h2><p className="fc-muted">Monthly run. Nigerian PAYE, pension, NHF and NHIS under the Tax Act 2025.</p></div>
+        <div className="fc-pay-toggles">
+          <label className="fc-toggle"><input type="checkbox" checked={nhf} onChange={(e) => setNhf(e.target.checked)} /> NHF</label>
+          <label className="fc-toggle"><input type="checkbox" checked={nhis} onChange={(e) => setNhis(e.target.checked)} /> NHIS</label>
+        </div>
+      </div>
+      <div className="fc-board-grid fc-dash-metrics">
+        <Metric value={naira(tot.gross)} label="Gross monthly" />
+        <Metric value={naira(tot.paye)} label="PAYE monthly" />
+        <Metric value={naira(tot.ded)} label="Total deductions" />
+        <Metric value={naira(tot.net)} label="Net monthly" />
+      </div>
+      <div className="fc-paytable">
+        <div className="fc-pt-row fc-pt-head"><span>Name</span><span>Gross</span><span>PAYE</span><span>Deductions</span><span>Net</span><span></span></div>
+        {rows.map(({ s, pr }) => (
+          <div key={s.id} className="fc-pt-row">
+            <span className="fc-pt-name">{s.name}<span className="fc-muted"> · {s.sub}</span></span>
+            {edit === s.id ? <span><input className="fc-input fc-pt-input" value={val} onChange={(e) => setVal(e.target.value)} /></span> : <span>{naira(pr.grossM)}</span>}
+            <span>{naira(pr.payeM)}</span>
+            <span>{naira(pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM)}</span>
+            <span><b>{naira(pr.netM)}</b></span>
+            <span className="fc-pt-actions">
+              {edit === s.id
+                ? <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSetSalary(s.id, Number(val) || 0); setEdit(null) }}>Save</button>
+                : <>{canEdit && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setVal(String(pr.grossM)); setEdit(s.id) }}>Edit</button>}<button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setSel(s.id)}>Payslip</button></>}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="fc-muted fc-pay-note">Structure: basic 50%, housing 25%, transport 15%, other 10%. Pension and NHF reduce taxable income; NHIS (employee 5%) and the ₦4,000 annual development levy are deducted after tax. Estimates: confirm with your accountant and the Nigeria Revenue Service.</p>
+    </div>
+  )
+}
+function Payslip({ s, opts = {}, onBack }) {
+  const pr = payrollFor(s, opts)
+  const Row = ({ k, v, strong }) => <div className={`fc-ps-row ${strong ? 'is-strong' : ''}`}><span>{k}</span><span>{v}</span></div>
+  return (
+    <div className="fc-payslip">
+      <div className="fc-ps-top"><button className="fc-back" onClick={onBack}>← Back to payroll</button><button className="fc-btn fc-btn-ghost fc-btn-sm fc-ps-print-btn" onClick={() => window.print()}>Print / save PDF</button></div>
+      <div className="fc-ps-head"><Avatar name={s.name} /><div><h2>{s.name}</h2><p className="fc-muted">{ROLES[s.role]} · {s.sub} · monthly payslip · May 2026</p></div></div>
+      <div className="fc-ps-grid">
+        <section className="fc-panel"><h3>Earnings (monthly)</h3>
+          <Row k="Basic" v={naira(pr.basic / 12)} /><Row k="Housing" v={naira(pr.housing / 12)} /><Row k="Transport" v={naira(pr.transport / 12)} /><Row k="Other allowances" v={naira(pr.other / 12)} /><Row k="Gross" v={naira(pr.grossM)} strong />
+        </section>
+        <section className="fc-panel"><h3>Deductions (monthly)</h3>
+          <Row k="Pension (8%)" v={naira(pr.empPensionM)} />{pr.nhfM > 0 && <Row k="NHF (2.5%)" v={naira(pr.nhfM)} />}<Row k="PAYE tax" v={naira(pr.payeM)} />{pr.nhisEmpM > 0 && <Row k="NHIS (5%)" v={naira(pr.nhisEmpM)} />}<Row k="Development levy" v={naira(pr.devLevyM)} /><Row k="Net pay" v={naira(pr.netM)} strong />
+        </section>
+      </div>
+      <section className="fc-panel"><h3>Annual summary</h3>
+        <Row k="Gross" v={naira(pr.grossA)} /><Row k="Rent relief" v={naira(pr.rentRelief)} /><Row k="Pension (employee 8%)" v={naira(pr.empPensionA)} /><Row k="Pension (employer 10%)" v={naira(pr.erPensionA)} />{pr.nhfA > 0 && <Row k="NHF (employee 2.5%)" v={naira(pr.nhfA)} />}<Row k="Chargeable income" v={naira(pr.chargeable)} /><Row k="PAYE (annual)" v={naira(pr.payeA)} />{pr.nhisEmpA > 0 && <Row k="NHIS (employee 5%)" v={naira(pr.nhisEmpA)} />}<Row k="Development levy" v={naira(pr.devLevyA)} /><Row k="Net (annual)" v={naira(pr.netA)} strong />
+      </section>
+      <p className="fc-muted fc-pay-note">Estimate under the Nigeria Tax Act 2025 and the Pension Reform Act. Confirm with your accountant and the Nigeria Revenue Service before remittance.</p>
+    </div>
+  )
+}
+
+/* ---------------------------- Onboarding -------------------------- */
+function Onboarding({ data, onToggle }) {
+  const people = data.staff.map((s) => ({ s, ...onboardingProgress(s) }))
+  const inProg = people.filter((p) => !p.complete)
+  const doneCount = people.filter((p) => p.complete).length
+  const [open, setOpen] = useState(null)
+  return (
+    <div className="fc-onboard">
+      <div className="fc-panel-head"><div><h2>Onboarding</h2><p className="fc-muted">New-hire checklists. Tick items as they are completed.</p></div></div>
+      <div className="fc-board-grid fc-dash-metrics">
+        <Metric value={inProg.length} label="In onboarding" />
+        <Metric value={doneCount} label="Fully onboarded" />
+      </div>
+      {inProg.length === 0 && <p className="fc-empty">Everyone is fully onboarded.</p>}
+      {inProg.map(({ s, done, total, pct }) => (
+        <section key={s.id} className="fc-panel fc-ob-card">
+          <div className="fc-ob-head" onClick={() => setOpen(open === s.id ? null : s.id)}>
+            <div className="fc-ob-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {ROLES[s.role]} · {s.sub}</span></span></div>
+            <div className="fc-ob-prog"><div className="fc-progress"><div className="fc-progress-fill mid" style={{ width: pct + '%' }} /><span className="fc-progress-pct">{done}/{total}</span></div></div>
+          </div>
+          {open === s.id && (
+            <div className="fc-ob-tasks">
+              {(s.onboarding || []).map((t) => (
+                <label key={t.id} className="fc-ob-task"><input type="checkbox" checked={t.done} onChange={() => onToggle(s.id, t.id)} /><span className={t.done ? 'is-done' : ''}>{t.label}</span></label>
+              ))}
+            </div>
+          )}
+        </section>
+      ))}
+    </div>
+  )
+}
+function MyOnboarding({ meRec }) {
+  if (!meRec) return null
+  const pr = onboardingProgress(meRec)
+  if (pr.complete) return null
+  return (
+    <section className="fc-panel fc-stallpanel">
+      <div className="fc-panel-head"><h3>Your onboarding</h3><span className="fc-muted">{pr.done}/{pr.total} done</span></div>
+      <div className="fc-ob-tasks">
+        {(meRec.onboarding || []).map((t) => (
+          <div key={t.id} className="fc-ob-task"><span className={t.done ? 'is-done' : ''}>{t.done ? '✓' : '○'} {t.label}</span></div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* --------------------------- Review cycles ------------------------ */
+function Cycles({ data, onActivate, onRoll }) {
+  const [name, setName] = useState('')
+  const cycles = data.cycles || []
+  const active = cycles.find((c) => c.status === 'active')
+  const objsIn = (n) => data.objectives.filter((o) => o.cycle === n).length
+  return (
+    <div className="fc-cycles">
+      <div className="fc-panel-head"><div><h2>Review cycles</h2><p className="fc-muted">The active cycle drives new objectives and reviews. Closing a cycle keeps its history.</p></div></div>
+      <div className="fc-board-grid fc-dash-metrics">
+        <Metric value={active ? active.name : '—'} label="Active cycle" />
+        <Metric value={cycles.filter((c) => c.status === 'closed').length} label="Closed cycles" />
+        <Metric value={active ? objsIn(active.name) : 0} label="Objectives this cycle" />
+      </div>
+      <section className="fc-panel">
+        <div className="fc-panel-head"><h3>Start the next cycle</h3></div>
+        <div className="fc-cycle-form">
+          <input className="fc-input" placeholder="e.g. June 2026" value={name} onChange={(e) => setName(e.target.value)} />
+          <button className="fc-btn fc-btn-gold" disabled={!name.trim()} onClick={() => { onRoll(name.trim()); setName('') }}>Roll to next cycle</button>
+        </div>
+        <p className="fc-muted fc-cycle-note">Rolling forward closes the current cycle and carries every approved objective into the new one as a draft to refine and resubmit. Scores, reviews and check-ins from the closed cycle stay intact as history.</p>
+      </section>
+      <section className="fc-panel">
+        <div className="fc-panel-head"><h3>All cycles</h3></div>
+        {cycles.slice().reverse().map((c) => (
+          <div key={c.id} className="fc-cycle-row">
+            <span><b>{c.name}</b><span className="fc-muted"> · {objsIn(c.name)} objectives</span></span>
+            <span className="fc-cycle-right">
+              {c.status === 'active'
+                ? <span className="fc-lv fc-lv-approved">Active</span>
+                : <><span className="fc-lv fc-lv-declined">Closed</span><button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onActivate(c.name)}>Make active</button></>}
+            </span>
+          </div>
+        ))}
+      </section>
+    </div>
+  )
+}
+
+/* ---------------------------- Documents --------------------------- */
+function DocLink({ d }) {
+  const url = DOC_BLOBS[d.id]
+  if (url) return <a className="fc-doc-open" href={url} target="_blank" rel="noreferrer" download={d.name}>Open</a>
+  return <span className="fc-muted fc-doc-onfile">on file</span>
+}
+function Documents({ data, me, onAdd, onRemove }) {
+  const people = data.staff.filter((s) => s.role !== 'chairman')
+  const [sel, setSel] = useState(people[0] ? people[0].id : null)
+  const [cat, setCat] = useState('Contract')
+  const person = data.staff.find((s) => s.id === sel)
+  const docs = (person && person.documents) || []
+
+  function onFile(e) {
+    const f = e.target.files && e.target.files[0]
+    if (!f || !sel) return
+    const id = uid()
+    try { DOC_BLOBS[id] = URL.createObjectURL(f) } catch { /* ignore */ }
+    onAdd(sel, { id, name: f.name, category: cat, size: f.size, uploadedAt: new Date().toISOString().slice(0, 10), uploadedBy: me.name })
+    e.target.value = ''
+  }
+
+  return (
+    <div className="fc-docs">
+      <div className="fc-panel-head"><div><h2>Documents</h2><p className="fc-muted">Contracts, IDs, certificates and other records, held per person.</p></div></div>
+      <div className="fc-docs-layout">
+        <aside className="fc-docs-people">
+          {people.map((s) => (
+            <button key={s.id} className={`fc-docs-person ${sel === s.id ? 'is-on' : ''}`} onClick={() => setSel(s.id)}>
+              <Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted">{(s.documents || []).length} docs</span></span>
+            </button>
+          ))}
+        </aside>
+        <section className="fc-docs-main">
+          {person && (
+            <>
+              <div className="fc-panel-head"><h3>{person.name}</h3><span className="fc-muted">{ROLES[person.role]} · {person.sub}</span></div>
+              <div className="fc-docs-upload">
+                <select className="fc-input" value={cat} onChange={(e) => setCat(e.target.value)}>{DOC_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
+                <label className="fc-btn fc-btn-gold fc-btn-sm fc-docs-uploadbtn">Upload document<input type="file" onChange={onFile} hidden /></label>
+              </div>
+              {docs.length === 0 && <p className="fc-empty">No documents yet.</p>}
+              {docs.map((d) => (
+                <div key={d.id} className="fc-doc-row">
+                  <span className="fc-doc-cat">{d.category}</span>
+                  <span className="fc-doc-name">{d.name}</span>
+                  <span className="fc-muted fc-doc-meta">{fileSize(d.size)} · {d.uploadedAt} · {d.uploadedBy}</span>
+                  <span className="fc-doc-actions"><DocLink d={d} /><button className="fc-icon-btn" title="Remove" onClick={() => { if (confirm('Remove this document?')) onRemove(sel, d.id) }}>✕</button></span>
+                </div>
+              ))}
+            </>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}
+function MyDocuments({ meRec }) {
+  const docs = (meRec && meRec.documents) || []
+  if (docs.length === 0) return null
+  return (
+    <section className="fc-panel">
+      <div className="fc-panel-head"><h3>My documents</h3><span className="fc-muted">{docs.length}</span></div>
+      {docs.map((d) => (
+        <div key={d.id} className="fc-doc-row"><span className="fc-doc-cat">{d.category}</span><span className="fc-doc-name">{d.name}</span><span className="fc-muted fc-doc-meta">{d.uploadedAt}</span><span className="fc-doc-actions"><DocLink d={d} /></span></div>
+      ))}
+    </section>
+  )
+}
+
+/* ------------------------------ Export ---------------------------- */
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = name; document.body.appendChild(a); a.click()
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove() }, 1500)
+}
+async function tryLogoDataUrl(src) {
+  try {
+    const r = await fetch(src); const b = await r.blob()
+    return await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(b) })
+  } catch { return null }
+}
+function reviewPackHTML(data, tenant, logo) {
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const cycle = data.activeCycle || 'May 2026'
+  const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
+  const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) })).sort((a, b) => b.total - a.total)
+  const g = people.filter((p) => p.band === 'green').length, a = people.filter((p) => p.band === 'amber').length, r = people.filter((p) => p.band === 'red').length
+  const avg = people.length ? (people.reduce((x, p) => x + p.total, 0) / people.length).toFixed(1) : '—'
+  const risks = stalledIn(data.objectives.filter((o) => o.status === 'approved' || o.status === 'submitted'))
+  const scRows = people.map((p) => `<tr><td>${esc(p.s.name)}</td><td>${esc(ROLES[p.s.role])}</td><td>${esc(p.s.sub)}</td><td class="num">${p.total.toFixed(1)}</td><td><span class="band ${p.band}">${p.band}</span></td></tr>`).join('')
+  const sections = people.map((p) => {
+    const objs = data.objectives.filter((o) => o.owner === p.s.id && (o.status === 'approved' || o.status === 'submitted'))
+    const lr = lastReview(data, p.s.id)
+    const objHtml = objs.map((o) => `<div class="obj"><b>${esc(o.title)}</b> <span class="chip">${outcomeRatio([o])}% outcome</span><div class="krs">${(o.krs || []).map((k) => `<div class="kr">${esc(k.statement)}</div>`).join('')}</div></div>`).join('') || '<p class="muted">No approved objectives.</p>'
+    const rev = lr ? `<div class="review"><b>${esc((RATING[lr.rating] || {}).label || lr.rating)}</b> <span class="muted">(${esc(lr.cycle)}, by ${esc(ownerName(lr.reviewerId))})</span><p>${esc(lr.summary)}</p><p class="muted">Strengths: ${esc(lr.strengths)}</p><p class="muted">To improve: ${esc(lr.improvements)}</p></div>` : '<p class="muted">No review on record.</p>'
+    return `<section class="person"><h3>${esc(p.s.name)} <span class="score">${p.total.toFixed(1)}/10</span></h3><p class="muted">${esc(ROLES[p.s.role])} · ${esc(p.s.sub)}</p>${objHtml}<h4>Latest review</h4>${rev}</section>`
+  }).join('')
+  const riskRows = risks.map(({ obj, k, reason }) => `<tr><td>${esc(reason)}</td><td>${esc(k.statement)}</td><td>${esc(obj.title)}</td><td>${esc(ownerName(obj.owner))}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No stalled key results.</td></tr>'
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Forte Review Pack — ${esc(cycle)}</title><style>
+:root{--navy:#0E2240;--gold:#B8924A}*{box-sizing:border-box}body{font-family:Georgia,'Times New Roman',serif;color:#10233f;margin:0}
+.cover{background:var(--navy);color:#EDE9E0;padding:80px 60px}.cover img{height:64px;margin-bottom:28px}.cover h1{font-size:40px;margin:6px 0}.sub{color:var(--gold);letter-spacing:2px;text-transform:uppercase;font-size:13px}
+.wrap{padding:40px 60px;max-width:900px;margin:0 auto}h2{color:var(--navy);border-bottom:2px solid var(--gold);padding-bottom:6px;margin-top:34px}
+table{width:100%;border-collapse:collapse;margin:14px 0}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #ddd}th{color:var(--navy);border-bottom:2px solid var(--gold)}td.num{text-align:right;font-weight:bold}
+.band{padding:2px 8px;border-radius:3px;text-transform:uppercase;font-size:11px;font-weight:bold;color:#fff}.band.green{background:#2f7d5b}.band.amber{background:#b8924a}.band.red{background:#a33}
+.metrics{display:flex;gap:20px;margin:14px 0}.metric{background:#f3f0e9;border-radius:6px;padding:12px 16px}.metric b{font-size:24px;color:var(--navy);display:block}
+.person{page-break-inside:avoid;margin:20px 0;border-top:1px solid #eee;padding-top:14px}.person .score{color:var(--gold);font-size:17px}
+.chip{background:#eef;border:1px solid #ccd;border-radius:10px;padding:1px 8px;font-size:11px}.obj{margin:8px 0}.krs{margin:4px 0 0 14px}.kr{font-size:14px;color:#333}.muted{color:#666}.review p{margin:6px 0}
+</style></head><body><div class="cover">${logo ? `<img src="${logo}" alt="">` : ''}<div class="sub">${esc(tenant.name)} · Office of the Chairman</div><h1>OKR Review Pack</h1><div class="sub">${esc(cycle)}</div></div>
+<div class="wrap"><h2>Cohort scorecard</h2><div class="metrics"><div class="metric"><b>${avg}</b>Weighted average</div><div class="metric"><b>${g} / ${a} / ${r}</b>Green / Amber / Red</div><div class="metric"><b>${people.length}</b>Staff</div></div>
+<table><thead><tr><th>Name</th><th>Role</th><th>Organisation</th><th>Score</th><th>Band</th></tr></thead><tbody>${scRows}</tbody></table>
+<h2>Individual coaching</h2>${sections}<h2>Risk register</h2><table><thead><tr><th>Flag</th><th>Key result</th><th>Objective</th><th>Owner</th></tr></thead><tbody>${riskRows}</tbody></table></div></body></html>`
+}
+function buildTracker(XLSX, data) {
+  const wb = XLSX.utils.book_new()
+  const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) })).sort((a, b) => b.total - a.total)
+  const sc = [['Name', 'Role', 'Organisation', 'Score', 'Band', 'Movement vs last cycle']]
+  people.forEach((p) => sc.push([p.s.name, ROLES[p.s.role], p.s.sub, p.total, p.band, p.move]))
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sc), 'Scorecard')
+  const kr = [['Owner', 'Objective', 'Key result', 'Type', 'Baseline', 'Target', 'Current', 'Confidence']]
+  data.objectives.forEach((o) => (o.krs || []).forEach((k) => {
+    const owner = (data.staff.find((s) => s.id === o.owner) || {}).name || ''
+    kr.push([owner, o.title, k.statement, k.kr_type || '', k.baseline || '', k.target || '', krLatestVal(k) ?? '', krConf(k)])
+  }))
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kr), 'Key Results')
+  return wb
+}
+function Exports({ data, tenant }) {
+  const [busy, setBusy] = useState('')
+  const cyc = (data.activeCycle || 'cycle').replace(/\s+/g, '_')
+  async function pack() {
+    setBusy('pack')
+    const logo = await tryLogoDataUrl(tenant.logo)
+    downloadBlob(new Blob([reviewPackHTML(data, tenant, logo)], { type: 'text/html' }), `Forte_Review_Pack_${cyc}.html`)
+    setBusy('')
+  }
+  async function tracker() {
+    setBusy('xlsx')
+    const XLSX = await import('xlsx')
+    const out = XLSX.write(buildTracker(XLSX, data), { bookType: 'xlsx', type: 'array' })
+    downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Forte_Tracker_${cyc}.xlsx`)
+    setBusy('')
+  }
+  const count = data.staff.filter((s) => s.score > 0).length
+  return (
+    <div className="fc-exports">
+      <div className="fc-panel-head"><div><h2>Export</h2><p className="fc-muted">Generate the branded pack and tracker from live {data.activeCycle || ''} data.</p></div></div>
+      <div className="fc-export-grid">
+        <div className="fc-export-card">
+          <h3>Review pack</h3>
+          <p className="fc-muted">Branded cover, cohort scorecard, individual coaching and a risk register across all {count} staff. Opens as a document you can print or save as PDF.</p>
+          <button className="fc-btn fc-btn-gold" disabled={!!busy} onClick={pack}>{busy === 'pack' ? 'Preparing…' : 'Download review pack'}</button>
+        </div>
+        <div className="fc-export-card">
+          <h3>Tracker (Excel)</h3>
+          <p className="fc-muted">A workbook with the cohort scorecard and every key result: baseline, target, current and confidence.</p>
+          <button className="fc-btn fc-btn-gold" disabled={!!busy} onClick={tracker}>{busy === 'xlsx' ? 'Preparing…' : 'Download tracker'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ------------------------------- Root ----------------------------- */
 export default function App() {
   const [tenantId, setTenantId] = useState('imade-forte')
@@ -1871,9 +2663,14 @@ option{color:#111}
 .fc-me-body b{font-size:.9rem}
 .fc-me-body i{font-size:.75rem;color:var(--muted);font-style:normal}
 .fc-app-body{flex:1;min-width:0;display:flex;flex-direction:column}
-.fc-topbar{display:none;align-items:center;gap:.9rem;padding:.7rem 1rem;border-bottom:1px solid var(--hairline)}
-.fc-hamburger{background:none;border:1px solid var(--hairline);color:var(--parchment);border-radius:4px;font-size:1.1rem;line-height:1;padding:.3rem .6rem;cursor:pointer}
+.fc-topbar{display:flex;align-items:center;justify-content:space-between;gap:.9rem;padding:.7rem clamp(1rem,4vw,2rem);border-bottom:1px solid var(--hairline)}
+.fc-topbar-left{display:flex;align-items:center;gap:.8rem}
+.fc-topbar-right{display:flex;align-items:center;gap:.9rem}
+.fc-hamburger{display:none;background:none;border:1px solid var(--hairline);color:var(--parchment);border-radius:4px;font-size:1.1rem;line-height:1;padding:.3rem .6rem;cursor:pointer}
 .fc-topbar-title{font-size:1rem;letter-spacing:.02em}
+.fc-sb-tenant{color:var(--muted);font-size:.78rem}
+.fc-mode{font-size:.72rem;color:var(--muted)}
+.fc-mode.is-live{color:var(--rag-g)}
 .fc-nav-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:35}
 .fc-viewas{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.6rem clamp(1rem,4vw,3rem);background:rgba(184,146,74,.12);border-bottom:1px solid var(--gold)}
 .fc-viewas span{font-size:.9rem}
@@ -2125,7 +2922,132 @@ option{color:#111}
 .fc-og-children{margin-left:1.3rem;padding-left:1.3rem;border-left:1px solid var(--hairline);position:relative}
 .fc-og-children > .fc-og-node::before{content:'';position:absolute;left:-1.3rem;top:1.35rem;width:1.1rem;height:1px;background:var(--hairline)}
 
-@media(max-width:900px){.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-admin-add{grid-template-columns:1fr 1fr}.fc-adm-row{min-width:660px}.fc-sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 24px rgba(0,0,0,.4)}.fc-sidebar.is-open{transform:translateX(0)}.fc-topbar{display:flex}.fc-nav-scrim{display:block}}
+/* reviews & feedback */
+.fc-reviews .fc-panel{margin-bottom:1.1rem}
+.fc-rating{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;padding:.16rem .5rem;border-radius:2px;font-weight:600;flex:none}
+.fc-rating-good{background:var(--rag-g);color:var(--navy-deep)}
+.fc-rating-ok{background:rgba(147,160,180,.25);color:var(--parchment)}
+.fc-rating-warn{color:var(--rag-a);border:1px solid var(--rag-a)}
+.fc-rating-bad{color:var(--rag-r);border:1px solid var(--rag-r)}
+.fc-reviewcard{border:1px solid var(--hairline);border-radius:6px;padding:1rem;margin-top:.7rem;background:rgba(9,26,51,.35)}
+.fc-rc-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.fc-rc-summary{margin:.6rem 0}
+.fc-rc-cols{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.4rem}
+.fc-rc-k{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--gold-lit)}
+.fc-rc-cols p{margin:.2rem 0 0}
+.fc-rc-ack{margin:.8rem 0 0;color:var(--rag-g);font-size:.88rem}
+.fc-rc-ackrow{display:flex;gap:.6rem;margin-top:.8rem}
+.fc-fb{display:flex;align-items:baseline;gap:.7rem;padding:.55rem 0;border-top:1px solid var(--hairline);flex-wrap:wrap}
+.fc-fb b{flex:none}
+.fc-fb-text{flex:1;min-width:180px}
+.fc-fb-form{display:grid;grid-template-columns:1.2fr 2fr auto;gap:.6rem;align-items:center}
+.fc-tr-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.6rem 0;border-top:1px solid var(--hairline)}
+.fc-tr-who{display:flex;align-items:center;gap:.6rem}
+.fc-tr-right{display:flex;align-items:center;gap:.7rem}
+.fc-composer{border:1px solid var(--gold);border-radius:8px;padding:1.2rem;margin-top:1rem;background:rgba(184,146,74,.05);display:flex;flex-direction:column;gap:.7rem}
+.fc-composer-foot{justify-content:flex-end}
+
+/* performance / intervention */
+.fc-perf-row{display:grid;grid-template-columns:1.6fr 1.3fr 2fr auto;gap:.8rem;align-items:center;padding:.8rem 0;border-top:1px solid var(--hairline)}
+.fc-perf-who{display:flex;align-items:center;gap:.6rem}
+.fc-perf-mid{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.fc-perf-reasons{display:flex;flex-wrap:wrap;gap:.3rem}
+.fc-perf-reason{font-size:.72rem;color:var(--muted);border:1px solid var(--hairline);border-radius:2px;padding:.08rem .4rem}
+.fc-interv{font-size:.74rem;font-weight:600;padding:.2rem .55rem;border-radius:2px;text-align:center;flex:none}
+.fc-interv-good{color:var(--rag-g);border:1px solid var(--rag-g)}
+.fc-interv-ok{color:var(--muted);border:1px solid var(--hairline)}
+.fc-interv-warn{color:var(--rag-a);border:1px solid var(--rag-a)}
+.fc-interv-bad{background:var(--rag-r);color:var(--parchment)}
+
+/* leave */
+.fc-leave-form{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.7rem;align-items:end}
+.fc-leave-form .fc-col2{grid-column:1/5}
+.fc-leave-form .fc-btn{grid-column:1/5;justify-self:start}
+.fc-leave-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.6rem 0;border-top:1px solid var(--hairline);flex-wrap:wrap}
+.fc-leave-actions{display:flex;gap:.5rem}
+.fc-lv{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;padding:.16rem .5rem;border-radius:2px;font-weight:600}
+.fc-lv-pending{color:var(--gold-lit);border:1px solid var(--gold)}
+.fc-lv-approved{color:var(--rag-g);border:1px solid var(--rag-g)}
+.fc-lv-declined{color:var(--rag-r);border:1px solid var(--rag-r)}
+
+/* payroll */
+.fc-paytable{border:1px solid var(--hairline);border-radius:6px;overflow-x:auto}
+.fc-pt-row{display:grid;grid-template-columns:2fr 1.1fr 1fr 1fr 1.1fr auto;gap:.6rem;align-items:center;padding:.6rem .9rem}
+.fc-pt-row+.fc-pt-row{border-top:1px solid var(--hairline)}
+.fc-pt-head{background:rgba(184,146,74,.08);color:var(--gold-lit);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
+.fc-pt-name{font-weight:600}
+.fc-pt-name .fc-muted{font-weight:400}
+.fc-pt-input{padding:.35rem .5rem;max-width:130px}
+.fc-pt-actions{display:flex;gap:.4rem;justify-content:flex-end}
+.fc-pay-note{font-size:.8rem;color:var(--muted);margin-top:.9rem}
+.fc-payslip .fc-ps-head{display:flex;align-items:center;gap:.8rem;margin:.6rem 0 1.3rem}
+.fc-payslip .fc-ps-head h2{margin:0}
+.fc-ps-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+.fc-ps-row{display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-top:1px solid var(--hairline);font-size:.92rem}
+.fc-ps-row.is-strong{font-weight:700;color:var(--gold-lit);border-top:1px solid var(--gold)}
+.fc-pay-toggles{display:flex;gap:1rem}
+.fc-toggle{display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:var(--muted)}
+.fc-toggle input{width:15px;height:15px;accent-color:var(--gold)}
+.fc-ps-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.4rem}
+
+@media print {
+  .fc-sidebar, .fc-topbar, .fc-viewas, .fc-nav-scrim, .fc-back, .fc-ps-print-btn { display: none !important; }
+  .fc-app, .fc-app-body, .fc-main { display: block !important; height: auto !important; }
+  .fc-main { max-width: none !important; padding: 0 !important; }
+  body, .fc-root { background: #fff !important; }
+  .fc-payslip, .fc-payslip * { color: #10233f !important; }
+  .fc-payslip .fc-panel { border: 1px solid #d8d2c4 !important; background: #fff !important; }
+  .fc-payslip .fc-muted { color: #5a6472 !important; }
+  .fc-ps-row.is-strong { color: #0e2240 !important; border-top: 1px solid #b8924a !important; }
+  .fc-avatar { background: #0e2240 !important; color: #fff !important; }
+}
+
+/* onboarding */
+.fc-ob-card{padding:0}
+.fc-ob-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.2rem;cursor:pointer;flex-wrap:wrap}
+.fc-ob-who{display:flex;align-items:center;gap:.6rem}
+.fc-ob-prog{min-width:130px}
+.fc-ob-tasks{display:flex;flex-direction:column;gap:.5rem;padding:0 1.2rem 1.1rem}
+.fc-ob-task{display:flex;align-items:center;gap:.6rem;font-size:.92rem}
+.fc-ob-task input{width:16px;height:16px;accent-color:var(--gold)}
+.fc-ob-task .is-done{color:var(--muted);text-decoration:line-through}
+
+/* cycles */
+.fc-cycle-form{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.fc-cycle-form .fc-input{max-width:220px}
+.fc-cycle-note{margin-top:.8rem}
+.fc-cycle-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.6rem 0;border-top:1px solid var(--hairline)}
+.fc-cycle-right{display:flex;align-items:center;gap:.6rem}
+.fc-sc-controls{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+.fc-cycle-select{max-width:150px;padding:.35rem .5rem}
+
+/* documents */
+.fc-docs-layout{display:grid;grid-template-columns:240px 1fr;gap:1.2rem}
+.fc-docs-people{display:flex;flex-direction:column;gap:.3rem;border:1px solid var(--hairline);border-radius:6px;padding:.5rem;max-height:520px;overflow-y:auto}
+.fc-docs-person{display:flex;align-items:center;gap:.55rem;background:none;border:none;color:var(--parchment);cursor:pointer;font-family:inherit;text-align:left;padding:.45rem .5rem;border-radius:5px}
+.fc-docs-person span{display:flex;flex-direction:column;line-height:1.2}
+.fc-docs-person .fc-muted{font-size:.75rem}
+.fc-docs-person:hover{background:rgba(237,233,224,.04)}
+.fc-docs-person.is-on{background:rgba(184,146,74,.12)}
+.fc-docs-main{border:1px solid var(--hairline);border-radius:6px;padding:1rem 1.2rem}
+.fc-docs-upload{display:flex;gap:.6rem;align-items:center;margin:.4rem 0 1rem}
+.fc-docs-upload .fc-input{max-width:170px}
+.fc-docs-uploadbtn{cursor:pointer}
+.fc-doc-row{display:grid;grid-template-columns:auto 1.6fr 1.4fr auto;gap:.7rem;align-items:center;padding:.55rem 0;border-top:1px solid var(--hairline)}
+.fc-doc-cat{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--gold-lit);border:1px solid var(--gold);border-radius:2px;padding:.08rem .4rem;justify-self:start}
+.fc-doc-name{font-weight:600}
+.fc-doc-meta{font-size:.8rem}
+.fc-doc-actions{display:flex;align-items:center;gap:.5rem;justify-content:flex-end}
+.fc-doc-open{color:var(--gold-lit);text-decoration:underline;font-size:.85rem}
+.fc-doc-onfile{font-size:.85rem}
+
+/* export */
+.fc-export-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;margin-top:.5rem}
+.fc-export-card{border:1px solid var(--hairline);border-radius:8px;padding:1.4rem;background:rgba(9,26,51,.4);display:flex;flex-direction:column;gap:.7rem}
+.fc-export-card h3{margin:0}
+.fc-export-card .fc-btn{margin-top:auto;align-self:flex-start}
+
+@media(max-width:900px){.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-admin-add{grid-template-columns:1fr 1fr}.fc-adm-row{min-width:660px}.fc-fb-form{grid-template-columns:1fr}.fc-rc-cols{grid-template-columns:1fr}.fc-perf-row{grid-template-columns:1fr 1fr}.fc-leave-form{grid-template-columns:1fr 1fr}.fc-leave-form .fc-col2{grid-column:1/3}.fc-leave-form .fc-btn{grid-column:1/3}.fc-pt-row{min-width:620px}.fc-docs-layout{grid-template-columns:1fr}.fc-doc-row{grid-template-columns:auto 1fr auto}.fc-export-grid{grid-template-columns:1fr}.fc-sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 24px rgba(0,0,0,.4)}.fc-sidebar.is-open{transform:translateX(0)}.fc-hamburger{display:inline-block}.fc-nav-scrim{display:block}}
 @media(max-width:560px){.fc-field-grid{grid-template-columns:1fr}.fc-col2{grid-column:1}.fc-cap-grid{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:1fr 1fr}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 `

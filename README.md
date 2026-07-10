@@ -14,6 +14,95 @@ This build covers Stages 1 to 5:
 - **Stage 5** The Organisations view, AI-suggested next OKRs, and stall detection with a
   WhatsApp nudge.
 
+## Reviews and feedback
+
+Everyone has a Reviews tab. A staff member sees their own reviews there, most recent first, so they
+know exactly how they did last cycle: the rating, a summary, their strengths and what to improve,
+plus any quick feedback colleagues have left them. They can acknowledge a review and add a short
+response. A manager runs a review session from the same tab: for each of their people they open a
+composer, set an overall rating (exceeds, meets, below, unsatisfactory), and write the summary,
+strengths and areas to improve. Anyone can also send a quick note of feedback to a colleague.
+
+## Performance and intervention
+
+HR, the MD and the Chairman get a Performance tab that watches for people who perform low
+consistently. It reads each person's band, their history of below-expectations and unsatisfactory
+reviews (frequency) and how serious those are (severity), along with movement against last cycle,
+and turns that into a recommendation: on track, monitor, improvement plan, or recommend for
+termination. The reasons behind each recommendation are shown alongside it.
+
+## Leave and time off
+
+Everyone can request leave under the Leave tab: annual, sick, maternity or paternity, and
+compassionate, with the day count worked out from the dates. Each person sees their remaining
+balance per type and the status of their requests. Approvals go to the Managing Director, who has
+an approval queue on the same tab; HR and admin can see all leave across the group.
+
+## Payroll
+
+The Payroll tab (MD, HR, admin) runs a monthly payroll under current Nigerian rules: pay is split
+into basic, housing, transport and other allowances; pension is 8 percent employee and 10 percent
+employer on basic-plus-housing-plus-transport; NHF is 2.5 percent of basic and, with pension and a
+rent relief of 20 percent of rent capped at ₦500,000, reduces taxable income; PAYE then follows the
+Nigeria Tax Act 2025 bands; and NHIS (employee 5 percent of basic) plus the flat ₦4,000 annual
+development levy come off after tax. NHF and NHIS can each be toggled to match the company's
+situation. The table shows gross, PAYE, total deductions and net per person, salaries are editable
+inline, and each person has a full payslip, with monthly earnings and deductions and an annual
+summary, that can be printed or saved as PDF. The figures are estimates to confirm with your
+accountant and the Nigeria Revenue Service before remittance.
+
+## Onboarding
+
+HR, the MD and admin get an Onboarding tab that tracks new hires against a standard checklist
+(offer, contract, documents, bank and pension details, accounts, equipment, orientation, and a
+first-week check-in). Each person shows a progress bar; opening their card reveals the checklist to
+tick off. Anyone added through the Roster starts a fresh checklist automatically, and each new hire
+sees their own progress on their dashboard until it is complete.
+
+## Review cycles
+
+HR, the MD and admin get a Cycles tab that manages review periods. One cycle is active at a time,
+and it is the cycle that new objectives and new reviews are stamped with. "Roll to next cycle"
+closes the current one and opens a new one, carrying every approved objective forward as a draft to
+refine and resubmit; the closed cycle's objectives, scores, reviews and check-ins stay intact as
+history. Any past cycle can be made active again, and the Scorecards tab has a cycle selector so you
+can look back at how any period was scored. The Chairman's cockpit always reflects the active cycle.
+
+## Documents
+
+HR, the MD and admin get a Documents tab: pick a person and see their records, held per category
+(contract, ID, certificate, tax, pension, other). Uploading a file adds it under the chosen
+category, and each person sees their own documents on their dashboard. In the hosted app files live
+against each profile; in the local demo an uploaded file opens for the session while its record is
+kept, which keeps the demo light without a storage backend.
+
+## The wider HR suite
+
+Forte Compass now spans OKRs and the outcome engine, check-ins and trends, scorecards, the
+holding-company cockpit with workspace switching, organisations and the organogram, reviews and
+feedback, performance and intervention, leave, full Nigerian payroll with printable payslips,
+onboarding, review cycles, per-person documents, and export.
+
+## Export
+
+The Export tab (the Chairman, MD, HR and admin) generates two artefacts from live data for the
+active cycle: a branded review pack, with a navy-and-gold cover, the cohort scorecard, individual
+coaching sections and a risk register, that opens as a document to print or save as PDF; and an
+Excel tracker with the cohort scorecard and every key result (baseline, target, current and
+confidence).
+
+## Server-enforced permissions
+
+The simple deployment stores each tenant's data as one keyed JSON document with tenant-level row
+security, which isolates tenants but leaves the finer visibility rules to the interface. The lower
+half of `supabase/schema.sql` is the production model: normalised tables (objectives, key results,
+reviews, feedback, leave, salaries, documents and cycles) with row-level-security policies that
+enforce the same rules at the database, keyed to the signed-in user's role and subsidiary. A staff
+member's query returns only their own objectives, scores and documents; a lead sees their
+subsidiary; the MD, HR and the Chairman see the group; leave decisions and pay are limited to the
+MD, HR and admin; and a person can read their own pay line but not anyone else's. Point the client's
+live data layer at these tables to switch database-enforced permissions on.
+
 ## Check-ins and trends
 
 Once an objective is approved, its owner logs progress under the Check-ins tab: a new value, a

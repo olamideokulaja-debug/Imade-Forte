@@ -1,65 +1,113 @@
-# Forte Compass — Stage 1 (Landing and brand)
+# Forte Compass
 
-An AI-driven, multi-tenant OKR and performance platform. Stage 1 delivers the branded
-gateway: the outcome-led positioning, the outcome ladder, and a live-board teaser that
-resolves on sign-in. Supabase auth and tenancy arrive in Stage 2.
+An OKR and performance platform for Imade Forte Holdings and its subsidiaries.
+It holds every team to the change it creates, not the hours it logs. Objectives are
+authored, coached toward outcomes, submitted, approved and scored, right across the group.
 
-Built the same way as Qura and Girard: a single-file React app (`src/App.jsx`) on
-Vite + React, deployable to Vercel.
+This build covers Stages 1 to 5:
+
+- **Stage 1** The branded gateway and the outcome ladder.
+- **Stage 2** A deployable, multi-tenant stack with sign-in and role routing.
+- **Stage 3** OKR authoring with the coach-hard outcome engine and the approval workflow.
+- **Stage 4** The scorecard. Objectives are auto-scored against the house rubric, and a lead,
+  HR or the MD can adjust any dimension with every change logged.
+- **Stage 5** The Organisations view, AI-suggested next OKRs, and stall detection with a
+  WhatsApp nudge.
+
+## The Chairman's cockpit
+
+Signing in as the Chairman opens a dedicated, read-only oversight view. It leads with the health
+of each organisation (score, band, outcome ratio, RAG and movement side by side), then the
+standing of every staff member with a one-click drill into any person's objectives and
+scorecards, then the risks and stalled results across the whole group, then who is climbing and
+who is slipping against the previous cycle. The Chairman sees everything and changes nothing:
+there are no authoring, approval or adjustment controls in this view.
+
+## Organisations
+
+Under the Organisations tab, each subsidiary is its own organisation with its own staff and OKRs:
+Real Estate, Genesys, Realms, Governance and Partnerships, plus a Group overview across all of
+them. Selecting an organisation shows the people under it with their scores, the objectives that
+belong to it, its outcome ratio and weighted average, its strategic priority, and any key results
+that need attention. A subsidiary lead sees only their own organisation; the MD, HR and the
+Chairman see all of them.
+
+## Suggestions and nudges
+
+From My OKRs, "Suggest next OKRs" proposes three outcome-shaped objectives tailored to the
+person's organisation, and "Use this" opens the author already filled in. Across the app, a key
+result is flagged as needing attention when confidence is low or progress is well behind the
+target. In an organisation view, a lead, HR or the MD can turn any flagged key result into a
+ready-to-send WhatsApp nudge with one click. With the AI key set the suggestions come from the
+model; without it, a built-in engine does the same job offline.
+
+## Two ways to run it
+
+**Demo mode (default, no setup).** Deploy the folder as-is and it works immediately. It runs
+on seeded May 2026 cohort data held in the browser, with a "pick who you are" sign-in so you can
+walk every role. Nothing leaves the device. This is the right mode for review and for showing
+people around.
+
+**Live mode (when you are ready).** Add a Supabase project and an AI key in Vercel and the same
+app switches to real accounts, real tenancy with row-level security, and the AI outcome engine.
+No code changes. Steps are below.
+
+## Put it online (about 15 minutes, no coding)
+
+1. Create a free account at **github.com** and a free account at **vercel.com**.
+2. On GitHub, click **New repository**, name it `forte-compass`, and create it.
+3. On the repository page choose **uploading an existing file**, then drag in *everything* inside
+   this folder (including the `src`, `api`, `public` and `supabase` folders). Commit.
+4. In Vercel click **Add New, Project**, pick the `forte-compass` repository, and click **Deploy**.
+   Vercel detects Vite automatically. When it finishes you get a live link. That link is the
+   working app in demo mode.
+
+## Turn on live mode
+
+In Vercel, open the project, then **Settings, Environment Variables**, and add:
+
+| Name | Where it comes from |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase, Project Settings, API |
+| `VITE_SUPABASE_ANON_KEY` | Supabase, Project Settings, API |
+| `ANTHROPIC_API_KEY` | Your Anthropic console. Kept server-side, never sent to the browser. |
+| `ANTHROPIC_MODEL` | Optional. Defaults to `claude-sonnet-5`. |
+
+Then, in Supabase, open the **SQL editor** and run the contents of `supabase/schema.sql` once.
+It creates the organisations, profiles and data tables and the tenant row-level security, and
+seeds the Imade Forte and demo tenants. Redeploy in Vercel and the app is live.
 
 ## What is in this build
 
-- `src/App.jsx` — the entire Stage 1 page, one file, brand tokens as CSS variables so a
-  tenant can rebrand without a code change. Imade Forte defaults to Navy `#0E2240`,
-  Gold `#B8924A`, and Lora.
-- `index.html`, `src/main.jsx`, `vite.config.js` — the Vite shell.
-- `vercel.json` — tells Vercel this is a Vite app and serves it as a single page.
-- `public/imade-forte-logo.png` — the real Imade Forte Holdings lockup, background made
-  transparent and trimmed, used in the header and footer. `imade-forte-logo-hires.png` is
-  a larger copy kept for the review-pack exports in Stage 8.
+- `src/App.jsx` The whole application in one file: gateway, sign-in, role router, dashboard,
+  the authoring engine and the approval workflow.
+- `api/anthropic.js` The server-side AI proxy. Holds the key, so the browser never sees it. When
+  no key is set the app quietly uses its built-in offline engine instead.
+- `supabase/schema.sql` The database and tenant row-level security for live mode.
+- `public/imade-forte-logo.png` The Imade Forte lockup used in the header and footer.
+  `imade-forte-logo-hires.png` is kept for the review-pack exports in a later stage.
+- `.env.example` The list of environment variables, for reference.
 
-The build was validated locally with `npm run build` (result: "built").
+## The outcome engine
 
-## Run it on your own machine (optional)
+When you author a key result, the engine reads it and labels it input, activity, output or
+outcome. Anything that is not an outcome is coached: you are shown one or two outcome-shaped
+rewrites, and the objective cannot be saved until every weaker key result is either rewritten or
+kept with a short reason on the record. Baseline, measure and target are required throughout.
+With the AI key set, the classification and rewrites come from the model; without it, a built-in
+rule-based engine does the same job offline.
 
-1. Install Node.js 18 or newer from nodejs.org.
-2. Open a terminal in this folder.
-3. Type `npm install` and press Enter. Wait for it to finish.
-4. Type `npm run dev` and press Enter. Open the address it prints (usually
-   http://localhost:5173).
+## Scoring and the scorecard
 
-## Put it online with GitHub and Vercel
+Once an objective is submitted or approved it is scored against the house rubric: SMART quality
+30 percent, strategic alignment 30 percent, ambition 20 percent, ownership 20 percent, banded
+green at 7 and above, amber from 4, red below. The score is computed automatically to start.
+A subsidiary lead (for their own people), HR or the MD can then adjust any dimension. Every
+adjustment is written to the objective's history with the dimension, the before and after values,
+who made it, their role, the time, and a reason. A person sees only their own scorecard; peers
+never see each other's. Adjusted scores flow straight to the group board.
 
-Do these one at a time. No coding needed.
+## Notes for the roster
 
-1. Create a free account at github.com if you do not have one.
-2. On GitHub, click the plus sign, top right, then "New repository". Name it
-   `forte-compass`. Leave everything else as is. Click "Create repository".
-3. On the new repository page, click "uploading an existing file".
-4. Drag every file and folder from this project into the box, then click
-   "Commit changes". Do not upload the `node_modules` or `dist` folders; they are not
-   needed and are excluded by `.gitignore`.
-5. Create a free account at vercel.com and choose "Continue with GitHub".
-6. In Vercel, click "Add New", then "Project". Pick your `forte-compass` repository and
-   click "Import".
-7. Leave the settings as they are. Vercel detects Vite automatically. Click "Deploy".
-8. Wait about a minute. Vercel gives you a live web address. Open it. Forte Compass is
-   online.
-
-## Redeploy after a change
-
-Whenever a file changes on GitHub, Vercel rebuilds and republishes on its own. To change
-a file: open it on GitHub, click the pencil icon, edit, then "Commit changes". Your live
-site updates within a minute.
-
-## Environment variables
-
-Stage 1 needs none. Stage 2 will add Supabase keys (a project URL and an anon key) and a
-server-side AI key. Those go into Vercel under Project, then Settings, then Environment
-Variables, and are never placed in the code.
-
-## Next stage
-
-Stage 2: the deployable Supabase stack, tenant isolation with row-level security, the
-"Which best describes you?" role page, sign-in and account creation, and the per-user
-identity map.
+Two people are still seeded without surnames (Adebayo and Chinonso), and one HR seat is a
+placeholder. These are flagged in the app and are easy to correct before the roster goes live.

@@ -233,3 +233,73 @@ drop policy if exists doc_manage on documents;
 create policy doc_manage on documents for all
   using (tenant_id = current_tenant() and my_role() in ('md','hr','admin'))
   with check (tenant_id = current_tenant() and my_role() in ('md','hr','admin'));
+
+
+-- =====================================================================
+-- Production hardening for the enforced model.
+-- =====================================================================
+
+-- Auto-create a profile the moment someone signs up, so a new user can pick
+-- their role and start immediately. Role/subsidiary come from signup metadata
+-- and default sensibly.
+create or replace function handle_new_user() returns trigger
+language plpgsql security definer as $$
+begin
+  insert into profiles (id, tenant_id, name, role, subsidiary)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'tenant_id', 'imade-forte'),
+    coalesce(new.raw_user_meta_data->>'name', new.email),
+    coalesce(new.raw_user_meta_data->>'role', 'staff'),
+    coalesce(new.raw_user_meta_data->>'subsidiary', 'Corporate'))
+  on conflict (id) do nothing;
+  return new;
+end $$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function handle_new_user();
+
+-- Indexes for the common query paths.
+create index if not exists idx_obj_tenant_cycle on objectives(tenant_id, cycle);
+create index if not exists idx_obj_owner on objectives(owner_id);
+create index if not exists idx_kr_obj on key_results(objective_id);
+create index if not exists idx_rev_subject on reviews(subject_id);
+create index if not exists idx_lv_staff on leave_requests(staff_id);
+create index if not exists idx_doc_staff on documents(staff_id);
+
+-- Durable storage for document files. Files live under a folder named after the
+-- person's id; the person reads their own, HR/MD/admin manage everyone's.
+insert into storage.buckets (id, name, public)
+  values ('documents', 'documents', false)
+on conflict (id) do nothing;
+drop policy if exists doc_storage_read on storage.objects;
+create policy doc_storage_read on storage.objects for select using (
+  bucket_id = 'documents' and (
+    (storage.foldername(name))[1] = auth.uid()::text or my_role() in ('md','hr','admin')));
+drop policy if exists doc_storage_write on storage.objects;
+create policy doc_storage_write on storage.objects for insert with check (
+  bucket_id = 'documents' and my_role() in ('md','hr','admin'));
+drop policy if exists doc_storage_delete on storage.objects;
+create policy doc_storage_delete on storage.objects for delete using (
+  bucket_id = 'documents' and my_role() in ('md','hr','admin'));
+
+
+-- =====================================================================
+-- Migration step 1: objectives keyed to the signed-in user.
+-- Run this to move the "objectives" entity onto the enforced tables.
+-- owner_key holds the owner's login id; RLS lets a person see and edit
+-- their own objectives, a lead see their subsidiary, oversight see all.
+-- =====================================================================
+alter table objectives add column if not exists owner_key text;
+create index if not exists idx_obj_owner_key on objectives(owner_key);
+
+drop policy if exists obj_read on objectives;
+create policy obj_read on objectives for select using (
+  tenant_id = current_tenant() and (is_oversight() or owner_key = auth.uid()::text
+  or (my_role() = 'lead' and subsidiary = my_sub())));
+
+drop policy if exists obj_write_own on objectives;
+create policy obj_write_own on objectives for all
+  using (owner_key = auth.uid()::text)
+  with check (owner_key = auth.uid()::text and tenant_id = current_tenant());

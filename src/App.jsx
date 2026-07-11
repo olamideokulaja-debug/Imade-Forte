@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 /* ------------------------------------------------------------------ *
@@ -62,44 +62,45 @@ const ROLES = {
   lead: 'Subsidiary Lead',
   staff: 'Staff',
   hr: 'HR Manager',
+  accountant: 'Accountant',
   admin: 'Tenant Admin',
 }
 const uid = () => Math.random().toString(36).slice(2, 10)
+const roleLabel = (x) => (x && x.title) || ROLES[x && x.role] || ''
 
 /* ------------------------ Seeded cohort --------------------------- */
 // Real May 2026 cohort. Bands seed the group board; a subset carries full OKRs.
 const STAFF = [
-  { id: 's_jen', name: 'Jennifer Kaja', role: 'md', sub: 'Corporate', tier: 'leadership', band: 'green', score: 8.4 },
-  { id: 's_ose', name: 'Osemeke Anyirah', role: 'lead', sub: 'Genesys', tier: 'leadership', band: 'green', score: 8.0 },
+  { id: 's_jen', name: 'Jennifer Kaja', role: 'md', title: 'Managing Director', sub: 'Corporate', also: ['Girard', 'Yostrat'], tier: 'leadership', band: 'green', score: 8.4 },
   { id: 's_ebi', name: 'Ebime Abari', role: 'lead', sub: 'Genesys', tier: 'leadership', band: 'green', score: 8.1 },
   { id: 's_sol', name: 'Solomon C. Nweke', role: 'lead', sub: 'Realms', tier: 'leadership', band: 'green', score: 7.6 },
   { id: 's_tha', name: 'Thaddeus U. Oparaocha', role: 'staff', sub: 'Realms', tier: 'ops', band: 'green', score: 7.2 },
   { id: 's_ojo', name: 'Ojuma Joy Ndidi', role: 'staff', sub: 'Realms', tier: 'ops', band: 'green', score: 7.3 },
   { id: 's_gud', name: 'Goodness Udoka', role: 'staff', sub: 'Girard', tier: 'leadership', band: 'green', score: 7.6 },
-  { id: 's_chi', name: 'Chinomso Isdone Ordor', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'green', score: 8.0 },
-  { id: 's_ade', name: 'Adebayo Okediji', role: 'lead', sub: 'Corporate', tier: 'leadership', band: 'green', score: 7.6 },
+  { id: 's_chi', name: 'Chinomso Isdone Ordor', role: 'staff', sub: 'Genesys', also: ['Girard'], tier: 'ops', band: 'green', score: 8.0 },
+  { id: 's_ade', name: 'Adebayo Okediji', role: 'accountant', title: 'Accountant', sub: 'Corporate', tier: 'leadership', band: 'green', score: 7.6 },
   { id: 's_sun', name: 'Sunday Orimoyegun', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'amber', score: 6.2 },
   { id: 's_kit', name: 'Kitunde Abayomi', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'amber', score: 5.8 },
   { id: 's_goo', name: 'Goodnews Anele', role: 'staff', sub: 'Realms', tier: 'ops', band: 'amber', score: 6.5 },
-  { id: 's_tiw', name: 'Tiwalola E. Omosuwa', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'amber', score: 6.0 },
-  { id: 's_god', name: 'Godwin Idiong', role: 'lead', sub: 'Genesys', tier: 'leadership', band: 'amber', score: 6.5 },
+  { id: 's_god', name: 'Godwin Idiong', role: 'lead', title: 'Head of Products', sub: 'Corporate', also: ['Genesys'], tier: 'leadership', band: 'amber', score: 6.5 },
+  { id: 's_emma', name: 'Emmanuella', role: 'staff', title: 'Customer Service', sub: 'Corporate', tier: 'ops', band: 'green', score: 0 },
 ]
 // A Chairman and an HR seat, for role coverage.
 STAFF.push({ id: 's_chair', name: 'Office of the Chairman', role: 'chairman', sub: 'Corporate', tier: 'leadership', band: 'green', score: 0 })
 STAFF.push({ id: 's_hr', name: 'Ijeoma Balogun', role: 'hr', sub: 'Corporate', tier: 'leadership', band: 'green', score: 0 })
 STAFF.push({ id: 's_buchi', name: 'Buchi', role: 'lead', sub: 'Corporate', also: ['Girard'], tier: 'leadership', band: 'green', score: 7.0 })
 // Prior-cycle standing (April 2026), used to show movement.
-const PREV = { s_jen: 8.1, s_ose: 8.2, s_ebi: 7.5, s_sol: 7.4, s_tha: 7.0, s_ojo: 7.3, s_gud: 7.8, s_chi: 7.7, s_ade: 7.6, s_sun: 6.6, s_kit: 5.5, s_goo: 6.2, s_tiw: 6.4, s_god: 6.3, s_buchi: 6.8 }
+const PREV = { s_jen: 8.1, s_ebi: 7.5, s_sol: 7.4, s_tha: 7.0, s_ojo: 7.3, s_gud: 7.8, s_chi: 7.7, s_ade: 7.6, s_sun: 6.6, s_kit: 5.5, s_goo: 6.2, s_god: 6.3, s_buchi: 6.8, s_emma: 0 }
 // Reporting lines. Chairman at the top; each subsidiary head reports to the MD.
 const MGR = {
   s_jen: 's_chair', s_gud: 's_buchi', s_hr: 's_jen', s_ade: 's_jen', s_buchi: 's_jen',
-  s_ose: 's_jen', s_ebi: 's_ose', s_god: 's_ose', s_sun: 's_ebi', s_kit: 's_ebi', s_chi: 's_ebi', s_tiw: 's_ose',
+  s_ebi: 's_god', s_god: 's_jen', s_sun: 's_ebi', s_kit: 's_ebi', s_chi: 's_ebi', s_emma: 's_jen',
   s_sol: 's_jen', s_tha: 's_sol', s_ojo: 's_sol', s_goo: 's_sol',
 }
 STAFF.forEach((s) => { s.prev = PREV[s.id] ?? s.score; s.managerId = MGR[s.id] ?? null })
 // Monthly gross salary (NGN) and optional annual rent (for rent relief).
-const SALARY = { s_jen: 2500000, s_ose: 1800000, s_ebi: 1500000, s_god: 1400000, s_ade: 1300000, s_buchi: 1300000, s_sol: 1200000, s_hr: 1100000, s_gud: 700000, s_chi: 550000, s_sun: 500000, s_ojo: 450000, s_tha: 450000, s_goo: 450000, s_tiw: 400000, s_kit: 300000 }
-const RENT = { s_jen: 6000000, s_ebi: 3000000, s_tiw: 1200000 }
+const SALARY = { s_jen: 2500000, s_ebi: 1500000, s_god: 1400000, s_ade: 1300000, s_buchi: 1300000, s_sol: 1200000, s_hr: 1100000, s_gud: 700000, s_chi: 550000, s_sun: 500000, s_ojo: 450000, s_tha: 450000, s_goo: 450000, s_kit: 300000, s_emma: 380000 }
+const RENT = { s_jen: 6000000, s_ebi: 3000000, s_emma: 900000 }
 STAFF.forEach((s) => { s.salary = SALARY[s.id] ?? 0; s.rent = RENT[s.id] ?? 0 })
 
 const KR = (statement, kr_type, measure, baseline, target, unit, opts = {}) => ({
@@ -157,7 +158,7 @@ function seedObjectives() {
       ],
     },
     {
-      id: uid(), owner: 's_tiw', sub: 'Genesys', priority: 'P2', cycle: 'May 2026',
+      id: uid(), owner: 's_emma', sub: 'Corporate', priority: 'P2', cycle: 'May 2026',
       status: 'submitted',
       title: 'Schedule appointments for Genesys clients',
       description: 'Turn client contact into booked, attended appointments.',
@@ -254,6 +255,11 @@ const outcomeRatio = (objectives) => {
   const krs = objectives.flatMap((o) => o.krs)
   if (!krs.length) return 0
   return Math.round((krs.filter((k) => k.kr_type === 'outcome').length / krs.length) * 100)
+}
+// Corporate rolls up every subsidiary: its outcome ratio spans the whole group.
+const outcomeRatioForOrg = (data, org) => {
+  if (org === 'Corporate') return outcomeRatio(data.objectives)
+  return outcomeRatio(data.objectives.filter((o) => o.sub === org))
 }
 
 /* ------------------------- Rubric scoring (Stage 4) --------------- */
@@ -412,9 +418,8 @@ function seedReviews() {
   const r = (subjectId, reviewerId, cycle, rating, summary, strengths, improvements, at, ack = false, response = '') =>
     ({ id: uid(), subjectId, reviewerId, cycle, rating, summary, strengths, improvements, createdAt: at, ack, response })
   return [
-    r('s_ebi', 's_ose', 'April 2026', 'exceeds', 'Led Version 2 to production and held stability high.', 'Ownership, technical depth, calm under load.', 'Delegate more so the bus factor improves.', '2026-04-30'),
+    r('s_ebi', 's_god', 'April 2026', 'exceeds', 'Led Version 2 to production and held stability high.', 'Ownership, technical depth, calm under load.', 'Delegate more so the bus factor improves.', '2026-04-30'),
     r('s_tha', 's_sol', 'April 2026', 'meets', 'Consistent monitoring coverage and clean reporting.', 'Reliability, field discipline.', 'Push checklist completion above 95 percent.', '2026-04-30'),
-    r('s_tiw', 's_ose', 'April 2026', 'below', 'Dependable at the desk; conversion to booked appointments lagged.', 'Warm with clients, strong attendance.', 'Turn contacts into confirmed, attended appointments; log within 24 hours.', '2026-04-30'),
     r('s_sun', 's_ebi', 'April 2026', 'below', 'Steady on legacy support; slow on the migration queue.', 'Patient with legacy clients.', 'Clear the high-priority migration tickets within SLA.', '2026-04-30'),
     r('s_kit', 's_ebi', 'March 2026', 'below', 'Learning fast but output below the module targets.', 'Eager, coachable.', 'Ship the assigned modules on schedule.', '2026-03-31'),
     r('s_kit', 's_ebi', 'April 2026', 'below', 'Repeat gap on module delivery; needs closer support.', 'Good attitude.', 'Meet the next two module deadlines without slippage.', '2026-04-30'),
@@ -424,7 +429,6 @@ function seedFeedback() {
   const f = (toId, fromId, text, at) => ({ id: uid(), toId, fromId, text, createdAt: at })
   return [
     f('s_ebi', 's_jen', 'The migration validation report was excellent, thank you.', '2026-05-18'),
-    f('s_tiw', 's_ose', 'Great save with the walk-in client this morning.', '2026-05-20'),
     f('s_goo', 's_chair', 'Calendar ran flawlessly through the board week.', '2026-05-16'),
   ]
 }
@@ -479,7 +483,6 @@ function seedLeave() {
   const L = (staffId, type, start, end, reason, status, decidedBy = null, decidedAt = null) =>
     ({ id: uid(), staffId, type, start, end, days: daysBetween(start, end), reason, status, decidedBy, decidedAt, note: '' })
   return [
-    L('s_tiw', 'annual', '2026-06-10', '2026-06-16', 'Family trip', 'pending'),
     L('s_tha', 'annual', '2026-07-14', '2026-07-18', 'Personal time', 'pending'),
     L('s_sun', 'sick', '2026-05-22', '2026-05-23', 'Malaria', 'approved', 's_jen', '2026-05-21'),
     L('s_goo', 'compassionate', '2026-05-05', '2026-05-07', 'Family bereavement', 'approved', 's_jen', '2026-05-04'),
@@ -554,7 +557,7 @@ const ONBOARDING_TASKS = [
 ]
 const newChecklist = (allDone = false) => ONBOARDING_TASKS.map((label, i) => ({ id: 'ob' + i, label, done: allDone }))
 function seedOnboarding(id) {
-  const recent = { s_buchi: 5, s_kit: 3, s_tiw: 6 } // recent hires: number of tasks completed
+  const recent = { s_buchi: 5, s_kit: 3, s_emma: 2 } // recent hires: number of tasks completed
   if (id in recent) return ONBOARDING_TASKS.map((label, i) => ({ id: 'ob' + i, label, done: i < recent[id] }))
   return newChecklist(true)
 }
@@ -573,7 +576,6 @@ function seedDocuments(id) {
   const map = {
     s_jen: [D('Employment contract.pdf', 'Contract', '2025-11-01'), D('National ID card.pdf', 'ID', '2025-11-01')],
     s_ebi: [D('Employment contract.pdf', 'Contract', '2025-12-01'), D('Degree certificate.pdf', 'Certificate', '2025-12-01')],
-    s_tiw: [D('National ID card.pdf', 'ID', '2026-01-15')],
     s_kit: [D('Internship letter.pdf', 'Contract', '2026-02-01')],
   }
   return map[id] || []
@@ -606,6 +608,8 @@ async function loadData(tenantId) {
       ? [{ id: 'c_mar', name: 'March 2026', status: 'closed' }, { id: 'c_apr', name: 'April 2026', status: 'closed' }, { id: 'c_may', name: 'May 2026', status: 'active' }]
       : [{ id: 'c1', name: 'Current cycle', status: 'active' }],
     activeCycle: forte ? 'May 2026' : 'Current cycle',
+    hrActions: [],
+    payrollRun: { cycle: forte ? 'May 2026' : 'Current cycle', status: 'draft', preparedBy: null, approvedBy: null, paidBy: null },
   }
   return seeded
 }
@@ -615,6 +619,28 @@ async function saveData(tenantId, data) {
     try { await supabase.from('kv').upsert({ tenant_id: tenantId, key: 'dataset', value: data, updated_at: new Date().toISOString() }) } catch { /* ignore */ }
   }
   try { localStorage.setItem(LKEY(tenantId), JSON.stringify(data)) } catch { /* ignore */ }
+}
+
+/* ---- Enforced tables: objectives (first migrated entity, opt-in) ---- */
+// Off unless the deploy sets VITE_USE_TABLES=on. Your live site is untouched
+// until you turn it on (do that on a Vercel preview first).
+const USE_TABLES = LIVE && import.meta.env.VITE_USE_TABLES === 'on'
+const krRowToApp = (k) => ({ id: k.id, statement: k.statement, kr_type: k.kr_type, measure: k.measure, baseline: k.baseline, target: k.target, unit: k.unit, current: k.current, confidence: k.confidence, due: k.due, checkins: k.checkins || [] })
+const objRowToApp = (o, krs) => ({ id: o.id, owner: o.owner_key, sub: o.subsidiary, priority: o.priority, cycle: o.cycle, status: o.status, title: o.title, description: o.description, score: o.score || undefined, krs: krs.filter((k) => k.objective_id === o.id).map(krRowToApp) })
+async function fetchObjectives(tenantId) {
+  const { data: objs, error: e1 } = await supabase.from('objectives').select('*').eq('tenant_id', tenantId)
+  if (e1) throw e1
+  const ids = (objs || []).map((o) => o.id)
+  let krs = []
+  if (ids.length) { const { data: krRows, error: e2 } = await supabase.from('key_results').select('*').in('objective_id', ids); if (e2) throw e2; krs = krRows || [] }
+  return (objs || []).map((o) => objRowToApp(o, krs))
+}
+async function upsertObjective(tenantId, ownerKey, o) {
+  const row = { id: o.id, tenant_id: tenantId, owner_key: ownerKey, subsidiary: o.sub, priority: o.priority, cycle: o.cycle, status: o.status, title: o.title, description: o.description, score: o.score ?? null }
+  const { error: e1 } = await supabase.from('objectives').upsert(row); if (e1) throw e1
+  await supabase.from('key_results').delete().eq('objective_id', o.id)
+  const krRows = (o.krs || []).map((k) => ({ id: k.id, objective_id: o.id, statement: k.statement, kr_type: k.kr_type, measure: k.measure, baseline: k.baseline, target: k.target, unit: k.unit, current: k.current, confidence: k.confidence, due: k.due || null, checkins: k.checkins || [] }))
+  if (krRows.length) { const { error: e2 } = await supabase.from('key_results').upsert(krRows); if (e2) throw e2 }
 }
 
 /* ------------------------------ Atoms ----------------------------- */
@@ -783,7 +809,7 @@ function AuthScreen({ tenant, staff, onEnter, onBack }) {
                   <Avatar name={s.name} />
                   <span className="fc-identity-body">
                     <span className="fc-identity-name">{s.name}</span>
-                    <span className="fc-identity-role">{ROLES[s.role]} · {s.sub}</span>
+                    <span className="fc-identity-role">{roleLabel(s)} · {s.sub}</span>
                   </span>
                 </button>
               ))}
@@ -841,7 +867,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   const canAdmin = me.role === 'admin' || me.role === 'md' || me.role === 'hr'
   const canOrg = me.role === 'chairman' || me.role === 'md' || me.role === 'hr' || me.role === 'admin'
   const canPerf = me.role === 'chairman' || me.role === 'md' || me.role === 'hr'
-  const canPay = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const canPay = me.role === 'md' || me.role === 'hr' || me.role === 'admin' || me.role === 'accountant'
   const canOnboard = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
   const canCycle = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
   const canDocs = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
@@ -867,6 +893,8 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   }
   function addDocument(staffId, doc) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === staffId ? { ...s, documents: [doc, ...(s.documents || [])] } : s)) })) }
   function removeDocument(staffId, docId) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === staffId ? { ...s, documents: (s.documents || []).filter((x) => x.id !== docId) } : s)) })) }
+  function referToHr(staffId, level) { setData((d) => ({ ...d, hrActions: [...(d.hrActions || []), { id: uid(), staffId, level, raisedBy: me.name, at: new Date().toISOString().slice(0, 10), status: 'open' }] })) }
+  function resolveHrAction(id) { setData((d) => ({ ...d, hrActions: (d.hrActions || []).map((a) => (a.id === id ? { ...a, status: 'done' } : a)) })) }
   const activeCycle = data.activeCycle || 'May 2026'
 
   function upsertObjective(obj) {
@@ -927,9 +955,13 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   function requestLeave(req) { setData((d) => ({ ...d, leave: [...(d.leave || []), req] })) }
   function decideLeave(id, status) { setData((d) => ({ ...d, leave: (d.leave || []).map((l) => (l.id === id ? { ...l, status, decidedBy: me.id, decidedAt: new Date().toISOString().slice(0, 10) } : l)) })) }
   function setSalary(id, salary) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, salary } : s)) })) }
+  const today = () => new Date().toISOString().slice(0, 10)
+  function submitPayroll() { setData((d) => ({ ...d, payrollRun: { cycle: d.activeCycle, status: 'submitted', preparedBy: me.name, approvedBy: null, paidBy: null, submittedAt: today() } })) }
+  function approvePayroll() { setData((d) => ({ ...d, payrollRun: { ...(d.payrollRun || {}), cycle: d.activeCycle, status: 'approved', approvedBy: me.name, approvedAt: today() } })) }
+  function payPayroll() { setData((d) => ({ ...d, payrollRun: { ...(d.payrollRun || {}), cycle: d.activeCycle, status: 'paid', paidBy: me.name, paidAt: today() } })) }
 
   const tabs = me.role === 'chairman'
-    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['performance', 'Performance'], ['scorecards', 'Scorecards'], ['export', 'Export']]
+    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['performance', 'Performance'], ['leave', 'Leave'], ['scorecards', 'Scorecards'], ['export', 'Export']]
     : [
         ['dashboard', 'Dashboard'],
         ['objectives', 'My OKRs'],
@@ -982,14 +1014,14 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
             <span className="fc-topbar-title">{currentLabel}</span>
           </div>
           <div className="fc-topbar-right">
-            <span className="fc-me"><Avatar name={me.name} /><span className="fc-me-body"><b>{me.name}</b><i>{ROLES[me.role]}</i></span></span>
+            <span className="fc-me"><Avatar name={me.name} /><span className="fc-me-body"><b>{me.name}</b><i>{roleLabel(me)}</i></span></span>
             <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={onSignOut}>Sign out</button>
           </div>
         </header>
 
         {viewingAs && (
           <div className="fc-viewas">
-            <span>Viewing as <b>{me.name}</b> · {ROLES[me.role]}</span>
+            <span>Viewing as <b>{me.name}</b> · {roleLabel(me)}</span>
             <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={onReturnHome}>Return to Chairman</button>
           </div>
         )}
@@ -1012,10 +1044,10 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'organisations' && <Organisations tenant={tenant} data={data} me={me} />}
           {tab === 'organogram' && <Organogram tenant={tenant} data={data} me={me} />}
           {tab === 'reviews' && <Reviews data={data} me={me} cycle={activeCycle} onSaveReview={saveReview} onAckReview={ackReview} onGiveFeedback={giveFeedback} />}
-          {tab === 'performance' && <Performance data={data} />}
+          {tab === 'performance' && <Performance data={data} me={me} onRefer={referToHr} onResolve={resolveHrAction} />}
           {tab === 'leave' && <Leave data={data} me={me} onRequest={requestLeave} onDecide={decideLeave} />}
-          {tab === 'payroll' && <Payroll data={data} me={me} onSetSalary={setSalary} />}
-          {tab === 'onboarding' && <Onboarding data={data} onToggle={toggleOnboarding} />}
+          {tab === 'payroll' && <Payroll data={data} me={me} onSetSalary={setSalary} onSubmitRun={submitPayroll} onApproveRun={approvePayroll} onPayRun={payPayroll} />}
+          {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} />}
           {tab === 'cycles' && <Cycles data={data} onActivate={activateCycle} onRoll={rollCycle} />}
           {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
           {tab === 'export' && <Exports data={data} tenant={tenant} />}
@@ -1040,7 +1072,7 @@ function Dashboard({ tenant, me, data, onAuthor }) {
     <div className="fc-dash">
       <div className="fc-dash-head">
         <h2>Good day, {me.name.split(' ')[0]}.</h2>
-        <p className="fc-muted">{ROLES[me.role]} · {me.sub} · {me.tier === 'ops' ? 'Weekly check-ins' : 'Monthly check-ins'}</p>
+        <p className="fc-muted">{roleLabel(me)} · {me.sub} · {me.tier === 'ops' ? 'Weekly check-ins' : 'Monthly check-ins'}</p>
       </div>
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={`${ratio}%`} label="Group outcome ratio" />
@@ -1515,7 +1547,7 @@ function GroupOverview({ tenant, data }) {
     const staff = data.staff.filter((s) => inOrg(s, sub) && s.score > 0)
     const objs = data.objectives.filter((o) => o.sub === sub)
     const avg = staff.length ? (staff.reduce((a, s) => a + personScore(data, s.id).total, 0) / staff.length).toFixed(1) : '—'
-    return { sub, count: staff.length, ratio: outcomeRatio(objs), avg }
+    return { sub, count: staff.length, ratio: outcomeRatioForOrg(data, sub), avg }
   })
   const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id) })).sort((a, b) => b.total - a.total)
   return (
@@ -1528,7 +1560,7 @@ function GroupOverview({ tenant, data }) {
       </div>
       <div className="fc-staffgrid">
         {people.map(({ s, total, band, computed }) => (
-          <div key={s.id} className="fc-staffcard"><Avatar name={s.name} /><div className="fc-staffcard-body"><b>{s.name}</b><span className="fc-muted">{ROLES[s.role]} · {s.sub}</span></div><div className="fc-staffcard-score"><b>{total.toFixed(1)}</b><Band b={band} />{computed && <span className="fc-scored-dot" title="Scored from OKRs">rubric</span>}</div></div>
+          <div key={s.id} className="fc-staffcard"><Avatar name={s.name} /><div className="fc-staffcard-body"><b>{s.name}</b><span className="fc-muted">{roleLabel(s)} · {s.sub}</span></div><div className="fc-staffcard-score"><b>{total.toFixed(1)}</b><Band b={band} />{computed && <span className="fc-scored-dot" title="Scored from OKRs">rubric</span>}</div></div>
         ))}
       </div>
     </div>
@@ -1549,7 +1581,7 @@ function OrgPanel({ tenant, data, org, me }) {
       <div className="fc-panel-head"><div><h3 className="fc-orgpanel-h">{legalName(org)}</h3><p className="fc-muted">{org === 'Corporate' ? 'Head office' : 'Subsidiary'} · {prio ? `${prio.rank} priority` : 'support function'}</p></div></div>
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={staff.length} label="Staff under this organisation" />
-        <Metric value={`${outcomeRatio(objs)}%`} label="Outcome ratio" />
+        <Metric value={`${outcomeRatioForOrg(data, org)}%`} label="Outcome ratio" />
         <Metric value={avg} unit="/10" label="Weighted average" />
         <Metric value={prio ? prio.rank : '—'} label={`Strategic priority${prio ? '' : ' (support)'}`} />
       </div>
@@ -1562,7 +1594,7 @@ function OrgPanel({ tenant, data, org, me }) {
             const ps = personScore(data, s.id)
             return (
               <div key={s.id} className="fc-obj-row">
-                <div className="fc-org-person"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {ROLES[s.role]}</span></span></div>
+                <div className="fc-org-person"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)}</span></span></div>
                 <div className="fc-obj-row-right"><b className="fc-org-score">{ps.total.toFixed(1)}</b><Band b={ps.band} /></div>
               </div>
             )
@@ -1605,9 +1637,9 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
   const WORKSPACES = [
     { id: 's_jen', label: 'Managing Director' },
-    { id: 's_ose', label: 'Subsidiary Lead' },
+    { id: 's_god', label: 'Subsidiary Lead' },
     { id: 's_hr', label: 'HR Manager' },
-    { id: 's_tiw', label: 'Staff member' },
+    { id: 's_sun', label: 'Staff member' },
   ]
 
   const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) }))
@@ -1624,7 +1656,7 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
     const omove = st.length ? r1(st.reduce((a, p) => a + p.move, 0) / st.length) : 0
     const prio = tenant.priorities.find((p) => p.name === org)
     return {
-      org, count: st.length, ratio: outcomeRatio(objs), avg: oavg, band: oavg == null ? null : bandOf(oavg), move: omove,
+      org, count: st.length, ratio: outcomeRatioForOrg(data, org), avg: oavg, band: oavg == null ? null : bandOf(oavg), move: omove,
       rank: prio ? prio.rank : (org === 'Corporate' ? 'Head office' : '—'), g: st.filter((p) => p.band === 'green').length, a: st.filter((p) => p.band === 'amber').length, r: st.filter((p) => p.band === 'red').length,
     }
   })
@@ -1751,7 +1783,7 @@ function PersonDetail({ data, id, onBack }) {
     <div className="fc-persondetail">
       <button className="fc-back" onClick={onBack}>← Back</button>
       <div className="fc-pd-head">
-        <div className="fc-pd-id"><Avatar name={s.name} /><div><h2>{s.name}</h2><p className="fc-muted">{ROLES[s.role]} · {s.sub} · {s.tier === 'ops' ? 'Weekly check-ins' : 'Monthly check-ins'}</p></div></div>
+        <div className="fc-pd-id"><Avatar name={s.name} /><div><h2>{s.name}</h2><p className="fc-muted">{roleLabel(s)} · {s.sub} · {s.tier === 'ops' ? 'Weekly check-ins' : 'Monthly check-ins'}</p></div></div>
         <div className="fc-pd-score"><b>{ps.total.toFixed(1)}</b><span className="fc-sc-outof">/10</span><Band b={ps.band} /><Move v={move} /></div>
       </div>
 
@@ -1845,7 +1877,7 @@ function StaffRow({ s, tenant, roleOpts, managers, onUpdate, onRemove }) {
   return (
     <div className={`fc-adm-row ${pending ? 'fc-adm-pending' : ''}`}>
       <span className="fc-adm-name">{s.name}{pending && <span className="fc-adm-pill">needs surname</span>}</span>
-      <span className="fc-muted">{ROLES[s.role]}</span>
+      <span className="fc-muted">{roleLabel(s)}</span>
       <span>{s.sub}</span>
       <span className="fc-muted">{s.tier === 'ops' ? 'Weekly' : 'Monthly'}</span>
       <span className="fc-muted">{mgr ? mgr.name : '—'}</span>
@@ -1912,7 +1944,7 @@ function PersonNode({ person, members, onPerson }) {
     <div className="fc-og-node">
       <button className="fc-og-person" onClick={() => onPerson(person.id)}>
         <Avatar name={person.name} />
-        <span className="fc-og-pbody"><b>{person.name}</b><span className="fc-muted">{ROLES[person.role]}</span></span>
+        <span className="fc-og-pbody"><b>{person.name}</b><span className="fc-muted">{roleLabel(person)}</span></span>
         {reports.length > 0 && <span className="fc-og-count">{reports.length}</span>}
       </button>
       {reports.length > 0 && <div className="fc-og-children">{reports.map((r) => <PersonNode key={r.id} person={r} members={members} onPerson={onPerson} />)}</div>}
@@ -1972,7 +2004,7 @@ function Reviews({ data, me, cycle, onSaveReview, onAckReview, onGiveFeedback })
             const lr = lastReview(data, s.id)
             return (
               <div key={s.id} className="fc-tr-row">
-                <div className="fc-tr-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {ROLES[s.role]} · {s.sub}</span></span></div>
+                <div className="fc-tr-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)} · {s.sub}</span></span></div>
                 <div className="fc-tr-right">{lr ? <RatingTag rating={lr.rating} /> : <span className="fc-muted">no review</span>}<button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setComposeFor(s.id)}>New review</button></div>
               </div>
             )
@@ -2026,15 +2058,20 @@ function ReviewComposer({ subject, me, cycle, onSave, onCancel }) {
 }
 
 /* ----------------------- Performance intervention ----------------- */
-function Performance({ data }) {
+function Performance({ data, me, onRefer, onResolve }) {
   const rank = { terminate: 3, pip: 2, monitor: 1, ok: 0 }
   const rows = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...interventionFor(data, s), ...personScore(data, s.id) }))
     .sort((a, b) => rank[b.level] - rank[a.level] || a.total - b.total)
   const flagged = rows.filter((r) => r.level !== 'ok')
   const count = (lv) => rows.filter((r) => r.level === lv).length
+  const actions = data.hrActions || []
+  const name = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Someone'
+  const openFor = (id, level) => actions.find((a) => a.staffId === id && a.level === level && a.status === 'open')
+  const canRefer = me.role === 'chairman' || me.role === 'md'
+  const isHR = me.role === 'hr' || me.role === 'admin'
   return (
     <div className="fc-performance">
-      <div className="fc-panel-head"><div><h2>Performance and intervention</h2><p className="fc-muted">Recommendations based on the frequency and severity of low performance.</p></div></div>
+      <div className="fc-panel-head"><div><h2>Performance and intervention</h2><p className="fc-muted">Recommendations based on the frequency and severity of low performance. Refer a case and HR picks it up.</p></div></div>
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={count('terminate')} label="Termination recommended" />
         <Metric value={count('pip')} label="Improvement plan" />
@@ -2042,14 +2079,36 @@ function Performance({ data }) {
         <Metric value={count('ok')} label="On track" />
       </div>
       {flagged.length === 0 && <p className="fc-empty">No one is flagged. Everyone is on track.</p>}
-      {flagged.map(({ s, level, frequency, severity, reasons, total, band }) => (
-        <div key={s.id} className="fc-perf-row">
-          <div className="fc-perf-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {ROLES[s.role]} · {s.sub}</span></span></div>
-          <div className="fc-perf-mid"><span className="fc-muted">score {total.toFixed(1)}</span><Band b={band} /><span className="fc-muted">freq {frequency} · sev {severity}</span></div>
-          <div className="fc-perf-reasons">{reasons.map((x, i) => <span key={i} className="fc-perf-reason">{x}</span>)}</div>
-          <span className={`fc-interv fc-interv-${INTERVENTION[level].tone}`}>{INTERVENTION[level].label}</span>
-        </div>
-      ))}
+      {flagged.map(({ s, level, frequency, severity, reasons, total, band }) => {
+        const referable = level === 'pip' || level === 'terminate'
+        const existing = openFor(s.id, level)
+        return (
+          <div key={s.id} className="fc-perf-row">
+            <div className="fc-perf-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)} · {s.sub}</span></span></div>
+            <div className="fc-perf-mid"><span className="fc-muted">score {total.toFixed(1)}</span><Band b={band} /><span className="fc-muted">freq {frequency} · sev {severity}</span></div>
+            <div className="fc-perf-reasons">{reasons.map((x, i) => <span key={i} className="fc-perf-reason">{x}</span>)}</div>
+            <span className="fc-perf-act">
+              <span className={`fc-interv fc-interv-${INTERVENTION[level].tone}`}>{INTERVENTION[level].label}</span>
+              {referable && (existing
+                ? <span className="fc-referred">Sent to HR</span>
+                : canRefer && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onRefer(s.id, level)}>Refer to HR</button>)}
+            </span>
+          </div>
+        )
+      })}
+      {(isHR || canRefer) && actions.length > 0 && (
+        <section className="fc-panel fc-hractions">
+          <div className="fc-panel-head"><h3>HR action queue</h3><span className="fc-muted">{actions.filter((a) => a.status === 'open').length} open</span></div>
+          {actions.slice().reverse().map((a) => (
+            <div key={a.id} className="fc-hraction-row">
+              <span><b>{name(a.staffId)}</b> · {INTERVENTION[a.level].label} · raised by {a.raisedBy} · {a.at}</span>
+              <span className="fc-hraction-right">{a.status === 'open'
+                ? (isHR ? <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onResolve(a.id)}>Mark actioned</button> : <span className="fc-lv fc-lv-pending">Open</span>)
+                : <span className="fc-lv fc-lv-approved">Actioned</span>}</span>
+            </div>
+          ))}
+        </section>
+      )}
     </div>
   )
 }
@@ -2067,6 +2126,13 @@ function Leave({ data, me, onRequest, onDecide }) {
   const isMD = me.role === 'md'
   const canViewAll = me.role === 'hr' || me.role === 'admin'
   const pending = (data.leave || []).filter((l) => l.status === 'pending')
+  const roleOf = (id) => (data.staff.find((s) => s.id === id) || {}).role
+  const canApprove = (l) => {
+    if (l.staffId === me.id) return false
+    return roleOf(l.staffId) === 'md' ? me.role === 'chairman' : ['md', 'hr', 'admin'].includes(me.role)
+  }
+  const myQueue = pending.filter(canApprove)
+  const canApproveAny = ['chairman', 'md', 'hr', 'admin'].includes(me.role)
   const allLeave = (data.leave || []).slice().sort((a, b) => (a.start < b.start ? 1 : -1))
   const [type, setType] = useState('annual')
   const [start, setStart] = useState('')
@@ -2076,7 +2142,7 @@ function Leave({ data, me, onRequest, onDecide }) {
 
   return (
     <div className="fc-leave">
-      <div className="fc-panel-head"><div><h2>Leave</h2><p className="fc-muted">Request time off. Approvals go to the Managing Director.</p></div></div>
+      <div className="fc-panel-head"><div><h2>Leave</h2><p className="fc-muted">Request time off. The MD approves the team; the Chairman approves the MD.</p></div></div>
 
       <div className="fc-board-grid fc-dash-metrics">
         {LEAVE_TYPES.map((t) => (
@@ -2098,13 +2164,13 @@ function Leave({ data, me, onRequest, onDecide }) {
         </div>
       </section>
 
-      {isMD && (
+      {canApproveAny && (
         <section className="fc-panel">
-          <div className="fc-panel-head"><h3>Awaiting your approval</h3><span className="fc-muted">{pending.length}</span></div>
-          {pending.length === 0 && <p className="fc-empty">Nothing to approve.</p>}
-          {pending.map((l) => (
+          <div className="fc-panel-head"><h3>Awaiting your approval</h3><span className="fc-muted">{myQueue.length}</span></div>
+          {myQueue.length === 0 && <p className="fc-empty">Nothing to approve.</p>}
+          {myQueue.map((l) => (
             <div key={l.id} className="fc-leave-row">
-              <div><b>{name(l.staffId)}</b><span className="fc-muted"> · {leaveLabel(l.type)} · {l.start} to {l.end} · {l.days}d</span><div className="fc-muted">{l.reason}</div></div>
+              <div><b>{name(l.staffId)}</b><span className="fc-muted"> · {leaveLabel(l.type)} · {l.start} to {l.end} · {l.days}d{roleOf(l.staffId) === 'md' ? ' · MD request' : ''}</span><div className="fc-muted">{l.reason}</div></div>
               <div className="fc-leave-actions"><button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onDecide(l.id, 'declined')}>Decline</button><button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onDecide(l.id, 'approved')}>Approve</button></div>
             </div>
           ))}
@@ -2134,9 +2200,18 @@ function Leave({ data, me, onRequest, onDecide }) {
   )
 }
 
-/* ------------------------------ Payroll --------------------------- */
-function Payroll({ data, me, onSetSalary }) {
+function buildPayrollXlsx(XLSX, data, opts) {
+  const wb = XLSX.utils.book_new()
+  const rows = [['Name', 'Organisation', 'Gross', 'Pension', 'NHF', 'PAYE', 'NHIS', 'Levy', 'Net']]
+  data.staff.filter((s) => s.role !== 'chairman' && (s.salary || 0) > 0).map((s) => ({ s, pr: payrollFor(s, opts) })).filter((x) => x.pr).sort((a, b) => b.pr.grossM - a.pr.grossM)
+    .forEach(({ s, pr }) => rows.push([s.name, s.sub, Math.round(pr.grossM), Math.round(pr.empPensionM), Math.round(pr.nhfM), Math.round(pr.payeM), Math.round(pr.nhisEmpM), Math.round(pr.devLevyM), Math.round(pr.netM)]))
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Payroll')
+  return wb
+}
+function Payroll({ data, me, onSetSalary, onSubmitRun, onApproveRun, onPayRun }) {
   const canEdit = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const cycle = data.activeCycle || 'May 2026'
+  const run = data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft' }
   const [nhf, setNhf] = useState(true)
   const [nhis, setNhis] = useState(true)
   const opts = { nhf, nhis }
@@ -2145,6 +2220,18 @@ function Payroll({ data, me, onSetSalary }) {
   const [sel, setSel] = useState(null)
   const [edit, setEdit] = useState(null)
   const [val, setVal] = useState('')
+  const [dl, setDl] = useState(false)
+  const isHR = me.role === 'hr' || me.role === 'admin'
+  const isMDr = me.role === 'md'
+  const isAcct = me.role === 'accountant'
+  const STEPS = { draft: 'Draft — HR to prepare', submitted: 'Submitted to MD for approval', approved: 'Approved — ready for the accountant', paid: 'Paid on the banking platform' }
+  async function downloadForBank() {
+    setDl(true)
+    const XLSX = await import('xlsx')
+    const out = XLSX.write(buildPayrollXlsx(XLSX, data, opts), { bookType: 'xlsx', type: 'array' })
+    downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Forte_Payroll_${cycle.replace(/\s+/g, '_')}.xlsx`)
+    setDl(false)
+  }
 
   if (sel) { const s = data.staff.find((x) => x.id === sel); return <Payslip s={s} opts={opts} onBack={() => setSel(null)} /> }
 
@@ -2156,6 +2243,21 @@ function Payroll({ data, me, onSetSalary }) {
           <label className="fc-toggle"><input type="checkbox" checked={nhis} onChange={(e) => setNhis(e.target.checked)} /> NHIS</label>
         </div>
       </div>
+
+      <div className={`fc-payrun fc-payrun-${run.status}`}>
+        <div className="fc-payrun-status"><span className="fc-payrun-dot" /><b>{cycle} payroll</b><span className="fc-muted"> · {STEPS[run.status]}</span>{run.preparedBy ? <span className="fc-muted"> · prepared by {run.preparedBy}</span> : ''}{run.approvedBy ? <span className="fc-muted"> · approved by {run.approvedBy}</span> : ''}{run.paidBy ? <span className="fc-muted"> · paid by {run.paidBy}</span> : ''}</div>
+        <div className="fc-payrun-actions">
+          {isHR && run.status === 'draft' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={onSubmitRun}>Submit to MD</button>}
+          {isHR && run.status !== 'draft' && <span className="fc-muted">Sent to MD</span>}
+          {isMDr && run.status === 'submitted' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={onApproveRun}>Approve payroll</button>}
+          {isMDr && run.status === 'approved' && <span className="fc-referred">Approved</span>}
+          {isAcct && run.status === 'approved' && <><button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadForBank}>{dl ? 'Preparing…' : 'Download for bank'}</button><button className="fc-btn fc-btn-gold fc-btn-sm" onClick={onPayRun}>Mark as paid</button></>}
+          {isAcct && run.status === 'submitted' && <span className="fc-muted">Awaiting MD approval</span>}
+          {isAcct && run.status === 'draft' && <span className="fc-muted">Awaiting HR</span>}
+          {run.status === 'paid' && <span className="fc-referred">Paid{run.paidAt ? ` · ${run.paidAt}` : ''}</span>}
+        </div>
+      </div>
+
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={naira(tot.gross)} label="Gross monthly" />
         <Metric value={naira(tot.paye)} label="PAYE monthly" />
@@ -2189,7 +2291,7 @@ function Payslip({ s, opts = {}, onBack }) {
   return (
     <div className="fc-payslip">
       <div className="fc-ps-top"><button className="fc-back" onClick={onBack}>← Back to payroll</button><button className="fc-btn fc-btn-ghost fc-btn-sm fc-ps-print-btn" onClick={() => window.print()}>Print / save PDF</button></div>
-      <div className="fc-ps-head"><Avatar name={s.name} /><div><h2>{s.name}</h2><p className="fc-muted">{ROLES[s.role]} · {s.sub} · monthly payslip · May 2026</p></div></div>
+      <div className="fc-ps-head"><Avatar name={s.name} /><div><h2>{s.name}</h2><p className="fc-muted">{roleLabel(s)} · {s.sub} · monthly payslip · May 2026</p></div></div>
       <div className="fc-ps-grid">
         <section className="fc-panel"><h3>Earnings (monthly)</h3>
           <Row k="Basic" v={naira(pr.basic / 12)} /><Row k="Housing" v={naira(pr.housing / 12)} /><Row k="Transport" v={naira(pr.transport / 12)} /><Row k="Other allowances" v={naira(pr.other / 12)} /><Row k="Gross" v={naira(pr.grossM)} strong />
@@ -2207,14 +2309,35 @@ function Payslip({ s, opts = {}, onBack }) {
 }
 
 /* ---------------------------- Onboarding -------------------------- */
-function Onboarding({ data, onToggle }) {
+function Onboarding({ data, tenant, onToggle, onAdd }) {
   const people = data.staff.map((s) => ({ s, ...onboardingProgress(s) }))
   const inProg = people.filter((p) => !p.complete)
   const doneCount = people.filter((p) => p.complete).length
   const [open, setOpen] = useState(null)
+  const [adding, setAdding] = useState(false)
+  const [f, setF] = useState({ name: '', role: 'staff', sub: 'Corporate', title: '' })
+  const orgs = ['Corporate', ...tenant.subsidiaries]
+  function add() {
+    if (!f.name.trim()) return
+    onAdd({ id: uid(), name: f.name.trim(), role: f.role, sub: f.sub, title: f.title.trim() || undefined, tier: 'ops', band: 'green', score: 0 })
+    setF({ name: '', role: 'staff', sub: 'Corporate', title: '' }); setAdding(false)
+  }
   return (
     <div className="fc-onboard">
-      <div className="fc-panel-head"><div><h2>Onboarding</h2><p className="fc-muted">New-hire checklists. Tick items as they are completed.</p></div></div>
+      <div className="fc-panel-head"><div><h2>Onboarding</h2><p className="fc-muted">New-hire checklists. Tick items as they are completed.</p></div>
+        {onAdd && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => setAdding((a) => !a)}>{adding ? 'Close' : '+ Add new hire'}</button>}
+      </div>
+      {adding && (
+        <section className="fc-panel fc-ob-add">
+          <div className="fc-ob-addform">
+            <input className="fc-input" placeholder="Full name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+            <input className="fc-input" placeholder="Title (e.g. Customer Service)" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
+            <select className="fc-input" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{['staff', 'lead', 'hr', 'accountant', 'admin'].map((r) => <option key={r} value={r}>{ROLES[r]}</option>)}</select>
+            <select className="fc-input" value={f.sub} onChange={(e) => setF({ ...f, sub: e.target.value })}>{orgs.map((o) => <option key={o} value={o}>{o}</option>)}</select>
+            <button className="fc-btn fc-btn-gold" disabled={!f.name.trim()} onClick={add}>Add and start onboarding</button>
+          </div>
+        </section>
+      )}
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={inProg.length} label="In onboarding" />
         <Metric value={doneCount} label="Fully onboarded" />
@@ -2223,7 +2346,7 @@ function Onboarding({ data, onToggle }) {
       {inProg.map(({ s, done, total, pct }) => (
         <section key={s.id} className="fc-panel fc-ob-card">
           <div className="fc-ob-head" onClick={() => setOpen(open === s.id ? null : s.id)}>
-            <div className="fc-ob-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {ROLES[s.role]} · {s.sub}</span></span></div>
+            <div className="fc-ob-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)} · {s.sub}</span></span></div>
             <div className="fc-ob-prog"><div className="fc-progress"><div className="fc-progress-fill mid" style={{ width: pct + '%' }} /><span className="fc-progress-pct">{done}/{total}</span></div></div>
           </div>
           {open === s.id && (
@@ -2329,7 +2452,7 @@ function Documents({ data, me, onAdd, onRemove }) {
         <section className="fc-docs-main">
           {person && (
             <>
-              <div className="fc-panel-head"><h3>{person.name}</h3><span className="fc-muted">{ROLES[person.role]} · {person.sub}</span></div>
+              <div className="fc-panel-head"><h3>{person.name}</h3><span className="fc-muted">{roleLabel(person)} · {person.sub}</span></div>
               <div className="fc-docs-upload">
                 <select className="fc-input" value={cat} onChange={(e) => setCat(e.target.value)}>{DOC_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
                 <label className="fc-btn fc-btn-gold fc-btn-sm fc-docs-uploadbtn">Upload document<input type="file" onChange={onFile} hidden /></label>
@@ -2384,13 +2507,13 @@ function reviewPackHTML(data, tenant, logo) {
   const g = people.filter((p) => p.band === 'green').length, a = people.filter((p) => p.band === 'amber').length, r = people.filter((p) => p.band === 'red').length
   const avg = people.length ? (people.reduce((x, p) => x + p.total, 0) / people.length).toFixed(1) : '—'
   const risks = stalledIn(data.objectives.filter((o) => o.status === 'approved' || o.status === 'submitted'))
-  const scRows = people.map((p) => `<tr><td>${esc(p.s.name)}</td><td>${esc(ROLES[p.s.role])}</td><td>${esc(p.s.sub)}</td><td class="num">${p.total.toFixed(1)}</td><td><span class="band ${p.band}">${p.band}</span></td></tr>`).join('')
+  const scRows = people.map((p) => `<tr><td>${esc(p.s.name)}</td><td>${esc(roleLabel(p.s))}</td><td>${esc(p.s.sub)}</td><td class="num">${p.total.toFixed(1)}</td><td><span class="band ${p.band}">${p.band}</span></td></tr>`).join('')
   const sections = people.map((p) => {
     const objs = data.objectives.filter((o) => o.owner === p.s.id && (o.status === 'approved' || o.status === 'submitted'))
     const lr = lastReview(data, p.s.id)
     const objHtml = objs.map((o) => `<div class="obj"><b>${esc(o.title)}</b> <span class="chip">${outcomeRatio([o])}% outcome</span><div class="krs">${(o.krs || []).map((k) => `<div class="kr">${esc(k.statement)}</div>`).join('')}</div></div>`).join('') || '<p class="muted">No approved objectives.</p>'
     const rev = lr ? `<div class="review"><b>${esc((RATING[lr.rating] || {}).label || lr.rating)}</b> <span class="muted">(${esc(lr.cycle)}, by ${esc(ownerName(lr.reviewerId))})</span><p>${esc(lr.summary)}</p><p class="muted">Strengths: ${esc(lr.strengths)}</p><p class="muted">To improve: ${esc(lr.improvements)}</p></div>` : '<p class="muted">No review on record.</p>'
-    return `<section class="person"><h3>${esc(p.s.name)} <span class="score">${p.total.toFixed(1)}/10</span></h3><p class="muted">${esc(ROLES[p.s.role])} · ${esc(p.s.sub)}</p>${objHtml}<h4>Latest review</h4>${rev}</section>`
+    return `<section class="person"><h3>${esc(p.s.name)} <span class="score">${p.total.toFixed(1)}/10</span></h3><p class="muted">${esc(roleLabel(p.s))} · ${esc(p.s.sub)}</p>${objHtml}<h4>Latest review</h4>${rev}</section>`
   }).join('')
   const riskRows = risks.map(({ obj, k, reason }) => `<tr><td>${esc(reason)}</td><td>${esc(k.statement)}</td><td>${esc(obj.title)}</td><td>${esc(ownerName(obj.owner))}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No stalled key results.</td></tr>'
   return `<!doctype html><html><head><meta charset="utf-8"><title>Forte Review Pack — ${esc(cycle)}</title><style>
@@ -2411,7 +2534,7 @@ function buildTracker(XLSX, data) {
   const wb = XLSX.utils.book_new()
   const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) })).sort((a, b) => b.total - a.total)
   const sc = [['Name', 'Role', 'Organisation', 'Score', 'Band', 'Movement vs last cycle']]
-  people.forEach((p) => sc.push([p.s.name, ROLES[p.s.role], p.s.sub, p.total, p.band, p.move]))
+  people.forEach((p) => sc.push([p.s.name, roleLabel(p.s), p.s.sub, p.total, p.band, p.move]))
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sc), 'Scorecard')
   const kr = [['Owner', 'Objective', 'Key result', 'Type', 'Baseline', 'Target', 'Current', 'Confidence']]
   data.objectives.forEach((o) => (o.krs || []).forEach((k) => {
@@ -2478,6 +2601,29 @@ export default function App() {
 
   // persist on change
   useEffect(() => { if (data.staff.length) saveData(tenantId, data) }, [data])
+
+  // Table mode (opt-in): load objectives from the enforced tables when the user enters,
+  // and mirror the user's own objective changes back to the tables. Off unless VITE_USE_TABLES=on.
+  const mirrored = useRef({})
+  useEffect(() => {
+    if (!USE_TABLES || !me || screen !== 'app') return
+    let live = true
+    fetchObjectives(tenantId).then((objs) => {
+      if (!live) return
+      objs.forEach((o) => { mirrored.current[o.id] = JSON.stringify(o) })
+      setData((d) => ({ ...d, objectives: objs }))
+    }).catch(() => { /* keep current objectives on failure */ })
+    return () => { live = false }
+  }, [me, screen])
+  useEffect(() => {
+    if (!USE_TABLES || !me) return
+    data.objectives.filter((o) => o.owner === me.id).forEach((o) => {
+      const sig = JSON.stringify(o)
+      if (mirrored.current[o.id] === sig) return
+      mirrored.current[o.id] = sig
+      upsertObjective(tenantId, me.id, o).catch(() => {})
+    })
+  }, [data.objectives, me])
 
   // restore demo session
   useEffect(() => {
@@ -2958,6 +3104,11 @@ option{color:#111}
 .fc-interv-ok{color:var(--muted);border:1px solid var(--hairline)}
 .fc-interv-warn{color:var(--rag-a);border:1px solid var(--rag-a)}
 .fc-interv-bad{background:var(--rag-r);color:var(--parchment)}
+.fc-perf-act{display:flex;flex-direction:column;align-items:flex-end;gap:.4rem}
+.fc-referred{font-size:.74rem;color:var(--rag-g)}
+.fc-hractions{margin-top:1.2rem}
+.fc-hraction-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.55rem 0;border-top:1px solid var(--hairline);flex-wrap:wrap}
+.fc-hraction-right{display:flex;align-items:center;gap:.5rem}
 
 /* leave */
 .fc-leave-form{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.7rem;align-items:end}
@@ -2972,7 +3123,7 @@ option{color:#111}
 
 /* payroll */
 .fc-paytable{border:1px solid var(--hairline);border-radius:6px;overflow-x:auto}
-.fc-pt-row{display:grid;grid-template-columns:2fr 1.1fr 1fr 1fr 1.1fr auto;gap:.6rem;align-items:center;padding:.6rem .9rem}
+.fc-pt-row{display:grid;grid-template-columns:2fr 1.1fr 1fr 1fr 1.1fr 150px;gap:.6rem;align-items:center;padding:.6rem .9rem}
 .fc-pt-row+.fc-pt-row{border-top:1px solid var(--hairline)}
 .fc-pt-head{background:rgba(184,146,74,.08);color:var(--gold-lit);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
 .fc-pt-name{font-weight:600}
@@ -2980,6 +3131,13 @@ option{color:#111}
 .fc-pt-input{padding:.35rem .5rem;max-width:130px}
 .fc-pt-actions{display:flex;gap:.4rem;justify-content:flex-end}
 .fc-pay-note{font-size:.8rem;color:var(--muted);margin-top:.9rem}
+.fc-payrun{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border:1px solid var(--hairline);border-left:3px solid var(--gold);border-radius:6px;padding:.7rem 1rem;margin-bottom:1rem;background:rgba(9,26,51,.35)}
+.fc-payrun-status{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.fc-payrun-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);flex:none}
+.fc-payrun-approved{border-left-color:var(--rag-g)}.fc-payrun-approved .fc-payrun-dot{background:var(--rag-g)}
+.fc-payrun-paid{border-left-color:var(--rag-g)}.fc-payrun-paid .fc-payrun-dot{background:var(--rag-g)}
+.fc-payrun-submitted .fc-payrun-dot{background:var(--rag-a)}
+.fc-payrun-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 .fc-payslip .fc-ps-head{display:flex;align-items:center;gap:.8rem;margin:.6rem 0 1.3rem}
 .fc-payslip .fc-ps-head h2{margin:0}
 .fc-ps-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
@@ -3011,6 +3169,8 @@ option{color:#111}
 .fc-ob-task{display:flex;align-items:center;gap:.6rem;font-size:.92rem}
 .fc-ob-task input{width:16px;height:16px;accent-color:var(--gold)}
 .fc-ob-task .is-done{color:var(--muted);text-decoration:line-through}
+.fc-ob-addform{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+.fc-ob-addform .fc-input{flex:1;min-width:150px}
 
 /* cycles */
 .fc-cycle-form{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}

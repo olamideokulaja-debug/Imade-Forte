@@ -29,7 +29,8 @@ HR, the MD and the Chairman get a Performance tab that watches for people who pe
 consistently. It reads each person's band, their history of below-expectations and unsatisfactory
 reviews (frequency) and how serious those are (severity), along with movement against last cycle,
 and turns that into a recommendation: on track, monitor, improvement plan, or recommend for
-termination. The reasons behind each recommendation are shown alongside it.
+termination, with the reasons shown. The Chairman or MD can refer an improvement or termination
+case to HR with one click, and HR works it off a shared action queue.
 
 ## Leave and time off
 
@@ -40,7 +41,7 @@ an approval queue on the same tab; HR and admin can see all leave across the gro
 
 ## Payroll
 
-The Payroll tab (MD, HR, admin) runs a monthly payroll under current Nigerian rules: pay is split
+Payroll runs on an approval chain: HR prepares the month's run and submits it to the MD, the MD approves it, and the Accountant then downloads it as an Excel file to upload to the banking platform and marks it paid. A status bar at the top shows exactly where the run is. The Payroll tab (MD, HR, admin and the Accountant) computes pay under current Nigerian rules: pay is split
 into basic, housing, transport and other allowances; pension is 8 percent employee and 10 percent
 employer on basic-plus-housing-plus-transport; NHF is 2.5 percent of basic and, with pension and a
 rent relief of 20 percent of rent capped at ₦500,000, reduces taxable income; PAYE then follows the
@@ -102,6 +103,28 @@ member's query returns only their own objectives, scores and documents; a lead s
 subsidiary; the MD, HR and the Chairman see the group; leave decisions and pay are limited to the
 MD, HR and admin; and a person can read their own pay line but not anyone else's. Point the client's
 live data layer at these tables to switch database-enforced permissions on.
+
+### Migrating to the enforced tables, safely (step 1: objectives)
+
+The migration moves one entity at a time onto the enforced tables, tested on a Vercel preview before
+it ever reaches the live site. Step one covers objectives. It is off unless a deploy sets the
+environment variable VITE_USE_TABLES to on, so the production site is untouched until you choose to
+switch it.
+
+To test step one on a preview, not on your live site:
+1. In Supabase, open SQL Editor and run `supabase/schema.sql` again (it only adds the new objectives
+   policy and the owner_key column; safe to re-run).
+2. In Vercel, open Settings, then Environment Variables. Add VITE_USE_TABLES with the value on, and
+   tick only Preview (leave Production unticked). Save.
+3. Deploy a preview (the simplest way is to let me push the change to a branch, which gives you a
+   preview link automatically). Open that preview link and sign in.
+4. Go to My OKRs and create an objective. Refresh the page. It should still be there, now served from
+   the objectives table rather than the interface's local copy. That confirms the round-trip and the
+   row-level rules. When it looks right, we promote it and move to the next entity.
+
+On the preview in table mode, My OKRs is the user's own objectives from the database; the wider
+scorecards and cockpit that aggregate everyone follow in the next migration steps (reviews, then
+leave, pay and documents), each tested the same way.
 
 ## Check-ins and trends
 

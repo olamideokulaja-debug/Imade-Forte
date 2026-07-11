@@ -250,8 +250,8 @@ begin
     new.id,
     coalesce(new.raw_user_meta_data->>'tenant_id', 'imade-forte'),
     coalesce(new.raw_user_meta_data->>'name', new.email),
-    coalesce(new.raw_user_meta_data->>'role', 'staff'),
-    coalesce(new.raw_user_meta_data->>'subsidiary', 'Corporate'))
+    new.raw_user_meta_data->>'role',
+    new.raw_user_meta_data->>'subsidiary')
   on conflict (id) do nothing;
   return new;
 end $$;

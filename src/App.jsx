@@ -159,7 +159,7 @@ function seedObjectives() {
     },
     {
       id: uid(), owner: 's_emma', sub: 'Corporate', priority: 'P2', cycle: 'May 2026',
-      status: 'submitted',
+      status: 'approved',
       title: 'Schedule appointments for Genesys clients',
       description: 'Turn client contact into booked, attended appointments.',
       krs: [
@@ -306,6 +306,13 @@ function personScore(data, id) {
   }
   const t = r1(objs.reduce((a, o) => a + finalScore(o).total, 0) / objs.length)
   return { total: t, band: bandOf(t), computed: true }
+}
+// An organisation's score comes from the OKRs set within it, so a person with
+// roles in more than one organisation has their score divided across them.
+function orgScore(data, org) {
+  const objs = data.objectives.filter((o) => o.sub === org && o.status === 'approved')
+  if (!objs.length) return null
+  return r1(objs.reduce((a, o) => a + finalScore(o).total, 0) / objs.length)
 }
 // Movement against the prior cycle.
 function movementOf(data, s) {
@@ -828,8 +835,8 @@ function RolePicker({ tenant, onCreate }) {
   const [name, setName] = useState('')
   const [role, setRole] = useState('staff')
   const [sub, setSub] = useState(tenant.subsidiaries[0])
-  const cards = [['staff', 'Staff'], ['lead', 'Subsidiary Lead'], ['md', 'Managing Director'], ['hr', 'HR Manager'], ['chairman', 'Chairman'], ['admin', 'Tenant Admin']]
-  const corporate = role === 'chairman' || role === 'md' || role === 'admin'
+  const cards = [['staff', 'Staff'], ['lead', 'Subsidiary Lead'], ['md', 'Managing Director'], ['accountant', 'Accountant'], ['hr', 'HR Manager'], ['chairman', 'Chairman'], ['admin', 'Tenant Admin']]
+  const corporate = role === 'chairman' || role === 'md' || role === 'admin' || role === 'accountant' || role === 'hr'
   const orgSub = corporate ? 'Corporate' : sub
   return (
     <div className="fc-rolepick">
@@ -1035,7 +1042,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
               onEdit={(o) => setEditing(o)} onSubmit={(id) => setStatus(id, 'submitted')} onUseSuggestion={useSuggestion} />
           )}
           {tab === 'objectives' && editing && (
-            <Author tenant={tenant} objective={editing} onCancel={() => setEditing(null)}
+            <Author tenant={tenant} me={me} objective={editing} onCancel={() => setEditing(null)}
               onSave={(o) => { upsertObjective(o); setEditing(null) }} />
           )}
           {tab === 'review' && <Review data={data} me={me} onApprove={(id) => setStatus(id, 'approved')} onReturn={(id) => setStatus(id, 'draft')} />}
@@ -1060,7 +1067,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
 
 /* ----------------------------- Dashboard -------------------------- */
 function Dashboard({ tenant, me, data, onAuthor }) {
-  const scored = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id) }))
+  const scored = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...personScore(data, s.id) }))
   const green = scored.filter((x) => x.band === 'green').length
   const amber = scored.filter((x) => x.band === 'amber').length
   const red = scored.filter((x) => x.band === 'red').length
@@ -1273,9 +1280,10 @@ function CheckInRow({ k, onLog }) {
 }
 
 /* ------------------------- Author + outcome engine ---------------- */
-function Author({ tenant, objective, onSave, onCancel }) {
+function Author({ tenant, me, objective, onSave, onCancel }) {
   const [obj, setObj] = useState(objective)
   const set = (patch) => setObj((o) => ({ ...o, ...patch }))
+  const myOrgs = Array.from(new Set([me.sub, ...(me.also || [])]))
 
   function addKR() {
     setObj((o) => ({ ...o, krs: [...o.krs, { id: uid(), statement: '', kr_type: null, measure: '', baseline: '', target: '', unit: '', current: '', confidence: 60, due: '2026-05-31', override_reason: null }] }))
@@ -1284,6 +1292,10 @@ function Author({ tenant, objective, onSave, onCancel }) {
     setObj((o) => ({ ...o, krs: o.krs.map((k) => (k.id === id ? { ...k, ...patch } : k)) }))
   }
   function removeKR(id) { setObj((o) => ({ ...o, krs: o.krs.filter((k) => k.id !== id) })) }
+  function applySugg(s) {
+    setObj((o) => ({ ...o, title: s.title, description: s.description, krs: s.krs.map((k) => ({ id: uid(), statement: k.statement, kr_type: 'outcome', measure: k.measure, baseline: k.baseline, target: k.target, unit: k.unit, current: '', confidence: 60, due: '2026-05-31', override_reason: null, _accepted: true })) }))
+  }
+  const sugg = heuristicSuggest({ sub: obj.sub, existingTitles: [obj.title] }).slice(0, 3)
 
   const ratio = outcomeRatio([{ ...obj, krs: obj.krs.filter((k) => k.kr_type) }])
   const blocked = obj.krs.some((k) => k.kr_type && k.kr_type !== 'outcome' && !k.override_reason && !k._accepted)
@@ -1298,12 +1310,19 @@ function Author({ tenant, objective, onSave, onCancel }) {
 
       <div className="fc-field-grid">
         <label className="fc-field fc-col2"><span>Objective</span><input className="fc-input" value={obj.title} placeholder="What change are you committing to?" onChange={(e) => set({ title: e.target.value })} /></label>
-        <label className="fc-field"><span>Subsidiary</span>
-          <select className="fc-input" value={obj.sub} onChange={(e) => set({ sub: e.target.value })}>{tenant.subsidiaries.map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label className="fc-field"><span>Organisation</span>
+          <select className="fc-input" value={obj.sub} onChange={(e) => { const o = e.target.value; const pr = tenant.priorities.find((p) => p.name === o); set({ sub: o, priority: pr ? pr.rank : obj.priority }) }}>{myOrgs.map((s) => <option key={s}>{s}</option>)}</select></label>
         <label className="fc-field"><span>Strategic priority</span>
           <select className="fc-input" value={obj.priority} onChange={(e) => set({ priority: e.target.value })}>{tenant.priorities.map((p) => <option key={p.rank} value={p.rank}>{p.rank} · {p.name}</option>)}</select></label>
         <label className="fc-field fc-col2"><span>Description</span><input className="fc-input" value={obj.description} placeholder="One line of context" onChange={(e) => set({ description: e.target.value })} /></label>
       </div>
+
+      {!obj.title.trim() && sugg.length > 0 && (
+        <div className="fc-author-sugg">
+          <span className="fc-muted">Suggested for {obj.sub}:</span>
+          {sugg.map((s, i) => <button key={i} className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => applySugg(s)}>{s.title}</button>)}
+        </div>
+      )}
 
       <div className="fc-kr-head"><h3>Key results</h3><button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={addKR}>+ Add key result</button></div>
       {obj.krs.map((k, i) => <KRRow key={k.id} k={k} n={i + 1} onPatch={(p) => patchKR(k.id, p)} onRemove={() => removeKR(k.id)} />)}
@@ -1533,7 +1552,7 @@ function Organisations({ tenant, data, me }) {
       <nav className="fc-orgtabs">
         {orgs.map((o) => (
           <button key={o} className={`fc-orgtab ${active === o ? 'is-on' : ''}`} onClick={() => setOrg(o)}>
-            {orgLabel(o)}{o !== 'Group' && <span className="fc-orgtab-count">{data.staff.filter((s) => inOrg(s, o) && s.score > 0).length}</span>}
+            {orgLabel(o)}{o !== 'Group' && <span className="fc-orgtab-count">{data.staff.filter((s) => inOrg(s, o) && s.role !== 'chairman').length}</span>}
           </button>
         ))}
       </nav>
@@ -1544,12 +1563,12 @@ function Organisations({ tenant, data, me }) {
 
 function GroupOverview({ tenant, data }) {
   const rows = ['Corporate', ...tenant.subsidiaries].map((sub) => {
-    const staff = data.staff.filter((s) => inOrg(s, sub) && s.score > 0)
+    const staff = data.staff.filter((s) => inOrg(s, sub) && s.role !== 'chairman')
     const objs = data.objectives.filter((o) => o.sub === sub)
-    const avg = staff.length ? (staff.reduce((a, s) => a + personScore(data, s.id).total, 0) / staff.length).toFixed(1) : '—'
+    const avg = orgScore(data, sub) ?? '—'
     return { sub, count: staff.length, ratio: outcomeRatioForOrg(data, sub), avg }
   })
-  const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id) })).sort((a, b) => b.total - a.total)
+  const people = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...personScore(data, s.id) })).sort((a, b) => b.total - a.total)
   return (
     <div className="fc-boardview">
       <div className="fc-boardtable">
@@ -1568,10 +1587,10 @@ function GroupOverview({ tenant, data }) {
 }
 
 function OrgPanel({ tenant, data, org, me }) {
-  const staff = data.staff.filter((s) => inOrg(s, org) && s.score > 0)
+  const staff = data.staff.filter((s) => inOrg(s, org) && s.role !== 'chairman')
   const objs = data.objectives.filter((o) => o.sub === org)
   const prio = tenant.priorities.find((p) => p.name === org)
-  const avg = staff.length ? (staff.reduce((a, s) => a + personScore(data, s.id).total, 0) / staff.length).toFixed(1) : '—'
+  const avg = orgScore(data, org) ?? '—'
   const stalls = stalledIn(objs.filter((o) => o.status === 'approved' || o.status === 'submitted'))
   const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
   const mayNudge = me.role === 'md' || me.role === 'hr' || (me.role === 'lead' && me.sub === org)
@@ -1595,7 +1614,7 @@ function OrgPanel({ tenant, data, org, me }) {
             return (
               <div key={s.id} className="fc-obj-row">
                 <div className="fc-org-person"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)}</span></span></div>
-                <div className="fc-obj-row-right"><b className="fc-org-score">{ps.total.toFixed(1)}</b><Band b={ps.band} /></div>
+                <div className="fc-obj-row-right">{ps.total > 0 ? <><b className="fc-org-score">{ps.total.toFixed(1)}</b><Band b={ps.band} /></> : <span className="fc-lv fc-lv-pending">New</span>}</div>
               </div>
             )
           })}
@@ -1642,7 +1661,7 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
     { id: 's_sun', label: 'Staff member' },
   ]
 
-  const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) }))
+  const people = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) }))
   const green = people.filter((p) => p.band === 'green').length
   const amber = people.filter((p) => p.band === 'amber').length
   const red = people.filter((p) => p.band === 'red').length
@@ -1652,7 +1671,7 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   const orgs = ['Corporate', ...tenant.subsidiaries].map((org) => {
     const st = people.filter((p) => inOrg(p.s, org))
     const objs = data.objectives.filter((o) => o.sub === org)
-    const oavg = st.length ? r1(st.reduce((a, p) => a + p.total, 0) / st.length) : null
+    const oavg = orgScore(data, org)
     const omove = st.length ? r1(st.reduce((a, p) => a + p.move, 0) / st.length) : 0
     const prio = tenant.priorities.find((p) => p.name === org)
     return {
@@ -1813,7 +1832,7 @@ function PersonDetail({ data, id, onBack }) {
 function AdminConsole({ tenant, data, onAdd, onUpdate, onRemove }) {
   const [adding, setAdding] = useState(false)
   const [nf, setNf] = useState({ name: '', role: 'staff', sub: tenant.subsidiaries[0], tier: 'ops' })
-  const roleOpts = ['staff', 'lead', 'md', 'hr', 'chairman', 'admin']
+  const roleOpts = ['staff', 'lead', 'md', 'hr', 'accountant', 'chairman', 'admin']
   const managers = data.staff.filter((s) => ['lead', 'md', 'hr', 'chairman'].includes(s.role))
   const pending = data.staff.filter((s) => /pending/i.test(s.name)).length
 
@@ -2060,7 +2079,7 @@ function ReviewComposer({ subject, me, cycle, onSave, onCancel }) {
 /* ----------------------- Performance intervention ----------------- */
 function Performance({ data, me, onRefer, onResolve }) {
   const rank = { terminate: 3, pip: 2, monitor: 1, ok: 0 }
-  const rows = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...interventionFor(data, s), ...personScore(data, s.id) }))
+  const rows = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...interventionFor(data, s), ...personScore(data, s.id) }))
     .sort((a, b) => rank[b.level] - rank[a.level] || a.total - b.total)
   const flagged = rows.filter((r) => r.level !== 'ok')
   const count = (lv) => rows.filter((r) => r.level === lv).length
@@ -2139,30 +2158,35 @@ function Leave({ data, me, onRequest, onDecide }) {
   const [end, setEnd] = useState('')
   const [reason, setReason] = useState('')
   const reqDays = daysBetween(start, end)
+  const requests = me.role !== 'chairman'
 
   return (
     <div className="fc-leave">
-      <div className="fc-panel-head"><div><h2>Leave</h2><p className="fc-muted">Request time off. The MD approves the team; the Chairman approves the MD.</p></div></div>
+      <div className="fc-panel-head"><div><h2>Leave</h2><p className="fc-muted">{requests ? 'Request time off. The MD approves the team; the Chairman approves the MD.' : 'Approve the Managing Director\u2019s leave here.'}</p></div></div>
 
-      <div className="fc-board-grid fc-dash-metrics">
-        {LEAVE_TYPES.map((t) => (
-          <div key={t.key} className="fc-metric"><span className="fc-metric-value">{bal[t.key].left}<span className="fc-metric-unit"> / {bal[t.key].entitlement}</span></span><span className="fc-metric-label">{t.label} days left</span></div>
-        ))}
-      </div>
-
-      <section className="fc-panel">
-        <div className="fc-panel-head"><h3>Request leave</h3></div>
-        <div className="fc-leave-form">
-          <select className="fc-input" value={type} onChange={(e) => setType(e.target.value)}>{LEAVE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
-          <label className="fc-field"><span>From</span><input className="fc-input" type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
-          <label className="fc-field"><span>To</span><input className="fc-input" type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
-          <input className="fc-input" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
-          <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={reqDays < 1}
-            onClick={() => { onRequest({ id: uid(), staffId: me.id, type, start, end, days: reqDays, reason: reason.trim(), status: 'pending', decidedBy: null, decidedAt: null, note: '' }); setStart(''); setEnd(''); setReason('') }}>
-            Request{reqDays > 0 ? ` · ${reqDays} day${reqDays > 1 ? 's' : ''}` : ''}
-          </button>
+      {requests && (
+        <div className="fc-board-grid fc-dash-metrics">
+          {LEAVE_TYPES.map((t) => (
+            <div key={t.key} className="fc-metric"><span className="fc-metric-value">{bal[t.key].left}<span className="fc-metric-unit"> / {bal[t.key].entitlement}</span></span><span className="fc-metric-label">{t.label} days left</span></div>
+          ))}
         </div>
-      </section>
+      )}
+
+      {requests && (
+        <section className="fc-panel">
+          <div className="fc-panel-head"><h3>Request leave</h3></div>
+          <div className="fc-leave-form">
+            <select className="fc-input" value={type} onChange={(e) => setType(e.target.value)}>{LEAVE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select>
+            <label className="fc-field"><span>From</span><input className="fc-input" type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
+            <label className="fc-field"><span>To</span><input className="fc-input" type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+            <input className="fc-input" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={reqDays < 1}
+              onClick={() => { onRequest({ id: uid(), staffId: me.id, type, start, end, days: reqDays, reason: reason.trim(), status: 'pending', decidedBy: null, decidedAt: null, note: '' }); setStart(''); setEnd(''); setReason('') }}>
+              Request{reqDays > 0 ? ` · ${reqDays} day${reqDays > 1 ? 's' : ''}` : ''}
+            </button>
+          </div>
+        </section>
+      )}
 
       {canApproveAny && (
         <section className="fc-panel">
@@ -2177,16 +2201,18 @@ function Leave({ data, me, onRequest, onDecide }) {
         </section>
       )}
 
-      <section className="fc-panel">
-        <div className="fc-panel-head"><h3>My requests</h3></div>
-        {myLeave.length === 0 && <p className="fc-empty">No requests yet.</p>}
-        {myLeave.map((l) => (
-          <div key={l.id} className="fc-leave-row">
-            <div><b>{leaveLabel(l.type)}</b><span className="fc-muted"> · {l.start} to {l.end} · {l.days}d</span><div className="fc-muted">{l.reason}</div></div>
-            <LeaveStatus s={l.status} />
-          </div>
-        ))}
-      </section>
+      {requests && (
+        <section className="fc-panel">
+          <div className="fc-panel-head"><h3>My requests</h3></div>
+          {myLeave.length === 0 && <p className="fc-empty">No requests yet.</p>}
+          {myLeave.map((l) => (
+            <div key={l.id} className="fc-leave-row">
+              <div><b>{leaveLabel(l.type)}</b><span className="fc-muted"> · {l.start} to {l.end} · {l.days}d</span><div className="fc-muted">{l.reason}</div></div>
+              <LeaveStatus s={l.status} />
+            </div>
+          ))}
+        </section>
+      )}
 
       {canViewAll && (
         <section className="fc-panel">
@@ -2503,7 +2529,7 @@ function reviewPackHTML(data, tenant, logo) {
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const cycle = data.activeCycle || 'May 2026'
   const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
-  const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) })).sort((a, b) => b.total - a.total)
+  const people = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) })).sort((a, b) => b.total - a.total)
   const g = people.filter((p) => p.band === 'green').length, a = people.filter((p) => p.band === 'amber').length, r = people.filter((p) => p.band === 'red').length
   const avg = people.length ? (people.reduce((x, p) => x + p.total, 0) / people.length).toFixed(1) : '—'
   const risks = stalledIn(data.objectives.filter((o) => o.status === 'approved' || o.status === 'submitted'))
@@ -2532,7 +2558,7 @@ table{width:100%;border-collapse:collapse;margin:14px 0}th,td{text-align:left;pa
 }
 function buildTracker(XLSX, data) {
   const wb = XLSX.utils.book_new()
-  const people = data.staff.filter((s) => s.score > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) })).sort((a, b) => b.total - a.total)
+  const people = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) })).sort((a, b) => b.total - a.total)
   const sc = [['Name', 'Role', 'Organisation', 'Score', 'Band', 'Movement vs last cycle']]
   people.forEach((p) => sc.push([p.s.name, roleLabel(p.s), p.s.sub, p.total, p.band, p.move]))
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sc), 'Scorecard')
@@ -2560,7 +2586,7 @@ function Exports({ data, tenant }) {
     downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Forte_Tracker_${cyc}.xlsx`)
     setBusy('')
   }
-  const count = data.staff.filter((s) => s.score > 0).length
+  const count = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).length
   return (
     <div className="fc-exports">
       <div className="fc-panel-head"><div><h2>Export</h2><p className="fc-muted">Generate the branded pack and tracker from live {data.activeCycle || ''} data.</p></div></div>
@@ -2648,10 +2674,13 @@ export default function App() {
     if (!LIVE || !authUser || me) return
     let live = true
     ;(async () => {
+      try { const c = localStorage.getItem('fc:liveprofile:' + authUser.id); if (live && c) { enterProfile(JSON.parse(c), false); return } } catch { /* ignore */ }
       try {
         const { data: prof } = await supabase.from('profiles').select('*').eq('id', authUser.id).maybeSingle()
         if (live && prof && prof.role) {
-          enterProfile({ id: authUser.id, name: prof.name || authUser.email, role: prof.role, sub: prof.subsidiary || tenant.subsidiaries[0], tier: prof.cadence_tier || 'ops' }, false)
+          const profile = { id: authUser.id, name: prof.name || authUser.email, role: prof.role, sub: prof.subsidiary || tenant.subsidiaries[0], tier: prof.cadence_tier || 'ops' }
+          try { localStorage.setItem('fc:liveprofile:' + authUser.id, JSON.stringify(profile)) } catch { /* ignore */ }
+          enterProfile(profile, false)
           return
         }
       } catch { /* table may not exist yet */ }
@@ -2672,6 +2701,7 @@ export default function App() {
     try {
       await supabase.from('profiles').upsert({ id: authUser.id, tenant_id: tenantId, name: p.name, role: p.role, subsidiary: p.sub, cadence_tier: p.tier })
     } catch { /* best effort; RLS/table may not be set up */ }
+    try { localStorage.setItem('fc:liveprofile:' + authUser.id, JSON.stringify(profile)) } catch { /* ignore */ }
     enterProfile(profile, false)
   }
 
@@ -2907,6 +2937,7 @@ option{color:#111}
 .fc-coach-rw{text-align:left;padding:.5rem .7rem;border:1px solid var(--hairline);border-radius:3px;background:transparent;color:var(--parchment);cursor:pointer;font-family:inherit;font-size:.9rem}
 .fc-coach-rw:hover{border-color:var(--gold);color:var(--gold-lit)}
 .fc-author-foot{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:1.4rem;border-top:1px solid var(--hairline);padding-top:1.2rem}
+.fc-author-sugg{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.2rem 0 1rem}
 
 /* board */
 .fc-boardtable{border:1px solid var(--hairline);border-radius:6px;overflow:hidden;margin-bottom:1.6rem}

@@ -286,8 +286,8 @@ placeholder. These are flagged in the app and are easy to correct before the ros
 
 The homepage is now the public Imade Forte Holdings site: hero, About and at-a-glance, Vision,
 Mission and Values, the five service practices as detailed cards, differentiators, a credibility
-stats band, both leaders with photos and bios, and a contact section with details and a form. The
-palette, wording and photos come from the company profile. "Forte Compass" in the top bar opens a
+stats band, both leaders shown as gold monogram medallions with bios, and a contact section with details and a form. The palette and wording come from the company profile; the visual identity is built on an
+original colonnade motif drawn from the shield emblem, with no lifted page imagery. "Forte Compass" in the top bar opens a
 short overview of the platform and then the staff sign-in, so the public site and the internal tool
 live behind one address.
 

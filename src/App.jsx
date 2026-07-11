@@ -745,9 +745,44 @@ const IF_DIFF = [
   ['Sustainable value', 'Engagements focused on long-term institutional growth.'],
 ]
 const IF_LEADERS = [
-  ['/site/leader_chairman.jpg', 'Dr. Olamide Okulaja', 'Chairman / CEO', 'A respected healthcare executive and entrepreneur with over two decades of experience across clinical practice, public health, and healthcare management. As Chief Executive Officer of Genesys Health Information Systems, a pioneering health technology company, he is improving healthcare delivery across Africa. His work in health systems reform, policy development, and strategic leadership continues to guide the mission of Imade Forte Holdings.'],
-  ['/site/leader_md.jpg', 'Jennifer Kaja', 'Managing Director', 'A distinguished Nigerian lawyer with first-class honours from the University of Wales and a decade of practice across corporate, commercial, and real estate law, spanning transactions, joint ventures, public-private partnerships, restructuring, and regulatory compliance. As Chief Legal Officer of Periwinkle Empire, she provided strategic oversight across legal affairs, governance, and compliance, earning recognition among The Guardian\u2019s 25 Exceptional and Most Value-Adding Female Professionals in Nigeria.'],
+  ['Dr. Olamide Okulaja', 'Chairman / CEO', 'A healthcare executive and entrepreneur with over two decades across clinical practice, public health, and healthcare management. As Chief Executive of Genesys Health Information Systems, a pioneering health-technology company, he is improving healthcare delivery across Africa. His work in health-systems reform, policy, and strategic leadership anchors the direction of Imade Forte Holdings.'],
+  ['Jennifer Kaja', 'Managing Director', 'A distinguished Nigerian lawyer with first-class honours from the University of Wales and a decade of practice across corporate, commercial, and real-estate law, spanning transactions, joint ventures, public-private partnerships, restructuring, and regulatory compliance. As Chief Legal Officer of Periwinkle Empire, she led legal affairs, governance, and compliance, and was recognised among The Guardian\u2019s 25 Exceptional and Most Value-Adding Female Professionals in Nigeria.'],
 ]
+const initialsOf = (name) => name.replace(/^Dr\.?\s+/i, '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+function Colonnade({ className = '' }) {
+  const cols = [0, 1, 2, 3, 4]
+  return (
+    <svg className={className} viewBox="0 0 520 360" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" preserveAspectRatio="xMidYMax meet">
+      <g stroke="#B8924A" strokeWidth="1.6" className="if-colo-draw">
+        <path d="M40 66 H480" />
+        <path d="M28 78 H492" />
+        {cols.map((i) => {
+          const x = 60 + i * 96
+          return (
+            <g key={i}>
+              <path d={`M${x} 84 v210`} />
+              <path d={`M${x + 34} 84 v210`} />
+              <path d={`M${x + 8} 90 v198`} opacity="0.5" />
+              <path d={`M${x + 17} 90 v198`} opacity="0.5" />
+              <path d={`M${x + 26} 90 v198`} opacity="0.5" />
+              <path d={`M${x - 6} 84 h46`} />
+              <path d={`M${x - 6} 294 h46`} />
+            </g>
+          )
+        })}
+        <path d="M22 306 H498" />
+        <path d="M10 320 H510" strokeWidth="2.2" />
+      </g>
+    </svg>
+  )
+}
+function ColMark({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 20 24" fill="none" aria-hidden="true">
+      <path d="M3 4 H17 M4 20 H16 M6 6 V18 M10 6 V18 M14 6 V18" stroke="#B8924A" strokeWidth="1.5" />
+    </svg>
+  )
+}
 
 function ContactForm() {
   const [f, setF] = useState({ name: '', email: '', company: '', message: '' })
@@ -784,13 +819,21 @@ function ContactForm() {
 
 function LandingPage({ onCompass }) {
   const nav = (id) => () => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }) }
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll('.if-reveal'))
+    if (!('IntersectionObserver' in window)) { els.forEach((e) => e.classList.add('in')); return }
+    const io = new IntersectionObserver((ents) => ents.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) } }), { rootMargin: '0px 0px -8% 0px' })
+    els.forEach((e) => io.observe(e))
+    const t = setTimeout(() => els.forEach((e) => e.classList.add('in')), 1400)
+    return () => { io.disconnect(); clearTimeout(t) }
+  }, [])
   return (
-    <div className="if-site">
+    <div className="if">
       <header className="if-top">
         <IFBrand onHome={nav('if-hero')} />
         <nav className="if-nav">
           <button onClick={nav('if-about')}>About</button>
-          <button onClick={nav('if-services')}>Services</button>
+          <button onClick={nav('if-services')}>Practices</button>
           <button onClick={nav('if-leaders')}>Leadership</button>
           <button onClick={nav('if-contact')}>Contact</button>
           <button className="if-nav-compass" onClick={onCompass}>Forte Compass</button>
@@ -798,112 +841,133 @@ function LandingPage({ onCompass }) {
       </header>
 
       <section id="if-hero" className="if-hero">
-        <div className="if-hero-copy">
-          <p className="if-eyebrow">Consulting \u00b7 Advisory \u00b7 Impact</p>
-          <h1>Strategy That<br />Strengthens<br /><span className="if-gold">Institutions.</span></h1>
-          <p className="if-hero-sub">A specialized consulting and advisory firm delivering strategic guidance, operational excellence, and sustainable growth across critical sectors.</p>
-          <div className="if-hero-cta"><button className="if-btn if-btn-gold" onClick={nav('if-contact')}>Get in touch</button><button className="if-btn if-btn-ghost" onClick={nav('if-services')}>Our services</button></div>
+        <div className="if-hero-inner">
+          <div className="if-hero-copy">
+            <p className="if-eyebrow">Consulting · Advisory · Impact</p>
+            <h1 className="if-hero-h">
+              <span className="if-line">Strategy that</span>
+              <span className="if-line">strengthens</span>
+              <span className="if-line"><em>institutions.</em></span>
+            </h1>
+            <p className="if-lede">A consulting and advisory firm delivering strategic guidance, operational excellence, and sustainable growth across the sectors that shape Africa's future.</p>
+            <div className="if-hero-cta">
+              <button className="if-btn if-btn-gold" onClick={nav('if-contact')}>Get in touch</button>
+              <button className="if-btn if-btn-line" onClick={nav('if-services')}>Our practices</button>
+            </div>
+          </div>
+          <div className="if-hero-art"><Colonnade className="if-colonnade" /></div>
         </div>
-        <div className="if-hero-art"><img src="/site/hero_skyline.jpg" alt="Lagos skyline" /></div>
+        <div className="if-hero-strip">
+          <span>imadeforteholdings.com</span><i /><span>+234 805 873 3019</span><i /><span>Lekki Phase 1, Lagos</span>
+        </div>
       </section>
 
-      <section id="if-about" className="if-section if-about">
-        <div className="if-about-copy">
-          <p className="if-kicker">Who we are</p>
-          <h2>About the Company</h2>
-          <p>Imade Forte Holdings Limited is a specialized consulting and advisory firm incorporated in 2023 under the laws of the Federal Republic of Nigeria.</p>
-          <p>Since inception we have become a trusted partner to organizations, government institutions, and investors seeking strategic guidance, operational excellence, and sustainable growth, with a strong emphasis on healthcare systems development and institutional strengthening. We blend multidisciplinary expertise, innovative thinking, and data-driven insight to deliver tailored solutions, anchored on integrity, precision, and measurable impact.</p>
+      <section id="if-about" className="if-band if-band-light">
+        <div className="if-about if-reveal">
+          <div className="if-about-copy">
+            <p className="if-kicker"><ColMark className="if-kicker-mark" />Who we are</p>
+            <h2>A trusted partner to the institutions we serve.</h2>
+            <p>Imade Forte Holdings Limited is a specialised consulting and advisory firm, incorporated in 2023 under the laws of the Federal Republic of Nigeria.</p>
+            <p>We work with organisations, government institutions, and investors seeking strategic guidance and durable growth, with a strong emphasis on healthcare systems and institutional strengthening. Multidisciplinary expertise and data-driven insight, anchored on integrity, precision, and measurable impact.</p>
+          </div>
+          <dl className="if-glance">
+            {[['Company', 'Imade Forte Holdings Limited'], ['Incorporated', '2023 · Federal Republic of Nigeria'], ['Sector', 'Consulting & strategic advisory'], ['Practices', 'Strategy · Healthcare · Finance · Governance · Real estate'], ['Clients', 'Organisations, government, investors'], ['Head office', '21 Fatai Arobieke Street, Lekki Phase 1, Lagos']].map((r) => (
+              <div key={r[0]} className="if-glance-row"><dt>{r[0]}</dt><dd>{r[1]}</dd></div>
+            ))}
+          </dl>
         </div>
-        <div className="if-glance">
-          <h3>At a glance</h3>
-          {[['Company', 'Imade Forte Holdings Limited'], ['Incorporated', '2023, Federal Republic of Nigeria'], ['Sector', 'Consulting & strategic advisory'], ['Practice areas', 'Strategy, healthcare, finance, governance, real estate'], ['Clients', 'Organizations, government institutions, investors'], ['Head office', '21 Fatai Arobieke Street, Lekki Phase 1, Lagos']].map((r) => (
-            <div key={r[0]} className="if-glance-row"><span>{r[0]}</span><span>{r[1]}</span></div>
+      </section>
+
+      <section className="if-band if-stats-band">
+        <div className="if-stats if-reveal">
+          {[['2023', 'Incorporated in Nigeria'], ['5', 'Practice areas'], ['20+', 'Years of leadership'], ['Africa', 'Reach and ambition']].map((s) => (
+            <div key={s[1]} className="if-stat"><b>{s[0]}</b><span>{s[1]}</span></div>
           ))}
         </div>
       </section>
 
-      <section className="if-stats">
-        {[['2023', 'Incorporated in Nigeria'], ['5', 'Practice areas'], ['20+', 'Years of leadership experience'], ['Africa', 'Reach and ambition']].map((s) => (
-          <div key={s[1]} className="if-stat"><b>{s[0]}</b><span>{s[1]}</span></div>
-        ))}
-      </section>
-
-      <section id="if-direction" className="if-section if-vision">
-        <div className="if-vision-cards">
-          <div className="if-vcard is-dark"><h3>Our Vision</h3><p>To be Africa\u2019s most trusted and value-driven consulting partner, empowering organizations and institutions to achieve operational excellence, sustainability, and measurable impact through innovative strategies and transformative solutions.</p></div>
-          <div className="if-vcard"><h3>Our Mission</h3><p>To deliver evidence-based consulting and strategic advisory services that strengthen institutions, improve systems, and enhance organizational performance through expertise, collaboration, and insight.</p></div>
-        </div>
-        <div className="if-values">
-          <p className="if-kicker">Our core values</p>
-          {IF_VALUES.map((v) => (<div key={v[0]} className="if-value"><span className="if-value-dot" /><div><b>{v[0]}</b> <span className="if-muted">{v[1]}</span></div></div>))}
-        </div>
-      </section>
-
-      <section id="if-services" className="if-section">
-        <p className="if-kicker">What we do</p>
-        <h2 className="if-h2-center">Our Services</h2>
-        <div className="if-svc-grid">
-          {IF_SERVICES.map((s) => (
-            <article key={s[0]} className="if-svc">
-              <span className="if-svc-num">{s[0]}</span>
-              <h3>{s[1]}</h3>
-              <p className="if-muted">{s[2]}</p>
-              <ul>{s[3].map((it) => <li key={it}>{it}</li>)}</ul>
-            </article>
-          ))}
-          <article className="if-svc if-svc-cta">
-            <h3>A partner across critical sectors</h3>
-            <p className="if-muted">From healthcare to real estate, our goal is to help clients achieve efficiency, compliance, and sustainable value creation.</p>
-            <button className="if-btn if-btn-gold" onClick={nav('if-contact')}>Get in touch</button>
-          </article>
-        </div>
-      </section>
-
-      <section id="if-diff" className="if-section if-diffsec">
-        <div className="if-diff-copy">
-          <p className="if-kicker">Strategic advantages</p>
-          <h2>Our Differentiators</h2>
-          <ol className="if-diff-list">
-            {IF_DIFF.map((d, i) => (<li key={d[0]}><span className="if-diff-i">{['i', 'ii', 'iii', 'iv', 'v'][i]}</span><div><b>{d[0]}</b><span className="if-muted">{d[1]}</span></div></li>))}
-          </ol>
-        </div>
-        <div className="if-commit">
-          <h3>Our commitment</h3>
-          <p>We are more than consultants. We are catalysts for transformation, committed to supporting government initiatives, strengthening institutions, and empowering businesses through insight, innovation, and integrity, to drive sustainable growth and measurable impact across the sectors that shape Africa\u2019s future.</p>
-        </div>
-      </section>
-
-      <section id="if-leaders" className="if-section">
-        <p className="if-kicker">Our people</p>
-        <h2 className="if-h2-center">Our Leadership</h2>
-        <div className="if-leaders">
-          {IF_LEADERS.map((l) => (
-            <article key={l[1]} className="if-leader">
-              <img src={l[0]} alt={l[1]} />
-              <div className="if-leader-body"><h3>{l[1]}</h3><p className="if-leader-role">{l[2]}</p><p className="if-muted">{l[3]}</p></div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="if-contact" className="if-section if-contact">
-        <div className="if-contact-left">
-          <p className="if-kicker">Get in touch</p>
-          <h2>Let\u2019s shape what\u2019s next.</h2>
-          <div className="if-contact-details">
-            <div><b>Registered office</b><span>21 Fatai Arobieke Street, Off Admiralty Way, Lekki Phase 1, Lagos, Nigeria</span></div>
-            <div><b>Email</b><span>info@imadeforteholdings.com</span></div>
-            <div><b>Phone</b><span>+234 805 873 3019</span></div>
-            <div><b>Hours</b><span>Monday to Friday, 9AM to 6PM</span></div>
+      <section id="if-direction" className="if-band if-band-light">
+        <div className="if-vmv if-reveal">
+          <div className="if-vmv-statements">
+            <div className="if-vm"><span className="if-vm-tag">Vision</span><p>To be Africa's most trusted and value-driven consulting partner, empowering institutions to achieve operational excellence, sustainability, and measurable impact.</p></div>
+            <div className="if-vm"><span className="if-vm-tag">Mission</span><p>To deliver evidence-based consulting and advisory that strengthens institutions, improves systems, and lifts organisational performance through expertise, collaboration, and insight.</p></div>
+          </div>
+          <div className="if-values">
+            <p className="if-kicker"><ColMark className="if-kicker-mark" />What we stand for</p>
+            {IF_VALUES.map((v) => (<div key={v[0]} className="if-value"><b>{v[0]}</b><span>{v[1]}</span></div>))}
           </div>
         </div>
-        <ContactForm />
+      </section>
+
+      <section id="if-services" className="if-band if-band-dark">
+        <div className="if-reveal">
+          <p className="if-kicker if-kicker-c"><ColMark className="if-kicker-mark" />What we do</p>
+          <h2 className="if-h2-c if-on-dark">Five practices, one standard.</h2>
+          <div className="if-svc-grid">
+            {IF_SERVICES.map((s) => (
+              <article key={s[1]} className="if-svc">
+                <ColMark className="if-svc-mark" />
+                <h3>{s[1]}</h3>
+                <p className="if-svc-lede">{s[2]}</p>
+                <ul>{s[3].map((it) => <li key={it}>{it}</li>)}</ul>
+              </article>
+            ))}
+          </div>
+          <div className="if-svc-foot"><p>A broad range of advisory across critical sectors, toward efficiency, compliance, and sustainable value.</p><button className="if-btn if-btn-gold" onClick={nav('if-contact')}>Start a conversation</button></div>
+        </div>
+      </section>
+
+      <section id="if-diff" className="if-band if-band-light">
+        <div className="if-diff if-reveal">
+          <div className="if-diff-copy">
+            <p className="if-kicker"><ColMark className="if-kicker-mark" />Why Imade Forte</p>
+            <h2>What sets the work apart.</h2>
+            <div className="if-diff-list">
+              {IF_DIFF.map((d) => (<div key={d[0]} className="if-diff-item"><b>{d[0]}</b><span>{d[1]}</span></div>))}
+            </div>
+          </div>
+          <aside className="if-commit">
+            <p className="if-commit-tag">Our commitment</p>
+            <p className="if-commit-body">More than consultants, we are catalysts for transformation, supporting government initiatives, strengthening institutions, and empowering businesses through insight, innovation, and integrity.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="if-leaders" className="if-band if-band-dark">
+        <div className="if-reveal">
+          <p className="if-kicker if-kicker-c"><ColMark className="if-kicker-mark" />Our people</p>
+          <h2 className="if-h2-c if-on-dark">Leadership.</h2>
+          <div className="if-leaders">
+            {IF_LEADERS.map((l) => (
+              <article key={l[0]} className="if-leader">
+                <div className="if-monogram"><span>{initialsOf(l[0])}</span></div>
+                <div className="if-leader-body"><h3>{l[0]}</h3><p className="if-leader-role">{l[1]}</p><p className="if-leader-bio">{l[2]}</p></div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="if-contact" className="if-band if-contact-band">
+        <div className="if-contact if-reveal">
+          <div className="if-contact-left">
+            <p className="if-kicker"><ColMark className="if-kicker-mark" />Get in touch</p>
+            <h2>Let's shape what's next.</h2>
+            <div className="if-contact-details">
+              <div><dt>Registered office</dt><dd>21 Fatai Arobieke Street, Off Admiralty Way, Lekki Phase 1, Lagos</dd></div>
+              <div><dt>Email</dt><dd>info@imadeforteholdings.com</dd></div>
+              <div><dt>Phone</dt><dd>+234 805 873 3019</dd></div>
+              <div><dt>Hours</dt><dd>Monday to Friday, 9AM to 6PM</dd></div>
+            </div>
+          </div>
+          <ContactForm />
+        </div>
       </section>
 
       <footer className="if-footer">
         <IFBrand onHome={nav('if-hero')} />
-        <span className="if-muted">Catalysts for transformation. Strategic guidance, operational excellence, and sustainable growth.</span>
-        <button className="if-footer-compass" onClick={onCompass}>Staff portal \u00b7 Forte Compass</button>
+        <span className="if-foot-tag">Catalysts for transformation · strategic guidance, operational excellence, sustainable growth.</span>
+        <button className="if-foot-compass" onClick={onCompass}>Staff portal · Forte Compass</button>
       </footer>
     </div>
   )
@@ -3452,101 +3516,146 @@ option{color:#111}
 .fc-export-card .fc-btn{margin-top:auto;align-self:flex-start}
 
 /* ===== Imade Forte corporate site ===== */
-.if-site{background:#fff;color:#1c2430;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
-.if-site h1,.if-site h2,.if-site h3{font-family:'Lora',Georgia,serif;color:#0E2240;line-height:1.15;margin:0}
-.if-muted{color:#5c6672}
-.if-btn{font-family:inherit;font-size:.95rem;font-weight:600;padding:.7rem 1.4rem;border-radius:4px;border:1px solid transparent;cursor:pointer;transition:all .15s}
-.if-btn-gold{background:#B8924A;color:#12233f;border-color:#B8924A}
-.if-btn-gold:hover{background:#a5813d}
-.if-btn-gold:disabled{opacity:.5;cursor:not-allowed}
-.if-btn-ghost{background:transparent;color:#0E2240;border-color:#c7ccd3}
-.if-btn-ghost:hover{border-color:#0E2240}
-.if-kicker{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:#B8924A;font-weight:700;margin:0 0 .4rem}
-.if-gold{color:#B8924A}
-.if-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.9rem clamp(1rem,5vw,4rem);background:rgba(14,34,64,.97);backdrop-filter:blur(6px)}
+/* ===================== Imade Forte public site ===================== */
+.if{--nv:#0E2240;--nv2:#091A33;--gold:#B8924A;--gold2:#D8B66E;--parch:#F3EFE7;--ink:#1D2733;--mut:#7F8A99;background:var(--parch);color:var(--ink);font-family:'Lora',Georgia,serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+.if *{box-sizing:border-box}
+.if h1,.if h2,.if h3{font-family:'Lora',Georgia,serif;font-weight:600;letter-spacing:-.01em}
+.if button{font-family:inherit}
+.if-gr{font-family:ui-sans-serif,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+/* header */
+.if-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem clamp(1rem,5vw,4rem);background:rgba(9,26,51,.94);backdrop-filter:blur(8px);border-bottom:1px solid rgba(184,146,74,.28)}
 .if-brand{display:flex;align-items:center;gap:.6rem;background:none;border:none;cursor:pointer;padding:0}
-.if-brand-shield{width:32px;height:38px}
-.if-wordmark{display:flex;flex-direction:column;line-height:1.05;text-align:left}
-.if-wordmark b{color:#fff;font-size:.9rem;letter-spacing:.14em;font-family:'Lora',serif}
-.if-wordmark em{color:#B8924A;font-style:normal;font-size:.58rem;letter-spacing:.28em;margin-top:2px}
-.if-nav{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}
-.if-nav button{background:none;border:none;color:#d7dbe2;font-family:inherit;font-size:.9rem;padding:.5rem .8rem;cursor:pointer;border-radius:4px}
+.if-brand-shield,.if-brand .if-brand-shield{width:30px;height:36px}
+.if-wordmark{display:flex;flex-direction:column;line-height:1;text-align:left}
+.if-wordmark b{font-family:ui-sans-serif,'Segoe UI',Roboto,sans-serif;font-size:.82rem;letter-spacing:.22em;color:#fff;font-weight:700}
+.if-wordmark em{font-family:ui-sans-serif,sans-serif;font-style:normal;font-size:.56rem;letter-spacing:.34em;color:var(--gold2);margin-top:3px}
+.if-nav{display:flex;align-items:center;gap:.4rem}
+.if-nav button{background:none;border:none;color:#cfd6e0;cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.82rem;letter-spacing:.04em;padding:.5rem .7rem;border-radius:4px}
 .if-nav button:hover{color:#fff}
-.if-nav-compass{background:#B8924A!important;color:#12233f!important;font-weight:600}
-.if-hero{display:grid;grid-template-columns:1.1fr .9fr;gap:2.5rem;align-items:center;background:linear-gradient(135deg,#0E2240,#1b2e4d);color:#EDE9E0;padding:clamp(2.5rem,7vw,5rem) clamp(1rem,5vw,4rem)}
-.if-hero-copy h1{color:#fff;font-size:clamp(2.3rem,6vw,4rem);margin:.4rem 0 1.1rem;font-weight:700}
-.if-hero-sub{color:#c9cfd8;font-size:1.05rem;max-width:34rem}
-.if-hero-cta{display:flex;gap:.8rem;margin-top:1.6rem;flex-wrap:wrap}
-.if-hero-art img{width:100%;border-radius:8px;border:1px solid rgba(184,146,74,.4);object-fit:cover;max-height:440px;display:block}
-.if-section{padding:clamp(2.5rem,6vw,4.5rem) clamp(1rem,5vw,4rem);max-width:1180px;margin:0 auto}
-.if-section h2{font-size:clamp(1.8rem,4vw,2.6rem)}
-.if-h2-center{text-align:center;font-size:clamp(1.8rem,4vw,2.6rem);margin-bottom:2rem}
-.if-about{display:grid;grid-template-columns:1.3fr 1fr;gap:3rem;align-items:start}
-.if-about-copy h2{margin-bottom:1rem;position:relative;padding-bottom:.6rem}
-.if-about-copy h2:after{content:'';position:absolute;left:0;bottom:0;width:60px;height:3px;background:#B8924A}
-.if-about-copy p{margin:1rem 0;color:#3a434f}
-.if-glance{background:#f6f4ee;border-radius:8px;padding:1.6rem}
-.if-glance h3{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;color:#B8924A;margin-bottom:1rem}
-.if-glance-row{display:grid;grid-template-columns:.8fr 1.2fr;gap:1rem;padding:.7rem 0;border-top:1px solid #e6e2d8;font-size:.92rem}
-.if-glance-row span:first-child{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:#8a929c;font-weight:700;align-self:center}
-.if-glance-row span:last-child{color:#1c2430}
-.if-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#22303f}
-.if-stat{background:#0E2240;padding:1.8rem 1rem;text-align:center}
-.if-stat b{display:block;font-family:'Lora',serif;font-size:2rem;color:#B8924A}
-.if-stat span{font-size:.85rem;color:#c9cfd8}
-.if-vision{display:grid;grid-template-columns:1.2fr 1fr;gap:3rem}
-.if-vision-cards{display:flex;flex-direction:column;gap:1.2rem}
-.if-vcard{border-radius:8px;padding:1.6rem;border-top:3px solid #B8924A;background:#f6f4ee}
-.if-vcard.is-dark{background:#0E2240;color:#EDE9E0}
-.if-vcard.is-dark h3{color:#fff}
-.if-vcard h3{font-size:1.3rem;margin-bottom:.6rem}
-.if-vcard p{margin:0;opacity:.94}
-.if-values{align-self:center}
-.if-value{display:flex;gap:.7rem;padding:.55rem 0;align-items:flex-start}
-.if-value-dot{width:10px;height:10px;background:#B8924A;margin-top:.5rem;flex:none}
-.if-value b{color:#0E2240}
-.if-svc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
-.if-svc{border:1px solid #e6e2d8;border-radius:8px;padding:1.6rem;transition:box-shadow .15s,transform .15s}
-.if-svc:hover{box-shadow:0 12px 30px rgba(14,34,64,.1);transform:translateY(-2px)}
-.if-svc-num{font-family:'Lora',serif;font-size:1.3rem;color:#B8924A;font-weight:700;background:#f6f4ee;display:inline-block;padding:.1rem .6rem;border-radius:4px}
-.if-svc h3{font-size:1.12rem;margin:.7rem 0 .5rem}
-.if-svc ul{margin:.8rem 0 0;padding-left:1.1rem}
-.if-svc li{font-size:.88rem;color:#3a434f;margin:.3rem 0}
-.if-svc-cta{background:#0E2240;color:#EDE9E0;display:flex;flex-direction:column;justify-content:center}
-.if-svc-cta h3{color:#fff}
-.if-svc-cta .if-muted{color:#c9cfd8}
-.if-svc-cta .if-btn{margin-top:1rem;align-self:flex-start}
-.if-diffsec{display:grid;grid-template-columns:1.3fr 1fr;gap:3rem;align-items:center}
-.if-diff-list{list-style:none;margin:1.4rem 0 0;padding:0}
-.if-diff-list li{display:flex;gap:1rem;padding:.8rem 0;border-top:1px solid #e6e2d8}
-.if-diff-i{font-family:'Lora',serif;font-style:italic;color:#B8924A;font-size:1.1rem;font-weight:700;min-width:1.6rem}
-.if-diff-list b{display:block;color:#0E2240}
-.if-commit{background:#0E2240;color:#EDE9E0;border-top:3px solid #B8924A;border-radius:8px;padding:1.8rem}
-.if-commit h3{color:#B8924A;font-size:1.2rem;margin-bottom:.7rem}
-.if-commit p{opacity:.94}
-.if-leaders{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem}
-.if-leader{display:flex;gap:1.2rem;align-items:flex-start}
-.if-leader img{width:130px;height:162px;object-fit:cover;border-radius:6px;border:2px solid #B8924A;flex:none}
-.if-leader h3{font-size:1.25rem}
-.if-leader-role{color:#B8924A;letter-spacing:.08em;text-transform:uppercase;font-size:.72rem;font-weight:700;margin:.2rem 0 .6rem}
-.if-leader-body .if-muted{font-size:.88rem}
-.if-contact{display:grid;grid-template-columns:1fr 1fr;gap:3rem;background:#f6f4ee;border-radius:10px}
-.if-contact h2{margin:.4rem 0 1.4rem}
-.if-contact-details div{margin:0 0 1rem}
-.if-contact-details b{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#B8924A;margin-bottom:.2rem}
-.if-contact-details span{color:#1c2430}
-.if-form{display:flex;flex-direction:column;gap:.7rem}
-.if-form-row{display:flex;gap:.7rem}
-.if-input{width:100%;padding:.7rem .8rem;border:1px solid #d3cfc4;border-radius:5px;font-family:inherit;font-size:.95rem;background:#fff;color:#1c2430}
-.if-input:focus{outline:none;border-color:#B8924A}
-.if-textarea{resize:vertical}
-.if-form .if-btn{align-self:flex-start}
-.if-form-sent{background:#fff;border:1px solid #B8924A;border-radius:8px;padding:1.6rem}
-.if-form-sent b{color:#0E2240;font-size:1.1rem}
-.if-footer{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;background:#0E2240;padding:1.6rem clamp(1rem,5vw,4rem)}
-.if-footer .if-muted{color:#9aa3b0;flex:1;min-width:200px;font-size:.85rem}
-.if-footer-compass{background:none;border:1px solid #B8924A;color:#B8924A;padding:.5rem 1rem;border-radius:4px;cursor:pointer;font-family:inherit;font-size:.85rem}
-.if-footer-compass:hover{background:#B8924A;color:#12233f}
+.if-nav-compass{margin-left:.5rem;border:1px solid var(--gold)!important;color:var(--gold2)!important;padding:.5rem 1rem!important}
+.if-nav-compass:hover{background:var(--gold);color:var(--nv)!important}
+/* hero */
+.if-hero{position:relative;background:radial-gradient(120% 120% at 82% 20%,#12294a 0%,var(--nv) 42%,var(--nv2) 100%);color:#eef1f6;overflow:hidden}
+.if-hero-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1.05fr .95fr;gap:2rem;align-items:center;padding:clamp(3rem,8vw,6.5rem) clamp(1rem,5vw,4rem) clamp(2.5rem,6vw,4rem)}
+.if-eyebrow{font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.32em;text-transform:uppercase;color:var(--gold2);margin:0 0 1.4rem}
+.if-hero-h{font-size:clamp(2.6rem,6.4vw,5rem);line-height:1.02;margin:0;font-weight:600}
+.if-hero-h .if-line{display:block;opacity:0;transform:translateY(18px);animation:ifrise .8s cubic-bezier(.2,.7,.2,1) forwards}
+.if-hero-h .if-line:nth-child(2){animation-delay:.12s}
+.if-hero-h .if-line:nth-child(3){animation-delay:.24s}
+.if-hero-h em{font-style:italic;color:var(--gold2)}
+@keyframes ifrise{to{opacity:1;transform:none}}
+.if-lede{max-width:34rem;color:#c3ccd9;font-size:1.08rem;margin:1.6rem 0 2rem;opacity:0;animation:iffade 1s ease .4s forwards}
+@keyframes iffade{to{opacity:1}}
+.if-hero-cta{display:flex;gap:.8rem;flex-wrap:wrap;opacity:0;animation:iffade 1s ease .55s forwards}
+.if-btn{cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.85rem;letter-spacing:.03em;padding:.85rem 1.5rem;border-radius:3px;border:1px solid transparent;transition:.18s}
+.if-btn-gold{background:var(--gold);color:var(--nv);border-color:var(--gold);font-weight:600}
+.if-btn-gold:hover{background:var(--gold2);border-color:var(--gold2)}
+.if-btn-line{background:none;color:#eef1f6;border-color:rgba(238,241,246,.4)}
+.if-btn-line:hover{border-color:var(--gold2);color:var(--gold2)}
+.if-hero-art{display:flex;justify-content:center;align-items:flex-end;align-self:stretch}
+.if-colonnade{width:100%;max-width:520px;height:auto;filter:drop-shadow(0 12px 40px rgba(0,0,0,.35));clip-path:inset(0 0 100% 0);animation:ifwipe 1.7s cubic-bezier(.2,.7,.2,1) .35s forwards}
+@keyframes ifwipe{to{clip-path:inset(0 0 0 0)}}
+.if-hero-strip{border-top:1px solid rgba(184,146,74,.28);max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:1rem;padding:1rem clamp(1rem,5vw,4rem);font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:#96a2b4}
+.if-hero-strip i{width:4px;height:4px;border-radius:50%;background:var(--gold)}
+/* bands */
+.if-band{padding:clamp(3.2rem,7vw,6rem) clamp(1rem,5vw,4rem)}
+.if-band-light{background:var(--parch)}
+.if-band-dark{background:var(--nv);color:#eef1f6}
+.if-band>div{max-width:1200px;margin:0 auto}
+.if-kicker{display:flex;align-items:center;gap:.5rem;font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin:0 0 1rem}
+.if-kicker-c{justify-content:center}
+.if-kicker-mark{width:16px;height:20px}
+.if h2{font-size:clamp(1.8rem,3.6vw,2.7rem);line-height:1.12;margin:0 0 1.4rem}
+.if-h2-c{text-align:center;margin-bottom:2.6rem}
+.if-on-dark{color:#fff}
+.if-reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+.if-reveal.in{opacity:1;transform:none}
+/* about */
+.if-about{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(2rem,5vw,4rem);align-items:start}
+.if-about-copy p{color:#46525f;margin:0 0 1rem;max-width:36rem}
+.if-glance{border-top:2px solid var(--nv);margin:0}
+.if-glance-row{display:grid;grid-template-columns:.8fr 1.4fr;gap:1rem;padding:.85rem 0;border-bottom:1px solid rgba(29,39,51,.14)}
+.if-glance-row dt{font-family:ui-sans-serif,sans-serif;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:600}
+.if-glance-row dd{margin:0;color:var(--ink);font-size:.98rem}
+/* stats */
+.if-stats-band{background:var(--nv2);padding-top:clamp(2.4rem,5vw,3.4rem);padding-bottom:clamp(2.4rem,5vw,3.4rem)}
+.if-stats{display:grid;grid-template-columns:repeat(4,1fr)}
+.if-stat{text-align:center;padding:.5rem 1rem;border-left:1px solid rgba(184,146,74,.24)}
+.if-stat:first-child{border-left:none}
+.if-stat b{display:block;font-size:clamp(2rem,4vw,3rem);color:var(--gold2);line-height:1}
+.if-stat span{font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#9aa6b8;margin-top:.5rem;display:block}
+/* vision mission values */
+.if-vmv{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(2rem,5vw,4rem)}
+.if-vm{border-left:2px solid var(--gold);padding:.2rem 0 .2rem 1.3rem;margin-bottom:1.8rem}
+.if-vm-tag{font-family:ui-sans-serif,sans-serif;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:.5rem}
+.if-vm p{margin:0;font-size:1.15rem;color:var(--ink)}
+.if-value{padding:.85rem 0;border-bottom:1px solid rgba(29,39,51,.12)}
+.if-value b{color:var(--nv);margin-right:.5rem}
+.if-value span{color:#556}
+/* services */
+.if-svc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem}
+.if-svc{background:rgba(255,255,255,.02);border:1px solid rgba(184,146,74,.26);border-radius:5px;padding:1.7rem 1.5rem;transition:transform .2s ease,border-color .2s ease}
+.if-svc:hover{transform:translateY(-4px);border-color:var(--gold)}
+.if-svc-mark{width:20px;height:24px;margin-bottom:1rem;opacity:.9}
+.if-svc h3{font-size:1.18rem;color:#fff;margin:0 0 .6rem}
+.if-svc-lede{color:#aeb9c8;font-size:.92rem;margin:0 0 1rem}
+.if-svc ul{list-style:none;margin:0;padding:0}
+.if-svc li{font-family:ui-sans-serif,sans-serif;font-size:.82rem;color:#c7d0dc;padding:.32rem 0 .32rem 1rem;position:relative}
+.if-svc li::before{content:'';position:absolute;left:0;top:.72rem;width:5px;height:5px;background:var(--gold);border-radius:1px}
+.if-svc-foot{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-top:2rem;padding-top:1.6rem;border-top:1px solid rgba(184,146,74,.24)}
+.if-svc-foot p{margin:0;color:#c3ccd9;max-width:40rem}
+/* differentiators */
+.if-diff{display:grid;grid-template-columns:1.3fr .7fr;gap:clamp(2rem,5vw,3.5rem);align-items:start}
+.if-diff-list{display:grid;grid-template-columns:1fr 1fr;gap:.2rem 2rem}
+.if-diff-item{padding:1rem 0;border-top:1px solid rgba(29,39,51,.14)}
+.if-diff-item b{display:block;color:var(--nv);margin-bottom:.25rem}
+.if-diff-item span{color:#5a6673;font-size:.92rem}
+.if-commit{background:var(--nv);color:#eef1f6;padding:1.8rem;border-radius:4px;align-self:stretch}
+.if-commit-tag{font-family:ui-sans-serif,sans-serif;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold2);margin:0 0 1rem}
+.if-commit-body{margin:0;color:#c8d1de;font-size:1.02rem}
+/* leadership */
+.if-leaders{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.if-leader{display:flex;gap:1.3rem;background:rgba(255,255,255,.03);border:1px solid rgba(184,146,74,.24);border-radius:4px;padding:1.6rem}
+.if-monogram{flex:none;width:76px;height:76px;border-radius:50%;border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#14294733,#0000)}
+.if-monogram span{font-size:1.5rem;color:var(--gold2);letter-spacing:.02em}
+.if-leader-body h3{color:#fff;margin:0 0 .2rem;font-size:1.2rem}
+.if-leader-role{font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:0 0 .8rem}
+.if-leader-bio{color:#aeb9c8;font-size:.9rem;margin:0}
+/* contact */
+.if-contact-band{background:linear-gradient(180deg,var(--nv) 0%,var(--nv2) 100%);color:#eef1f6}
+.if-contact{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2rem,5vw,4rem);align-items:start}
+.if-contact-left h2{color:#fff}
+.if-contact-details{margin-top:1.6rem}
+.if-contact-details>div{padding:.85rem 0;border-top:1px solid rgba(184,146,74,.22)}
+.if-contact-details dt{font-family:ui-sans-serif,sans-serif;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:.25rem}
+.if-contact-details dd{margin:0;color:#dbe2ec}
+.if-form{background:var(--parch);border-radius:5px;padding:1.6rem;display:flex;flex-direction:column;gap:.8rem}
+.if-form-row{display:flex;gap:.8rem}
+.if-input{width:100%;font-family:ui-sans-serif,sans-serif;font-size:.92rem;padding:.8rem .9rem;border:1px solid #cdc6b6;border-radius:3px;background:#fff;color:var(--ink)}
+.if-input:focus{outline:none;border-color:var(--gold)}
+.if-textarea{resize:vertical;min-height:110px}
+.if-form .if-btn-gold{align-self:flex-start;margin-top:.3rem}
+.if-form-sent{background:var(--parch);border-radius:5px;padding:2rem}
+.if-form-sent b{color:var(--nv);font-size:1.2rem}
+.if-form-sent p{color:#556;margin:.4rem 0 0}
+/* footer */
+.if-footer{background:var(--nv2);color:#9aa6b8;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:1.6rem clamp(1rem,5vw,4rem);border-top:1px solid rgba(184,146,74,.28)}
+.if-foot-tag{font-family:ui-sans-serif,sans-serif;font-size:.75rem;letter-spacing:.04em;flex:1;min-width:220px;text-align:center}
+.if-foot-compass{background:none;border:1px solid var(--gold);color:var(--gold2);padding:.5rem 1rem;border-radius:3px;cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.78rem;letter-spacing:.04em}
+.if-foot-compass:hover{background:var(--gold);color:var(--nv)}
+@media (prefers-reduced-motion:reduce){.if-hero-h .if-line,.if-lede,.if-hero-cta{animation:none;opacity:1;transform:none}.if-reveal{transition:none;opacity:1;transform:none}}
+@media(max-width:860px){
+  .if-nav button:not(.if-nav-compass){display:none}
+  .if-hero-inner{grid-template-columns:1fr}
+  .if-hero-art{order:-1;max-width:340px;margin:0 auto}
+  .if-about,.if-vmv,.if-diff,.if-contact{grid-template-columns:1fr}
+  .if-svc-grid{grid-template-columns:1fr}
+  .if-diff-list{grid-template-columns:1fr}
+  .if-leaders{grid-template-columns:1fr}
+  .if-stats{grid-template-columns:1fr 1fr}
+  .if-stat:nth-child(3){border-left:none}
+  .if-form-row{flex-direction:column}
+}
 .fc-top-actions{display:flex;align-items:center;gap:.6rem}
 .fc-back-site{font-size:.9rem}
 

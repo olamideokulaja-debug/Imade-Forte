@@ -14,6 +14,27 @@ This build covers Stages 1 to 5:
 - **Stage 5** The Organisations view, AI-suggested next OKRs, and stall detection with a
   WhatsApp nudge.
 
+## The public website (landing page)
+
+The app now opens on the Imade Forte Holdings website, not the sign-in. The homepage is the public
+company site, built from the company profile: a hero ("Strategy That Strengthens Institutions."),
+About and an at-a-glance panel, Vision, Mission and Values, five detailed service cards,
+Differentiators, the leadership of Dr. Olamide Okulaja and Jennifer Kaja with their photos and bios,
+a credibility band, and a Contact section with details and a form. Colours and imagery come from the
+profile: navy, charcoal and gold, the shield and wordmark together, and the profile's own photographs.
+
+Staff reach the platform through the "Forte Compass" item in the top bar (and a link in the footer),
+which opens a short overview of what Compass does and then the sign-in. A "back to Imade Forte" link
+returns to the site.
+
+The contact form emails info@imadeforteholdings.com. To have it send automatically, get a free access
+key at web3forms.com using that address and set it in Vercel as VITE_WEB3FORMS_KEY, then redeploy.
+Without a key the form still works: it opens the visitor's email app addressed to info@ with their
+message filled in.
+
+To make this the live website, point the imadeforteholdings.com domain at this Vercel project
+(Vercel, then Settings, then Domains, then add the domain and follow the DNS steps).
+
 ## Reviews and feedback
 
 Everyone has a Reviews tab. A staff member sees their own reviews there, most recent first, so they
@@ -260,3 +281,20 @@ any change flows straight through to the organisations, the board and the cockpi
 
 Two people are still seeded without surnames (Adebayo and Chinonso), and one HR seat is a
 placeholder. These are flagged in the app and are easy to correct before the roster goes live.
+
+## Public website and the Forte Compass door
+
+The homepage is now the public Imade Forte Holdings site: hero, About and at-a-glance, Vision,
+Mission and Values, the five service practices as detailed cards, differentiators, a credibility
+stats band, both leaders with photos and bios, and a contact section with details and a form. The
+palette, wording and photos come from the company profile. "Forte Compass" in the top bar opens a
+short overview of the platform and then the staff sign-in, so the public site and the internal tool
+live behind one address.
+
+Two setup notes:
+- Contact form emails. Get a free key at web3forms.com, set its destination to
+  info@imadeforteholdings.com, and add it in Vercel as VITE_WEB3FORMS_KEY, then redeploy. Submissions
+  then arrive by email. Until then the form opens the sender's own email app addressed to info@.
+- Replacing imadeforteholdings.com. In Vercel, open the project, then Settings, then Domains, add
+  imadeforteholdings.com, and follow Vercel's DNS instructions at your domain registrar. Once it
+  verifies, the site answers on your domain.

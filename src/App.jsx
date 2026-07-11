@@ -701,7 +701,216 @@ function ProgressBar({ k }) {
 }
 
 /* ------------------------- Gateway (Stage 1) ---------------------- */
-function Gateway({ tenant, onSignIn }) {
+/* ======================= Imade Forte site ========================= */
+function ShieldLogo({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 64 76" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M32 3 58 12v26c0 18-13 29-26 35C19 67 6 56 6 38V12L32 3Z" stroke="#B8924A" strokeWidth="2.5" fill="none" />
+      <rect x="17" y="24" width="30" height="4" rx="1" fill="#B8924A" />
+      <rect x="17" y="47" width="30" height="4" rx="1" fill="#B8924A" />
+      <rect x="21" y="28" width="4" height="19" fill="#B8924A" />
+      <rect x="30" y="28" width="4" height="19" fill="#B8924A" />
+      <rect x="39" y="28" width="4" height="19" fill="#B8924A" />
+    </svg>
+  )
+}
+function IFBrand({ onHome }) {
+  return (
+    <button className="if-brand" onClick={onHome} aria-label="Imade Forte Holdings home">
+      <ShieldLogo className="if-brand-shield" />
+      <span className="if-wordmark"><b>IMADE FORTE</b><em>HOLDINGS LTD.</em></span>
+    </button>
+  )
+}
+
+const IF_SERVICES = [
+  ['01', 'Strategic & Institutional Consulting', 'We help public and private organizations define strategy, sharpen operations, and build the institutional capacity to last.', ['Corporate and organizational strategy', 'Business process optimization', 'Institutional restructuring and reform', 'Performance management systems', 'Change management and capacity building']],
+  ['02', 'Healthcare Systems & Policy Advisory', 'Specialized advisory for healthcare institutions, investors, and government agencies working to strengthen health systems and improve outcomes.', ['Health policy and systems strengthening', 'Healthcare management consulting', 'Health project design and implementation', 'Health financing and sustainability advisory', 'Public-private partnerships in healthcare']],
+  ['03', 'Financial & Investment Advisory', 'Practical insight and structuring that enable sound investment decisions and efficient use of capital.', ['Feasibility studies and market analysis', 'Financial modeling and valuation', 'Project finance and investment structuring', 'Due diligence and transaction support', 'PPP and infrastructure investment advisory']],
+  ['04', 'Governance, Risk & Compliance', 'We strengthen governance and help organizations meet local and international standards for accountability and performance.', ['Corporate governance frameworks', 'Risk assessment and management', 'Regulatory and compliance audits', 'Internal control systems', 'ESG and sustainability advisory']],
+  ['05', 'Real Estate & Infrastructure Consulting', 'Strategic insight and transaction support for investors and developers building sustainable value in real estate and infrastructure.', ['Feasibility and viability assessments', 'Project structuring and finance advisory', 'Asset management and portfolio optimization', 'Transaction and negotiation support', 'Market and investment analysis']],
+]
+const IF_VALUES = [
+  ['Integrity', 'We uphold the highest ethical standards in every engagement.'],
+  ['Excellence', 'We deliver world-class quality and measurable results.'],
+  ['Innovation', 'We bring creative, evidence-based, forward-thinking solutions.'],
+  ['Collaboration', 'We build partnerships and create shared value.'],
+  ['Impact', 'We measure success by the long-term value we create.'],
+]
+const IF_DIFF = [
+  ['Sectoral expertise', 'Deep knowledge across healthcare, finance, real estate, and governance.'],
+  ['Data-driven decisions', 'Strategies informed by rigorous analysis and actionable insight.'],
+  ['Integrated solutions', 'Multidisciplinary teams brought together for comprehensive results.'],
+  ['Global standards, local relevance', 'Global best practice aligned to local realities for maximum impact.'],
+  ['Sustainable value', 'Engagements focused on long-term institutional growth.'],
+]
+const IF_LEADERS = [
+  ['/site/leader_chairman.jpg', 'Dr. Olamide Okulaja', 'Chairman / CEO', 'A respected healthcare executive and entrepreneur with over two decades of experience across clinical practice, public health, and healthcare management. As Chief Executive Officer of Genesys Health Information Systems, a pioneering health technology company, he is improving healthcare delivery across Africa. His work in health systems reform, policy development, and strategic leadership continues to guide the mission of Imade Forte Holdings.'],
+  ['/site/leader_md.jpg', 'Jennifer Kaja', 'Managing Director', 'A distinguished Nigerian lawyer with first-class honours from the University of Wales and a decade of practice across corporate, commercial, and real estate law, spanning transactions, joint ventures, public-private partnerships, restructuring, and regulatory compliance. As Chief Legal Officer of Periwinkle Empire, she provided strategic oversight across legal affairs, governance, and compliance, earning recognition among The Guardian\u2019s 25 Exceptional and Most Value-Adding Female Professionals in Nigeria.'],
+]
+
+function ContactForm() {
+  const [f, setF] = useState({ name: '', email: '', company: '', message: '' })
+  const [sent, setSent] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  async function submit() {
+    if (!f.name.trim() || !f.email.trim() || !f.message.trim()) return
+    setBusy(true)
+    const key = import.meta.env.VITE_WEB3FORMS_KEY
+    if (key) {
+      try {
+        const r = await fetch('https://api.web3forms.com/submit', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_key: key, subject: 'New enquiry from imadeforteholdings.com', from_name: f.name, email: f.email, message: `Company: ${f.company}\n\n${f.message}`, replyto: f.email }),
+        })
+        if (r.ok) { setSent(true); setBusy(false); return }
+      } catch { /* fall through to mailto */ }
+    }
+    const body = encodeURIComponent(`Name: ${f.name}\nEmail: ${f.email}\nCompany: ${f.company}\n\n${f.message}`)
+    window.location.href = `mailto:info@imadeforteholdings.com?subject=${encodeURIComponent('Enquiry from the website')}&body=${body}`
+    setBusy(false); setSent(true)
+  }
+  if (sent) return <div className="if-form-sent"><b>Thank you.</b><p>Your message is on its way to our team. We will be in touch shortly.</p></div>
+  return (
+    <div className="if-form">
+      <div className="if-form-row"><input className="if-input" placeholder="Full name" value={f.name} onChange={set('name')} /><input className="if-input" placeholder="Email address" value={f.email} onChange={set('email')} /></div>
+      <input className="if-input" placeholder="Organization (optional)" value={f.company} onChange={set('company')} />
+      <textarea className="if-input if-textarea" placeholder="How can we help?" value={f.message} onChange={set('message')} rows={4} />
+      <button className="if-btn if-btn-gold" disabled={busy || !f.name.trim() || !f.email.trim() || !f.message.trim()} onClick={submit}>{busy ? 'Sending\u2026' : 'Send message'}</button>
+    </div>
+  )
+}
+
+function LandingPage({ onCompass }) {
+  const nav = (id) => () => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }) }
+  return (
+    <div className="if-site">
+      <header className="if-top">
+        <IFBrand onHome={nav('if-hero')} />
+        <nav className="if-nav">
+          <button onClick={nav('if-about')}>About</button>
+          <button onClick={nav('if-services')}>Services</button>
+          <button onClick={nav('if-leaders')}>Leadership</button>
+          <button onClick={nav('if-contact')}>Contact</button>
+          <button className="if-nav-compass" onClick={onCompass}>Forte Compass</button>
+        </nav>
+      </header>
+
+      <section id="if-hero" className="if-hero">
+        <div className="if-hero-copy">
+          <p className="if-eyebrow">Consulting \u00b7 Advisory \u00b7 Impact</p>
+          <h1>Strategy That<br />Strengthens<br /><span className="if-gold">Institutions.</span></h1>
+          <p className="if-hero-sub">A specialized consulting and advisory firm delivering strategic guidance, operational excellence, and sustainable growth across critical sectors.</p>
+          <div className="if-hero-cta"><button className="if-btn if-btn-gold" onClick={nav('if-contact')}>Get in touch</button><button className="if-btn if-btn-ghost" onClick={nav('if-services')}>Our services</button></div>
+        </div>
+        <div className="if-hero-art"><img src="/site/hero_skyline.jpg" alt="Lagos skyline" /></div>
+      </section>
+
+      <section id="if-about" className="if-section if-about">
+        <div className="if-about-copy">
+          <p className="if-kicker">Who we are</p>
+          <h2>About the Company</h2>
+          <p>Imade Forte Holdings Limited is a specialized consulting and advisory firm incorporated in 2023 under the laws of the Federal Republic of Nigeria.</p>
+          <p>Since inception we have become a trusted partner to organizations, government institutions, and investors seeking strategic guidance, operational excellence, and sustainable growth, with a strong emphasis on healthcare systems development and institutional strengthening. We blend multidisciplinary expertise, innovative thinking, and data-driven insight to deliver tailored solutions, anchored on integrity, precision, and measurable impact.</p>
+        </div>
+        <div className="if-glance">
+          <h3>At a glance</h3>
+          {[['Company', 'Imade Forte Holdings Limited'], ['Incorporated', '2023, Federal Republic of Nigeria'], ['Sector', 'Consulting & strategic advisory'], ['Practice areas', 'Strategy, healthcare, finance, governance, real estate'], ['Clients', 'Organizations, government institutions, investors'], ['Head office', '21 Fatai Arobieke Street, Lekki Phase 1, Lagos']].map((r) => (
+            <div key={r[0]} className="if-glance-row"><span>{r[0]}</span><span>{r[1]}</span></div>
+          ))}
+        </div>
+      </section>
+
+      <section className="if-stats">
+        {[['2023', 'Incorporated in Nigeria'], ['5', 'Practice areas'], ['20+', 'Years of leadership experience'], ['Africa', 'Reach and ambition']].map((s) => (
+          <div key={s[1]} className="if-stat"><b>{s[0]}</b><span>{s[1]}</span></div>
+        ))}
+      </section>
+
+      <section id="if-direction" className="if-section if-vision">
+        <div className="if-vision-cards">
+          <div className="if-vcard is-dark"><h3>Our Vision</h3><p>To be Africa\u2019s most trusted and value-driven consulting partner, empowering organizations and institutions to achieve operational excellence, sustainability, and measurable impact through innovative strategies and transformative solutions.</p></div>
+          <div className="if-vcard"><h3>Our Mission</h3><p>To deliver evidence-based consulting and strategic advisory services that strengthen institutions, improve systems, and enhance organizational performance through expertise, collaboration, and insight.</p></div>
+        </div>
+        <div className="if-values">
+          <p className="if-kicker">Our core values</p>
+          {IF_VALUES.map((v) => (<div key={v[0]} className="if-value"><span className="if-value-dot" /><div><b>{v[0]}</b> <span className="if-muted">{v[1]}</span></div></div>))}
+        </div>
+      </section>
+
+      <section id="if-services" className="if-section">
+        <p className="if-kicker">What we do</p>
+        <h2 className="if-h2-center">Our Services</h2>
+        <div className="if-svc-grid">
+          {IF_SERVICES.map((s) => (
+            <article key={s[0]} className="if-svc">
+              <span className="if-svc-num">{s[0]}</span>
+              <h3>{s[1]}</h3>
+              <p className="if-muted">{s[2]}</p>
+              <ul>{s[3].map((it) => <li key={it}>{it}</li>)}</ul>
+            </article>
+          ))}
+          <article className="if-svc if-svc-cta">
+            <h3>A partner across critical sectors</h3>
+            <p className="if-muted">From healthcare to real estate, our goal is to help clients achieve efficiency, compliance, and sustainable value creation.</p>
+            <button className="if-btn if-btn-gold" onClick={nav('if-contact')}>Get in touch</button>
+          </article>
+        </div>
+      </section>
+
+      <section id="if-diff" className="if-section if-diffsec">
+        <div className="if-diff-copy">
+          <p className="if-kicker">Strategic advantages</p>
+          <h2>Our Differentiators</h2>
+          <ol className="if-diff-list">
+            {IF_DIFF.map((d, i) => (<li key={d[0]}><span className="if-diff-i">{['i', 'ii', 'iii', 'iv', 'v'][i]}</span><div><b>{d[0]}</b><span className="if-muted">{d[1]}</span></div></li>))}
+          </ol>
+        </div>
+        <div className="if-commit">
+          <h3>Our commitment</h3>
+          <p>We are more than consultants. We are catalysts for transformation, committed to supporting government initiatives, strengthening institutions, and empowering businesses through insight, innovation, and integrity, to drive sustainable growth and measurable impact across the sectors that shape Africa\u2019s future.</p>
+        </div>
+      </section>
+
+      <section id="if-leaders" className="if-section">
+        <p className="if-kicker">Our people</p>
+        <h2 className="if-h2-center">Our Leadership</h2>
+        <div className="if-leaders">
+          {IF_LEADERS.map((l) => (
+            <article key={l[1]} className="if-leader">
+              <img src={l[0]} alt={l[1]} />
+              <div className="if-leader-body"><h3>{l[1]}</h3><p className="if-leader-role">{l[2]}</p><p className="if-muted">{l[3]}</p></div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="if-contact" className="if-section if-contact">
+        <div className="if-contact-left">
+          <p className="if-kicker">Get in touch</p>
+          <h2>Let\u2019s shape what\u2019s next.</h2>
+          <div className="if-contact-details">
+            <div><b>Registered office</b><span>21 Fatai Arobieke Street, Off Admiralty Way, Lekki Phase 1, Lagos, Nigeria</span></div>
+            <div><b>Email</b><span>info@imadeforteholdings.com</span></div>
+            <div><b>Phone</b><span>+234 805 873 3019</span></div>
+            <div><b>Hours</b><span>Monday to Friday, 9AM to 6PM</span></div>
+          </div>
+        </div>
+        <ContactForm />
+      </section>
+
+      <footer className="if-footer">
+        <IFBrand onHome={nav('if-hero')} />
+        <span className="if-muted">Catalysts for transformation. Strategic guidance, operational excellence, and sustainable growth.</span>
+        <button className="if-footer-compass" onClick={onCompass}>Staff portal \u00b7 Forte Compass</button>
+      </footer>
+    </div>
+  )
+}
+
+/* --------------------------- Compass overview --------------------- */
+function Gateway({ tenant, onSignIn, onBackToSite }) {
   const [revealed, setRevealed] = useState(false)
   const rungs = [
     ['Input', 'resources committed', false],
@@ -722,7 +931,10 @@ function Gateway({ tenant, onSignIn }) {
           {tenant.logo && <img className="fc-brand-logo" src={tenant.logo} alt={tenant.name} />}
           <span className="fc-wordmark">Forte <em>Compass</em></span>
         </a>
-        <button className="fc-btn fc-btn-ghost" onClick={onSignIn}>Sign in</button>
+        <div className="fc-top-actions">
+          {onBackToSite && <button className="fc-link fc-back-site" onClick={onBackToSite}>← Imade Forte</button>}
+          <button className="fc-btn fc-btn-ghost" onClick={onSignIn}>Sign in</button>
+        </div>
       </header>
       <main id="top" className="fc-hero">
         <div className="fc-hero-copy">
@@ -2726,8 +2938,9 @@ export default function App() {
   return (
     <div className="fc-root">
       <style>{CSS}</style>
-      {screen === 'gateway' && <Gateway tenant={tenant} onSignIn={() => setScreen('auth')} />}
-      {screen === 'auth' && <AuthScreen tenant={tenant} staff={data.staff.length ? data.staff : STAFF} onEnter={enter} onBack={() => setScreen('gateway')} />}
+      {screen === 'gateway' && <LandingPage onCompass={() => setScreen('compass')} />}
+      {screen === 'compass' && <Gateway tenant={tenant} onSignIn={() => setScreen('auth')} onBackToSite={() => setScreen('gateway')} />}
+      {screen === 'auth' && <AuthScreen tenant={tenant} staff={data.staff.length ? data.staff : STAFF} onEnter={enter} onBack={() => setScreen('compass')} />}
       {screen === 'profile' && (
         <div className="fc-auth"><div className="fc-auth-card">
           <h2 className="fc-auth-title">Set up your profile</h2>
@@ -3238,7 +3451,106 @@ option{color:#111}
 .fc-export-card h3{margin:0}
 .fc-export-card .fc-btn{margin-top:auto;align-self:flex-start}
 
-@media(max-width:900px){.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-admin-add{grid-template-columns:1fr 1fr}.fc-adm-row{min-width:660px}.fc-fb-form{grid-template-columns:1fr}.fc-rc-cols{grid-template-columns:1fr}.fc-perf-row{grid-template-columns:1fr 1fr}.fc-leave-form{grid-template-columns:1fr 1fr}.fc-leave-form .fc-col2{grid-column:1/3}.fc-leave-form .fc-btn{grid-column:1/3}.fc-pt-row{min-width:620px}.fc-docs-layout{grid-template-columns:1fr}.fc-doc-row{grid-template-columns:auto 1fr auto}.fc-export-grid{grid-template-columns:1fr}.fc-sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 24px rgba(0,0,0,.4)}.fc-sidebar.is-open{transform:translateX(0)}.fc-hamburger{display:inline-block}.fc-nav-scrim{display:block}}
+/* ===== Imade Forte corporate site ===== */
+.if-site{background:#fff;color:#1c2430;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+.if-site h1,.if-site h2,.if-site h3{font-family:'Lora',Georgia,serif;color:#0E2240;line-height:1.15;margin:0}
+.if-muted{color:#5c6672}
+.if-btn{font-family:inherit;font-size:.95rem;font-weight:600;padding:.7rem 1.4rem;border-radius:4px;border:1px solid transparent;cursor:pointer;transition:all .15s}
+.if-btn-gold{background:#B8924A;color:#12233f;border-color:#B8924A}
+.if-btn-gold:hover{background:#a5813d}
+.if-btn-gold:disabled{opacity:.5;cursor:not-allowed}
+.if-btn-ghost{background:transparent;color:#0E2240;border-color:#c7ccd3}
+.if-btn-ghost:hover{border-color:#0E2240}
+.if-kicker{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:#B8924A;font-weight:700;margin:0 0 .4rem}
+.if-gold{color:#B8924A}
+.if-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.9rem clamp(1rem,5vw,4rem);background:rgba(14,34,64,.97);backdrop-filter:blur(6px)}
+.if-brand{display:flex;align-items:center;gap:.6rem;background:none;border:none;cursor:pointer;padding:0}
+.if-brand-shield{width:32px;height:38px}
+.if-wordmark{display:flex;flex-direction:column;line-height:1.05;text-align:left}
+.if-wordmark b{color:#fff;font-size:.9rem;letter-spacing:.14em;font-family:'Lora',serif}
+.if-wordmark em{color:#B8924A;font-style:normal;font-size:.58rem;letter-spacing:.28em;margin-top:2px}
+.if-nav{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}
+.if-nav button{background:none;border:none;color:#d7dbe2;font-family:inherit;font-size:.9rem;padding:.5rem .8rem;cursor:pointer;border-radius:4px}
+.if-nav button:hover{color:#fff}
+.if-nav-compass{background:#B8924A!important;color:#12233f!important;font-weight:600}
+.if-hero{display:grid;grid-template-columns:1.1fr .9fr;gap:2.5rem;align-items:center;background:linear-gradient(135deg,#0E2240,#1b2e4d);color:#EDE9E0;padding:clamp(2.5rem,7vw,5rem) clamp(1rem,5vw,4rem)}
+.if-hero-copy h1{color:#fff;font-size:clamp(2.3rem,6vw,4rem);margin:.4rem 0 1.1rem;font-weight:700}
+.if-hero-sub{color:#c9cfd8;font-size:1.05rem;max-width:34rem}
+.if-hero-cta{display:flex;gap:.8rem;margin-top:1.6rem;flex-wrap:wrap}
+.if-hero-art img{width:100%;border-radius:8px;border:1px solid rgba(184,146,74,.4);object-fit:cover;max-height:440px;display:block}
+.if-section{padding:clamp(2.5rem,6vw,4.5rem) clamp(1rem,5vw,4rem);max-width:1180px;margin:0 auto}
+.if-section h2{font-size:clamp(1.8rem,4vw,2.6rem)}
+.if-h2-center{text-align:center;font-size:clamp(1.8rem,4vw,2.6rem);margin-bottom:2rem}
+.if-about{display:grid;grid-template-columns:1.3fr 1fr;gap:3rem;align-items:start}
+.if-about-copy h2{margin-bottom:1rem;position:relative;padding-bottom:.6rem}
+.if-about-copy h2:after{content:'';position:absolute;left:0;bottom:0;width:60px;height:3px;background:#B8924A}
+.if-about-copy p{margin:1rem 0;color:#3a434f}
+.if-glance{background:#f6f4ee;border-radius:8px;padding:1.6rem}
+.if-glance h3{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;color:#B8924A;margin-bottom:1rem}
+.if-glance-row{display:grid;grid-template-columns:.8fr 1.2fr;gap:1rem;padding:.7rem 0;border-top:1px solid #e6e2d8;font-size:.92rem}
+.if-glance-row span:first-child{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:#8a929c;font-weight:700;align-self:center}
+.if-glance-row span:last-child{color:#1c2430}
+.if-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#22303f}
+.if-stat{background:#0E2240;padding:1.8rem 1rem;text-align:center}
+.if-stat b{display:block;font-family:'Lora',serif;font-size:2rem;color:#B8924A}
+.if-stat span{font-size:.85rem;color:#c9cfd8}
+.if-vision{display:grid;grid-template-columns:1.2fr 1fr;gap:3rem}
+.if-vision-cards{display:flex;flex-direction:column;gap:1.2rem}
+.if-vcard{border-radius:8px;padding:1.6rem;border-top:3px solid #B8924A;background:#f6f4ee}
+.if-vcard.is-dark{background:#0E2240;color:#EDE9E0}
+.if-vcard.is-dark h3{color:#fff}
+.if-vcard h3{font-size:1.3rem;margin-bottom:.6rem}
+.if-vcard p{margin:0;opacity:.94}
+.if-values{align-self:center}
+.if-value{display:flex;gap:.7rem;padding:.55rem 0;align-items:flex-start}
+.if-value-dot{width:10px;height:10px;background:#B8924A;margin-top:.5rem;flex:none}
+.if-value b{color:#0E2240}
+.if-svc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
+.if-svc{border:1px solid #e6e2d8;border-radius:8px;padding:1.6rem;transition:box-shadow .15s,transform .15s}
+.if-svc:hover{box-shadow:0 12px 30px rgba(14,34,64,.1);transform:translateY(-2px)}
+.if-svc-num{font-family:'Lora',serif;font-size:1.3rem;color:#B8924A;font-weight:700;background:#f6f4ee;display:inline-block;padding:.1rem .6rem;border-radius:4px}
+.if-svc h3{font-size:1.12rem;margin:.7rem 0 .5rem}
+.if-svc ul{margin:.8rem 0 0;padding-left:1.1rem}
+.if-svc li{font-size:.88rem;color:#3a434f;margin:.3rem 0}
+.if-svc-cta{background:#0E2240;color:#EDE9E0;display:flex;flex-direction:column;justify-content:center}
+.if-svc-cta h3{color:#fff}
+.if-svc-cta .if-muted{color:#c9cfd8}
+.if-svc-cta .if-btn{margin-top:1rem;align-self:flex-start}
+.if-diffsec{display:grid;grid-template-columns:1.3fr 1fr;gap:3rem;align-items:center}
+.if-diff-list{list-style:none;margin:1.4rem 0 0;padding:0}
+.if-diff-list li{display:flex;gap:1rem;padding:.8rem 0;border-top:1px solid #e6e2d8}
+.if-diff-i{font-family:'Lora',serif;font-style:italic;color:#B8924A;font-size:1.1rem;font-weight:700;min-width:1.6rem}
+.if-diff-list b{display:block;color:#0E2240}
+.if-commit{background:#0E2240;color:#EDE9E0;border-top:3px solid #B8924A;border-radius:8px;padding:1.8rem}
+.if-commit h3{color:#B8924A;font-size:1.2rem;margin-bottom:.7rem}
+.if-commit p{opacity:.94}
+.if-leaders{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem}
+.if-leader{display:flex;gap:1.2rem;align-items:flex-start}
+.if-leader img{width:130px;height:162px;object-fit:cover;border-radius:6px;border:2px solid #B8924A;flex:none}
+.if-leader h3{font-size:1.25rem}
+.if-leader-role{color:#B8924A;letter-spacing:.08em;text-transform:uppercase;font-size:.72rem;font-weight:700;margin:.2rem 0 .6rem}
+.if-leader-body .if-muted{font-size:.88rem}
+.if-contact{display:grid;grid-template-columns:1fr 1fr;gap:3rem;background:#f6f4ee;border-radius:10px}
+.if-contact h2{margin:.4rem 0 1.4rem}
+.if-contact-details div{margin:0 0 1rem}
+.if-contact-details b{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#B8924A;margin-bottom:.2rem}
+.if-contact-details span{color:#1c2430}
+.if-form{display:flex;flex-direction:column;gap:.7rem}
+.if-form-row{display:flex;gap:.7rem}
+.if-input{width:100%;padding:.7rem .8rem;border:1px solid #d3cfc4;border-radius:5px;font-family:inherit;font-size:.95rem;background:#fff;color:#1c2430}
+.if-input:focus{outline:none;border-color:#B8924A}
+.if-textarea{resize:vertical}
+.if-form .if-btn{align-self:flex-start}
+.if-form-sent{background:#fff;border:1px solid #B8924A;border-radius:8px;padding:1.6rem}
+.if-form-sent b{color:#0E2240;font-size:1.1rem}
+.if-footer{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;background:#0E2240;padding:1.6rem clamp(1rem,5vw,4rem)}
+.if-footer .if-muted{color:#9aa3b0;flex:1;min-width:200px;font-size:.85rem}
+.if-footer-compass{background:none;border:1px solid #B8924A;color:#B8924A;padding:.5rem 1rem;border-radius:4px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.if-footer-compass:hover{background:#B8924A;color:#12233f}
+.fc-top-actions{display:flex;align-items:center;gap:.6rem}
+.fc-back-site{font-size:.9rem}
+
+@media(max-width:900px){.if-hero{grid-template-columns:1fr}.if-hero-art{order:-1}.if-about{grid-template-columns:1fr}.if-vision{grid-template-columns:1fr}.if-svc-grid{grid-template-columns:1fr}.if-diffsec{grid-template-columns:1fr}.if-leaders{grid-template-columns:1fr}.if-contact{grid-template-columns:1fr}.if-stats{grid-template-columns:1fr 1fr}.if-nav button:not(.if-nav-compass){display:none}.if-form-row{flex-direction:column}.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-admin-add{grid-template-columns:1fr 1fr}.fc-adm-row{min-width:660px}.fc-fb-form{grid-template-columns:1fr}.fc-rc-cols{grid-template-columns:1fr}.fc-perf-row{grid-template-columns:1fr 1fr}.fc-leave-form{grid-template-columns:1fr 1fr}.fc-leave-form .fc-col2{grid-column:1/3}.fc-leave-form .fc-btn{grid-column:1/3}.fc-pt-row{min-width:620px}.fc-docs-layout{grid-template-columns:1fr}.fc-doc-row{grid-template-columns:auto 1fr auto}.fc-export-grid{grid-template-columns:1fr}.fc-sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 24px rgba(0,0,0,.4)}.fc-sidebar.is-open{transform:translateX(0)}.fc-hamburger{display:inline-block}.fc-nav-scrim{display:block}}
 @media(max-width:560px){.fc-field-grid{grid-template-columns:1fr}.fc-col2{grid-column:1}.fc-cap-grid{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:1fr 1fr}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 `

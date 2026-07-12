@@ -837,8 +837,8 @@ function ContactForm() {
   )
 }
 
-const IF_PAGES = ['home', 'about', 'approach', 'practices', 'sectors', 'advantages', 'insights', 'leadership', 'careers', 'contact']
-const IF_TAB_LABELS = { home: 'Home', about: 'About', approach: 'Approach', practices: 'Practices', sectors: 'Sectors', advantages: 'Advantages', insights: 'Insights', leadership: 'Leadership', careers: 'Careers', contact: 'Contact' }
+const IF_PAGES = ['home', 'about', 'approach', 'practices', 'sectors', 'engagements', 'advantages', 'insights', 'leadership', 'careers', 'faq', 'contact']
+const IF_TAB_LABELS = { home: 'Home', about: 'About', approach: 'Approach', practices: 'Practices', sectors: 'Sectors', engagements: 'Engagements', advantages: 'Advantages', insights: 'Insights', leadership: 'Leadership', careers: 'Careers', faq: 'FAQ', contact: 'Contact' }
 function AfricaMark({ className = '' }) {
   return (
     <svg className={className} viewBox="0 0 1000 1000" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
@@ -862,7 +862,7 @@ function LandingPage({ onCompass }) {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   const go = (id) => { setPage(id); try { history.replaceState(null, '', '#' + id) } catch { location.hash = id } }
-  const View = { home: HomeView, about: AboutView, approach: ApproachView, practices: PracticesView, sectors: SectorsView, advantages: AdvantagesView, insights: InsightsView, leadership: LeadershipView, careers: CareersView, contact: ContactView }[page] || HomeView
+  const View = { home: HomeView, about: AboutView, approach: ApproachView, practices: PracticesView, sectors: SectorsView, engagements: EngagementsView, advantages: AdvantagesView, insights: InsightsView, leadership: LeadershipView, careers: CareersView, faq: FaqView, contact: ContactView }[page] || HomeView
   return (
     <div className="if">
       <header className="if-top"><div className="if-top-inner">
@@ -1118,6 +1118,66 @@ function SectorsView({ go }) {
           <div className="if-sector-body"><h3>Have a brief for us?</h3><p>Tell us about the institution and the outcome you are working toward.</p><span className="if-sector-arrow">Start a conversation →</span></div>
         </button>
       </div>
+    </div>
+  )
+}
+
+const IF_FAQ = [
+  ['What does Imade Forte Holdings do?', 'We are a consulting and advisory firm delivering strategy, healthcare, finance, governance, and real estate advisory, with a strong emphasis on strengthening institutions and health systems.'],
+  ['Which sectors do you work in?', 'Healthcare, government and the public sector, financial services, real estate and infrastructure, and investment and development finance.'],
+  ['Who do you typically work with?', 'Organisations, government institutions, and investors, from early strategy through to delivery and long-term sustainability.'],
+  ['How does an engagement start?', 'It starts with a conversation. We take time to understand the institution and the outcome that matters before proposing an approach.'],
+  ['Do you work with government institutions?', 'Yes. A significant part of our work supports government initiatives and public institutions, including feasibility and structuring for major public developments.'],
+  ['Where are you based?', 'Our head office is at 21 Fatai Arobieke Street, Off Admiralty Way, Lekki Phase 1, Lagos, Nigeria.'],
+  ['How do we get in touch?', 'Email info@imadeforteholdings.com, call +234 805 873 3019, or use the contact form, and we will get back to you.'],
+]
+
+function EngagementsView({ go }) {
+  const caps = [['Feasibility & investment structuring', 'Bankable studies and structures for major projects.'], ['Health-systems strengthening', 'Strategy, financing, and delivery for health institutions.'], ['Governance & compliance', 'Frameworks, controls, and regulatory readiness.'], ['PPP & infrastructure', 'Public-private structures that reach delivery.']]
+  return (
+    <div className="if-stack">
+      <p className="if-eyebrow"><ColMark />Selected work</p>
+      <h2>Engagements, and the work behind them.</h2>
+      <div className="if-eng">
+        <article className="if-eng-featured">
+          <span className="if-tag">Featured · Real estate & infrastructure</span>
+          <h3>LASMIIZO feasibility study</h3>
+          <p className="if-mut">Imade Forte was engaged in connection with the feasibility study for the Lagos State Medical, Industrial and Innovation Zone (LASMIIZO), working with Lekki Worldwide Investment to help assess viability, commercial structure, and delivery for a landmark public development.</p>
+          <ul className="if-points">
+            <li>Feasibility and viability assessment</li>
+            <li>Commercial and delivery structuring</li>
+            <li>Stakeholder and investment alignment</li>
+            <li>Public-sector engagement</li>
+          </ul>
+          <button className="if-btn if-btn-gold" onClick={() => go('contact')}>Discuss a project</button>
+        </article>
+        <aside className="if-eng-side">
+          <p className="if-eyebrow-sm">The kind of work we do</p>
+          {caps.map((c) => (<div key={c[0]} className="if-eng-cap"><b>{c[0]}</b><span>{c[1]}</span></div>))}
+          <p className="if-note">Some engagements are confidential and are not listed here.</p>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function FaqView({ go }) {
+  const [open, setOpen] = useState(0)
+  return (
+    <div className="if-stack">
+      <p className="if-eyebrow"><ColMark />Questions</p>
+      <h2>Frequently asked.</h2>
+      <div className="if-faq">
+        {IF_FAQ.map((f, i) => (
+          <div key={i} className={`if-faq-item ${open === i ? 'on' : ''}`}>
+            <button className="if-faq-q" aria-expanded={open === i} onClick={() => setOpen(open === i ? -1 : i)}>
+              <span>{f[0]}</span><span className="if-faq-mark">{open === i ? '–' : '+'}</span>
+            </button>
+            <div className="if-faq-a"><p>{f[1]}</p></div>
+          </div>
+        ))}
+      </div>
+      <div className="if-cta-row"><p>Still have a question?</p><button className="if-btn if-btn-gold" onClick={() => go('contact')}>Ask us</button></div>
     </div>
   )
 }
@@ -3854,13 +3914,31 @@ option{color:#111}
 .if-sector-cta{background:linear-gradient(135deg,rgba(184,146,74,.18),rgba(184,146,74,.04));cursor:pointer;justify-content:center}
 .if-sector-cta .if-sector-body{padding:1.7rem}
 .if-sector-arrow{margin-top:.4rem;font-family:var(--sans);font-size:.84rem;color:var(--gold2);font-weight:600}
+.if-eyebrow-sm{font-family:var(--sans);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.8rem}
+.if-eng{display:grid;grid-template-columns:1.45fr .55fr;gap:clamp(1.5rem,4vw,3rem);align-items:start}
+.if-eng-featured{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:12px;padding:1.9rem;display:flex;flex-direction:column;gap:.85rem}
+.if-eng-featured h3{color:#fff;font-size:1.7rem}
+.if-eng-featured .if-btn{align-self:flex-start;margin-top:.3rem}
+.if-eng-side{display:flex;flex-direction:column;gap:1rem}
+.if-eng-cap{border-left:2px solid var(--gold);padding-left:1rem}
+.if-eng-cap b{display:block;color:#fff;margin-bottom:.15rem;font-size:.98rem}
+.if-eng-cap span{color:#B4BFCE;font-size:.86rem}
+.if-eng-side .if-note{color:#8A97AA;font-size:.82rem;font-style:italic}
+.if-faq{display:flex;flex-direction:column;gap:.7rem;max-width:940px;margin:0 auto;width:100%}
+.if-faq-item{border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.025);overflow:hidden;transition:border-color .2s}
+.if-faq-item.on{border-color:var(--gold)}
+.if-faq-q{width:100%;display:flex;align-items:center;justify-content:space-between;gap:1rem;background:none;border:none;cursor:pointer;color:#fff;font-family:'Lora',serif;font-size:1.08rem;text-align:left;padding:1.1rem 1.3rem}
+.if-faq-mark{font-family:var(--sans);color:var(--gold2);font-size:1.35rem;line-height:1;flex:none}
+.if-faq-a{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.if-faq-item.on .if-faq-a{max-height:400px}
+.if-faq-a p{color:#B4BFCE;font-size:.92rem;padding:0 1.3rem 1.2rem}
 .if a:focus-visible,.if button:focus-visible,.if input:focus-visible,.if textarea:focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-radius:4px}
 @media (prefers-reduced-motion:reduce){.if-view,.if-pdetail,.if-tab.on::after,.if::before,.if-hero-media,.if-marquee-track,.if-stepdetail{animation:none!important}.if *{transition:none!important}}
 @media(max-width:900px){
   .if-top-inner{grid-template-columns:auto 1fr auto;gap:.5rem;width:92vw}
   .if-view,.if-foot-inner{width:92vw}
   .if-africa-wm{opacity:.05;right:-25%}
-  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points,.if-steps,.if-sectors{grid-template-columns:1fr}
+  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points,.if-steps,.if-sectors,.if-eng{grid-template-columns:1fr}
   .if-stats{grid-template-columns:1fr 1fr;gap:1.2rem 0}
   .if-form-row{flex-direction:column}
   .if-view{min-height:auto;justify-content:flex-start}

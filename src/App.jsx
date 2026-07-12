@@ -865,7 +865,7 @@ function LandingPage({ onCompass }) {
   const View = { home: HomeView, about: AboutView, practices: PracticesView, advantages: AdvantagesView, insights: InsightsView, leadership: LeadershipView, careers: CareersView, contact: ContactView }[page] || HomeView
   return (
     <div className="if">
-      <header className="if-top">
+      <header className="if-top"><div className="if-top-inner">
         <IFBrand onHome={() => go('home')} />
         <nav className="if-nav" role="tablist" aria-label="Sections">
           {IF_PAGES.map((id) => (
@@ -873,16 +873,16 @@ function LandingPage({ onCompass }) {
           ))}
         </nav>
         <button className="if-compass" onClick={onCompass}>Forte Compass</button>
-      </header>
+      </div></header>
       <main className="if-main" role="tabpanel">
         <div key={page} className="if-view"><View go={go} onCompass={onCompass} /></div>
       </main>
-      <footer className="if-foot">
+      <footer className="if-foot"><div className="if-foot-inner">
         <span>© {new Date().getFullYear()} Imade Forte Holdings Limited</span>
         <span className="if-foot-dot">·</span>
         <span className="if-foot-addr">21 Fatai Arobieke Street, Lekki Phase 1, Lagos</span>
         <button className="if-foot-link" onClick={onCompass}>Staff portal · Forte Compass</button>
-      </footer>
+      </div></footer>
     </div>
   )
 }
@@ -890,6 +890,7 @@ function LandingPage({ onCompass }) {
 function HomeView({ go }) {
   return (
     <div className="if-home">
+      <AfricaMark className="if-africa-wm" />
       <div className="if-hero">
         <div className="if-hero-copy">
           <p className="if-eyebrow"><ColMark />Consulting · Advisory · Impact</p>
@@ -3621,12 +3622,13 @@ option{color:#111}
 
 /* ===== Imade Forte corporate site ===== */
 /* ===================== Imade Forte site ===================== */
-.if{--nv:#0E2240;--nv2:#0A1830;--gold:#B8924A;--gold2:#E2C888;--parch:#F4F0E7;--line:rgba(184,146,74,.22);--sans:ui-sans-serif,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;position:relative;overflow-x:hidden;background:radial-gradient(130% 90% at 82% -12%,#173763 0%,#0E2240 46%,#091628 100%);color:#E8ECF3;font-family:'Lora',Georgia,serif;line-height:1.62;-webkit-font-smoothing:antialiased}
+.if{--nv:#0E2240;--nv2:#0A1830;--gold:#B8924A;--gold2:#E2C888;--parch:#F4F0E7;--line:rgba(184,146,74,.22);--wrap:min(1800px,94vw);--sans:ui-sans-serif,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;position:relative;overflow-x:hidden;background:radial-gradient(130% 90% at 82% -12%,#173763 0%,#0E2240 46%,#091628 100%);color:#E8ECF3;font-family:'Lora',Georgia,serif;line-height:1.62;-webkit-font-smoothing:antialiased}
 .if *{box-sizing:border-box}
 .if h1,.if h2,.if h3{font-family:'Lora',Georgia,serif;font-weight:600;letter-spacing:-.015em;color:#fff;margin:0}
 .if p{margin:0}
 .if-mut{color:#B4BFCE}
-.if-top{position:sticky;top:0;z-index:40;height:64px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1rem;padding:0 clamp(1rem,4vw,3rem);background:rgba(9,20,38,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.if-top{position:sticky;top:0;z-index:40;background:rgba(9,20,38,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.if-top-inner{width:var(--wrap);margin:0 auto;height:64px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1rem}
 .if-brand{justify-self:start;background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center}
 .if-logo{height:38px;width:auto;display:block}
 .if-nav{justify-self:center;display:flex;align-items:center;gap:.1rem;max-width:100%;overflow-x:auto;scrollbar-width:none}
@@ -3639,7 +3641,7 @@ option{color:#111}
 .if-compass{justify-self:end;flex:none;background:none;border:1px solid var(--gold);color:var(--gold2);cursor:pointer;font-family:var(--sans);font-size:.82rem;padding:.5rem 1.05rem;border-radius:6px;white-space:nowrap;transition:.18s}
 .if-compass:hover{background:var(--gold);color:var(--nv)}
 .if-main{flex:1;display:flex;flex-direction:column}
-.if-view{min-height:calc(100vh - 116px);width:100%;max-width:1360px;margin:0 auto;padding:clamp(2rem,5vh,4rem) clamp(1.4rem,5vw,4rem);display:flex;flex-direction:column;justify-content:center;animation:if-in .5s ease}
+.if-view{min-height:calc(100vh - 116px);width:var(--wrap);margin:0 auto;padding:clamp(2rem,5vh,4rem) 0;display:flex;flex-direction:column;justify-content:center;animation:if-in .5s ease}
 @keyframes if-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .if-stack{display:flex;flex-direction:column}
 .if-eyebrow{font-family:var(--sans);font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--gold2);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
@@ -3665,6 +3667,7 @@ option{color:#111}
 .if-chip{font-family:var(--sans);font-size:.78rem;color:var(--gold2);border:1px solid rgba(184,146,74,.4);border-radius:20px;padding:.34rem .85rem}
 .if-home{position:relative;display:flex;flex-direction:column;gap:clamp(1.6rem,3.5vh,2.6rem)}
 .if-hero,.if-stats,.if-partners{position:relative;z-index:1}
+.if-africa-wm{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);height:132%;width:auto;opacity:.09;z-index:0;pointer-events:none}
 .if-hero{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(2rem,5vw,4rem);align-items:center}
 .if-hero h1{font-size:clamp(2.6rem,5.4vw,4.3rem);line-height:1.04;margin-bottom:1.3rem}
 .if-hero h1 em{font-style:italic;color:var(--gold2)}
@@ -3748,14 +3751,17 @@ option{color:#111}
 .if-form-sent{background:var(--parch);border-radius:10px;padding:2rem;color:#1D2733}
 .if-form-sent b{color:var(--nv);font-size:1.2rem}
 .if-form-sent p{color:#556;margin-top:.4rem}
-.if-foot{height:52px;display:flex;align-items:center;gap:.7rem;padding:0 clamp(1rem,4vw,3rem);border-top:1px solid var(--line);font-family:var(--sans);font-size:.74rem;color:#8A97AA;background:rgba(9,20,38,.5)}
+.if-foot{border-top:1px solid var(--line);font-family:var(--sans);font-size:.74rem;color:#8A97AA;background:rgba(9,20,38,.5)}
+.if-foot-inner{width:var(--wrap);margin:0 auto;height:52px;display:flex;align-items:center;gap:.7rem}
 .if-foot-dot{opacity:.5}
 .if-foot-link{margin-left:auto;background:none;border:1px solid rgba(184,146,74,.5);color:var(--gold2);padding:.4rem .9rem;border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:.74rem;white-space:nowrap}
 .if-foot-link:hover{background:var(--gold);color:var(--nv)}
 .if a:focus-visible,.if button:focus-visible,.if input:focus-visible,.if textarea:focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-radius:4px}
 @media (prefers-reduced-motion:reduce){.if-view,.if-pdetail,.if-tab.on::after{animation:none!important}.if *{transition:none!important}}
 @media(max-width:900px){
-  .if-top{grid-template-columns:auto 1fr auto;gap:.5rem;padding:0 1rem}
+  .if-top-inner{grid-template-columns:auto 1fr auto;gap:.5rem;width:92vw}
+  .if-view,.if-foot-inner{width:92vw}
+  .if-africa-wm{opacity:.05;right:-25%}
   .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points{grid-template-columns:1fr}
   .if-stats{grid-template-columns:1fr 1fr;gap:1.2rem 0}
   .if-form-row{flex-direction:column}

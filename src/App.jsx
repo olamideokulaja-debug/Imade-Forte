@@ -3303,7 +3303,7 @@ const CSS = `
 .fc-btn-gold:disabled{opacity:.4;cursor:not-allowed}
 .fc-btn-ghost{background:transparent;color:var(--parchment);border-color:var(--hairline)}
 .fc-btn-ghost:hover{border-color:var(--gold);color:var(--gold-lit)}
-.fc-link{background:none;border:none;border-bottom:1px solid var(--gold);color:var(--parchment);text-decoration:none;padding:0 0 2px;font-size:.98rem;cursor:pointer}
+.fc-link{background:none;border:none;border-bottom:1px solid var(--gold);color:var(--parchment);text-decoration:none;padding:0 0 2px;font-family:inherit;font-size:.9rem;cursor:pointer;white-space:nowrap}
 .fc-link:hover{color:var(--gold-lit)}
 .fc-muted{color:var(--muted)}
 .fc-input{font-family:inherit;font-size:.95rem;padding:.6rem .8rem;border-radius:3px;border:1px solid var(--hairline);background:rgba(237,233,224,.04);color:var(--parchment);width:100%}
@@ -3313,6 +3313,7 @@ option{color:#111}
 
 /* gateway (Stage 1) */
 .fc-top{display:flex;align-items:center;justify-content:space-between;padding:1.6rem clamp(1.25rem,5vw,5rem);border-bottom:1px solid var(--hairline)}
+.fc-top-actions{display:flex;align-items:center;gap:1.25rem}
 .fc-brand{display:flex;align-items:center;gap:.95rem;text-decoration:none;color:var(--parchment)}
 .fc-brand-logo{height:48px;width:auto;display:block;flex:none}
 .fc-wordmark{font-size:1.12rem;letter-spacing:.14em;text-transform:uppercase;font-weight:500;padding-left:.95rem;border-left:1px solid var(--hairline)}

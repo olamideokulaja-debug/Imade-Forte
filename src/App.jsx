@@ -839,8 +839,8 @@ function ContactForm() {
 
 const IF_PAGES = ['home', 'about', 'approach', 'practices', 'sectors', 'engagements', 'advantages', 'insights', 'leadership', 'careers', 'faq', 'group', 'contact']
 const IF_TAB_LABELS = { home: 'Home', about: 'About', approach: 'Approach', practices: 'Practices', sectors: 'Sectors', engagements: 'Engagements', advantages: 'Advantages', insights: 'Insights', leadership: 'Leadership', careers: 'Careers', faq: 'FAQ', group: 'Group', contact: 'Contact' }
-const IF_PRIMARY = ['home', 'about', 'practices', 'sectors', 'leadership', 'careers', 'contact']
-const IF_MORE = ['approach', 'engagements', 'advantages', 'insights', 'faq', 'group']
+const IF_PRIMARY = ['home', 'about', 'practices', 'sectors', 'group', 'leadership', 'careers', 'contact']
+const IF_MORE = ['approach', 'engagements', 'advantages', 'insights', 'faq']
 function AfricaMark({ className = '' }) {
   return (
     <svg className={className} viewBox="0 0 1000 1000" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
@@ -1035,11 +1035,22 @@ function InsightsView({ go }) {
   )
 }
 
+const IF_LEADER_FOCUS = [
+  ['Healthcare & health systems', 'Public health', 'Strategy & policy'],
+  ['Corporate & commercial law', 'Governance & compliance', 'Real estate & PPPs'],
+]
+const IF_ETHOS = [
+  ['Operating credibility', 'We advise from the experience of building and running real businesses, not theory alone.'],
+  ['Institutional integrity', 'Governance, transparency, and accountability sit at the centre of every decision.'],
+  ['Long-term value', 'We build for durability and outcomes that outlast the engagement itself.'],
+]
+
 function LeadershipView() {
   return (
     <div className="if-stack">
       <p className="if-eyebrow"><ColMark />Our people</p>
       <h2>Leadership.</h2>
+      <p className="if-mut if-lead-intro">Imade Forte is led by seasoned professionals with deep experience across governance, healthcare, finance, and strategy, pairing operating credibility with advisory judgement.</p>
       <div className="if-leaders">
         {IF_LEADERS.map((l, i) => (
           <article key={l[0]} className="if-leader">
@@ -1048,10 +1059,17 @@ function LeadershipView() {
               <h3>{l[0]}</h3>
               <p className="if-lrole">{l[1]}</p>
               <p className="if-lbio">{l[2]}</p>
+              <div className="if-lfocus">{IF_LEADER_FOCUS[i].map((f) => <span key={f} className="if-chip">{f}</span>)}</div>
               {i === 1 && <p className="if-recog">★ {IF_RECOGNITION}</p>}
             </div>
           </article>
         ))}
+      </div>
+      <div className="if-lead-ethos">
+        <div className="if-ethos-head"><ColMark /><span>How we lead</span></div>
+        <div className="if-ethos-grid">
+          {IF_ETHOS.map((e) => (<div key={e[0]} className="if-ethos-item"><b>{e[0]}</b><span>{e[1]}</span></div>))}
+        </div>
       </div>
     </div>
   )
@@ -1227,10 +1245,10 @@ function FaqView({ go }) {
 }
 
 const IF_GROUP = [
-  { name: 'Genesys Health', sector: 'Health technology', desc: 'An indigenous Health Management Information System, delivering electronic medical records and telemedicine to public and private hospitals across Africa.', url: 'https://www.genesys-health.com' },
-  { name: 'Qura Health', sector: 'Health marketplace', desc: 'A 24/7 live healthcare marketplace and growth CRM across the NHS, private, and international markets, mapping the market in real time.', url: 'https://qurahealth.org' },
-  { name: 'Realms Healthcare Services', sector: 'Healthcare services', desc: 'Healthcare services and consulting, including health-facility monitoring, quality assurance, and delivery support.', url: 'https://realmsconsulting.com' },
-  { name: 'Girard Property', sector: 'Real estate', desc: 'Real estate and property development, creating and managing value across residential and commercial assets.', url: 'https://girardpropertylimited.com' },
+  { name: 'Genesys Health', sector: 'Health technology', logo: '/logos/genesys.png', desc: 'An indigenous Health Management Information System, delivering electronic medical records and telemedicine to public and private hospitals across Africa.', url: 'https://www.genesys-health.com' },
+  { name: 'Qura Health', sector: 'Health marketplace', logo: '/logos/qura.svg', desc: 'A 24/7 live healthcare marketplace and growth CRM across the NHS, private, and international markets, mapping the market in real time.', url: 'https://qurahealth.org' },
+  { name: 'Realms Healthcare Services', sector: 'Healthcare services', logo: '/logos/realms.png', desc: 'Healthcare services and consulting, including health-facility monitoring, quality assurance, and delivery support.', url: 'https://realmsconsulting.com' },
+  { name: 'Girard Property', sector: 'Real estate', logo: '/logos/girard.png', desc: 'Real estate and property development, creating and managing value across residential and commercial assets.', url: 'https://girardpropertylimited.com' },
   { name: 'Yostrat Business Services', sector: 'Business services', desc: 'Business services and operational support across the group\u2019s portfolio of companies.', url: '', note: 'Portfolio company' },
 ]
 
@@ -1243,12 +1261,13 @@ function GroupView({ go }) {
       <div className="if-group">
         {IF_GROUP.map((c) => (
           <article key={c.name} className="if-gco">
-            <div className="if-gco-head">
+            <div className="if-gco-top">
+              {c.logo ? <div className="if-gco-logo"><img src={c.logo} alt={c.name + ' logo'} loading="lazy" /></div> : <div className="if-gco-logo mono"><span>{c.name[0]}</span></div>}
               <span className="if-tag">{c.sector}</span>
-              {c.url ? <a className="if-gco-link" href={c.url} target="_blank" rel="noreferrer">Visit site ↗</a> : <span className="if-gco-note">{c.note}</span>}
             </div>
             <h3>{c.name}</h3>
             <p>{c.desc}</p>
+            <div className="if-gco-foot">{c.url ? <a className="if-gco-link" href={c.url} target="_blank" rel="noreferrer">Visit site ↗</a> : (c.note ? <span className="if-gco-note">{c.note}</span> : null)}</div>
           </article>
         ))}
         <button className="if-gco if-gco-cta" onClick={() => go('contact')}>
@@ -3932,12 +3951,22 @@ option{color:#111}
 .if-cta-row{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-top:1.6rem;padding-top:1.4rem;border-top:1px solid var(--line)}
 .if-cta-row p{color:#C4CDDC}
 .if-leaders{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem}
-.if-leader{display:grid;grid-template-columns:170px 1fr;gap:1.4rem;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:10px;padding:1.5rem;align-items:start}
-.if-leader .if-frame{width:170px;aspect-ratio:4/5}
-.if-leader h3{color:#fff;font-size:1.2rem;margin-bottom:.15rem}
+.if-leader{display:grid;grid-template-columns:210px 1fr;gap:1.8rem;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:12px;padding:1.9rem;align-items:start}
+.if-leader .if-frame{width:210px;aspect-ratio:4/5}
+.if-leader h3{color:#fff;font-size:1.45rem;margin-bottom:.2rem}
 .if-lrole{font-family:var(--sans);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:.7rem}
 .if-lbio{color:#B4BFCE;font-size:.86rem}
-.if-recog{margin-top:.8rem;color:var(--gold2);font-size:.82rem;font-style:italic;border-top:1px solid var(--line);padding-top:.65rem}
+.if-recog{margin-top:.9rem;color:var(--gold2);font-size:.82rem;font-style:italic;border-top:1px solid var(--line);padding-top:.7rem}
+.if-lead-intro{max-width:62rem;margin-bottom:.5rem}
+.if-lfocus{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
+.if-lead-ethos{margin-top:1.9rem;padding-top:1.7rem;border-top:1px solid var(--line)}
+.if-ethos-head{display:flex;align-items:center;gap:.6rem;font-family:var(--sans);font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold2);margin-bottom:1.2rem}
+.if-ethos-head svg{width:15px;height:19px}
+.if-ethos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.6rem}
+.if-ethos-item{border-left:2px solid var(--gold);padding-left:1.1rem}
+.if-ethos-item b{display:block;color:#fff;font-size:1.06rem;margin-bottom:.3rem}
+.if-ethos-item span{color:#B4BFCE;font-size:.9rem}
+
 .if-roles{display:flex;flex-direction:column;margin-top:.3rem}
 .if-role{display:flex;align-items:center;gap:.7rem;padding:.7rem 0;border-bottom:1px solid rgba(232,236,243,.1);color:#D2DAE6;font-size:.95rem}
 .if-role svg{width:15px;height:19px;flex:none}
@@ -4027,6 +4056,12 @@ option{color:#111}
 .if-gco-link{font-family:var(--sans);font-size:.82rem;color:var(--gold2);text-decoration:none;border-bottom:1px solid transparent;white-space:nowrap;transition:border-color .15s}
 .if-gco-link:hover{border-bottom-color:var(--gold2)}
 .if-gco-note{font-family:var(--sans);font-size:.68rem;color:#8A97AA;text-transform:uppercase;letter-spacing:.09em;white-space:nowrap}
+.if-gco-top{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.if-gco-logo{width:52px;height:52px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:7px;flex:none;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.if-gco-logo img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.if-gco-logo.mono{background:linear-gradient(135deg,var(--gold),#8a6d2f);padding:0}
+.if-gco-logo.mono span{font-family:'Lora',serif;font-weight:700;font-size:1.5rem;color:#fff}
+.if-gco-foot{margin-top:auto;padding-top:.4rem}
 .if-gco-cta{cursor:pointer;font-family:inherit;background:linear-gradient(135deg,rgba(184,146,74,.16),rgba(184,146,74,.04));justify-content:center}
 .if-eyebrow-sm{font-family:var(--sans);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.8rem}
 .if-eng{display:grid;grid-template-columns:1.45fr .55fr;gap:clamp(1.5rem,4vw,3rem);align-items:start}
@@ -4052,7 +4087,7 @@ option{color:#111}
   .if-top-inner{grid-template-columns:auto 1fr auto;gap:.5rem;width:92vw}
   .if-view,.if-foot-inner{width:92vw}
   .if-africa-wm{opacity:.05;right:-25%}
-  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points,.if-steps,.if-sectors,.if-eng,.if-careers2,.if-group{grid-template-columns:1fr}
+  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points,.if-steps,.if-sectors,.if-eng,.if-careers2,.if-group,.if-ethos-grid{grid-template-columns:1fr}
   .if-vac{flex-direction:column;align-items:flex-start}
   .if-more-menu{right:auto;left:0}
   .if-stats{grid-template-columns:1fr 1fr;gap:1.2rem 0}

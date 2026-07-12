@@ -876,10 +876,12 @@ function LandingPage({ onCompass }) {
     <div className="if">
       <header className="if-top"><div className="if-top-inner">
         <IFBrand onHome={() => go('home')} />
-        <nav className="if-nav" role="tablist" aria-label="Sections">
-          {IF_PRIMARY.map((id) => (
-            <button key={id} role="tab" aria-selected={page === id} className={`if-tab ${page === id ? 'on' : ''}`} onClick={() => go(id)}>{IF_TAB_LABELS[id]}</button>
-          ))}
+        <nav className="if-nav" aria-label="Sections">
+          <div className="if-tabs" role="tablist">
+            {IF_PRIMARY.map((id) => (
+              <button key={id} role="tab" aria-selected={page === id} className={`if-tab ${page === id ? 'on' : ''}`} onClick={() => go(id)}>{IF_TAB_LABELS[id]}</button>
+            ))}
+          </div>
           <div className="if-more">
             <button className={`if-tab if-more-btn ${IF_MORE.includes(page) ? 'on' : ''}`} aria-expanded={moreOpen} aria-haspopup="true" onClick={() => setMoreOpen((o) => !o)}>More <span className={`if-caret ${moreOpen ? 'up' : ''}`}>▾</span></button>
             {moreOpen && (
@@ -3301,7 +3303,7 @@ const CSS = `
 .fc-btn-gold:disabled{opacity:.4;cursor:not-allowed}
 .fc-btn-ghost{background:transparent;color:var(--parchment);border-color:var(--hairline)}
 .fc-btn-ghost:hover{border-color:var(--gold);color:var(--gold-lit)}
-.fc-link{color:var(--parchment);text-decoration:none;border-bottom:1px solid var(--gold);padding-bottom:2px;font-size:.98rem;cursor:pointer}
+.fc-link{background:none;border:none;border-bottom:1px solid var(--gold);color:var(--parchment);text-decoration:none;padding:0 0 2px;font-size:.98rem;cursor:pointer}
 .fc-link:hover{color:var(--gold-lit)}
 .fc-muted{color:var(--muted)}
 .fc-input{font-family:inherit;font-size:.95rem;padding:.6rem .8rem;border-radius:3px;border:1px solid var(--hairline);background:rgba(237,233,224,.04);color:var(--parchment);width:100%}
@@ -3797,8 +3799,9 @@ option{color:#111}
 .if-top-inner{width:100%;padding:0 clamp(1.25rem,2vw,2.25rem);height:64px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:1rem}
 .if-brand{justify-self:start;background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center}
 .if-logo{height:38px;width:auto;display:block}
-.if-nav{justify-self:center;display:flex;align-items:center;gap:.1rem;max-width:100%;overflow-x:auto;scrollbar-width:none}
-.if-nav::-webkit-scrollbar{display:none}
+.if-nav{justify-self:center;display:flex;align-items:center;gap:.35rem;max-width:100%}
+.if-tabs{display:flex;align-items:center;gap:.1rem;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.if-tabs::-webkit-scrollbar{display:none}
 .if-tab{position:relative;flex:none;background:none;border:none;color:#B7C2D1;cursor:pointer;font-family:var(--sans);font-size:.85rem;letter-spacing:.01em;padding:.5rem .8rem;border-radius:6px;transition:color .18s}
 .if-tab:hover{color:#fff}
 .if-tab.on{color:#fff}

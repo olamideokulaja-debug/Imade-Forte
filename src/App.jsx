@@ -837,10 +837,10 @@ function ContactForm() {
   )
 }
 
-const IF_PAGES = ['home', 'about', 'approach', 'practices', 'sectors', 'engagements', 'advantages', 'insights', 'leadership', 'careers', 'faq', 'contact']
-const IF_TAB_LABELS = { home: 'Home', about: 'About', approach: 'Approach', practices: 'Practices', sectors: 'Sectors', engagements: 'Engagements', advantages: 'Advantages', insights: 'Insights', leadership: 'Leadership', careers: 'Careers', faq: 'FAQ', contact: 'Contact' }
+const IF_PAGES = ['home', 'about', 'approach', 'practices', 'sectors', 'engagements', 'advantages', 'insights', 'leadership', 'careers', 'faq', 'group', 'contact']
+const IF_TAB_LABELS = { home: 'Home', about: 'About', approach: 'Approach', practices: 'Practices', sectors: 'Sectors', engagements: 'Engagements', advantages: 'Advantages', insights: 'Insights', leadership: 'Leadership', careers: 'Careers', faq: 'FAQ', group: 'Group', contact: 'Contact' }
 const IF_PRIMARY = ['home', 'about', 'practices', 'sectors', 'leadership', 'careers', 'contact']
-const IF_MORE = ['approach', 'engagements', 'advantages', 'insights', 'faq']
+const IF_MORE = ['approach', 'engagements', 'advantages', 'insights', 'faq', 'group']
 function AfricaMark({ className = '' }) {
   return (
     <svg className={className} viewBox="0 0 1000 1000" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
@@ -871,7 +871,7 @@ function LandingPage({ onCompass }) {
     return () => document.removeEventListener('click', h)
   }, [moreOpen])
   const go = (id) => { setPage(id); setMoreOpen(false); try { history.replaceState(null, '', '#' + id) } catch { location.hash = id } }
-  const View = { home: HomeView, about: AboutView, approach: ApproachView, practices: PracticesView, sectors: SectorsView, engagements: EngagementsView, advantages: AdvantagesView, insights: InsightsView, leadership: LeadershipView, careers: CareersView, faq: FaqView, contact: ContactView }[page] || HomeView
+  const View = { home: HomeView, about: AboutView, approach: ApproachView, practices: PracticesView, sectors: SectorsView, engagements: EngagementsView, advantages: AdvantagesView, insights: InsightsView, leadership: LeadershipView, careers: CareersView, faq: FaqView, group: GroupView, contact: ContactView }[page] || HomeView
   return (
     <div className="if">
       <header className="if-top"><div className="if-top-inner">
@@ -1222,6 +1222,41 @@ function FaqView({ go }) {
         ))}
       </div>
       <div className="if-cta-row"><p>Still have a question?</p><button className="if-btn if-btn-gold" onClick={() => go('contact')}>Ask us</button></div>
+    </div>
+  )
+}
+
+const IF_GROUP = [
+  { name: 'Genesys Health', sector: 'Health technology', desc: 'An indigenous Health Management Information System, delivering electronic medical records and telemedicine to public and private hospitals across Africa.', url: 'https://www.genesys-health.com' },
+  { name: 'Qura Health', sector: 'Health marketplace', desc: 'A 24/7 live healthcare marketplace and growth CRM across the NHS, private, and international markets, mapping the market in real time.', url: 'https://qurahealth.org' },
+  { name: 'Realms Healthcare Services', sector: 'Healthcare services', desc: 'Healthcare services and consulting, including health-facility monitoring, quality assurance, and delivery support.', url: 'https://realmsconsulting.com' },
+  { name: 'Girard Property', sector: 'Real estate', desc: 'Real estate and property development, creating and managing value across residential and commercial assets.', url: 'https://girardpropertylimited.com' },
+  { name: 'Yostrat Business Services', sector: 'Business services', desc: 'Business services and operational support across the group\u2019s portfolio of companies.', url: '', note: 'Portfolio company' },
+]
+
+function GroupView({ go }) {
+  return (
+    <div className="if-stack">
+      <p className="if-eyebrow"><ColMark />Our group</p>
+      <h2>The businesses behind our expertise.</h2>
+      <p className="if-mut if-group-intro">Imade Forte is a group with operating companies across health technology, healthcare services, real estate, and business services. We do not only advise institutions, we help build and run them.</p>
+      <div className="if-group">
+        {IF_GROUP.map((c) => (
+          <article key={c.name} className="if-gco">
+            <div className="if-gco-head">
+              <span className="if-tag">{c.sector}</span>
+              {c.url ? <a className="if-gco-link" href={c.url} target="_blank" rel="noreferrer">Visit site ↗</a> : <span className="if-gco-note">{c.note}</span>}
+            </div>
+            <h3>{c.name}</h3>
+            <p>{c.desc}</p>
+          </article>
+        ))}
+        <button className="if-gco if-gco-cta" onClick={() => go('contact')}>
+          <h3>Work with the group</h3>
+          <p>Exploring a partnership, investment, or engagement across our companies? Let us talk.</p>
+          <span className="if-sector-arrow">Get in touch →</span>
+        </button>
+      </div>
     </div>
   )
 }
@@ -3982,6 +4017,17 @@ option{color:#111}
 .if-vac-meta{font-family:var(--sans);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--gold2);display:block;margin-bottom:.35rem}
 .if-vac-main p{color:#B4BFCE;font-size:.85rem;max-width:42ch}
 .if-vac-apply{flex:none;padding:.6rem 1.15rem;font-size:.8rem}
+.if-group-intro{max-width:56rem;margin-bottom:.5rem}
+.if-group{display:grid;grid-template-columns:repeat(3,1fr);gap:1.3rem;margin-top:.6rem}
+.if-gco{text-align:left;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:12px;padding:1.6rem;display:flex;flex-direction:column;gap:.55rem;transition:transform .2s,border-color .2s}
+.if-gco:hover{transform:translateY(-4px);border-color:var(--gold)}
+.if-gco-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.if-gco h3{color:#fff;font-size:1.4rem}
+.if-gco p{color:#B4BFCE;font-size:.92rem}
+.if-gco-link{font-family:var(--sans);font-size:.82rem;color:var(--gold2);text-decoration:none;border-bottom:1px solid transparent;white-space:nowrap;transition:border-color .15s}
+.if-gco-link:hover{border-bottom-color:var(--gold2)}
+.if-gco-note{font-family:var(--sans);font-size:.68rem;color:#8A97AA;text-transform:uppercase;letter-spacing:.09em;white-space:nowrap}
+.if-gco-cta{cursor:pointer;font-family:inherit;background:linear-gradient(135deg,rgba(184,146,74,.16),rgba(184,146,74,.04));justify-content:center}
 .if-eyebrow-sm{font-family:var(--sans);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.8rem}
 .if-eng{display:grid;grid-template-columns:1.45fr .55fr;gap:clamp(1.5rem,4vw,3rem);align-items:start}
 .if-eng-featured{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:12px;padding:1.9rem;display:flex;flex-direction:column;gap:.85rem}
@@ -4006,7 +4052,7 @@ option{color:#111}
   .if-top-inner{grid-template-columns:auto 1fr auto;gap:.5rem;width:92vw}
   .if-view,.if-foot-inner{width:92vw}
   .if-africa-wm{opacity:.05;right:-25%}
-  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points,.if-steps,.if-sectors,.if-eng,.if-careers2{grid-template-columns:1fr}
+  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points,.if-steps,.if-sectors,.if-eng,.if-careers2,.if-group{grid-template-columns:1fr}
   .if-vac{flex-direction:column;align-items:flex-start}
   .if-more-menu{right:auto;left:0}
   .if-stats{grid-template-columns:1fr 1fr;gap:1.2rem 0}

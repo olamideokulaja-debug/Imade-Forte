@@ -284,17 +284,18 @@ placeholder. These are flagged in the app and are easy to correct before the ros
 
 ## Public website and the Forte Compass door
 
-The homepage is now the public Imade Forte Holdings site: hero, About and at-a-glance, Vision,
-Mission and Values, the five service practices as detailed cards, differentiators, a credibility
-stats band, both leaders shown as gold monogram medallions with bios, and a contact section with details and a form. The palette and wording come from the company profile; the visual identity is built on an
-original colonnade motif drawn from the shield emblem, with no lifted page imagery. "Forte Compass" in the top bar opens a
-short overview of the platform and then the staff sign-in, so the public site and the internal tool
-live behind one address.
+The homepage is a tabbed public site for Imade Forte Holdings, dark navy with gold, carrying the
+real logo. Each section is a top-bar tab that fits the screen with little scrolling: Home (hero over
+a dimmed architectural backdrop, animated stats, a partners line), About (who we are, vision and
+mission, at-a-glance, values, and a company-profile download), Practices (an interactive explorer
+with a sector filter, a photo, and an in-focus note per practice, including the real LASMIIZO
+feasibility engagement), Advantages, Insights (three perspective cards with images), Leadership (the
+two leaders with their photos and bios, plus recognition), Careers (routes new joiners to Forte
+Compass), and Contact (details, a WhatsApp button, and a form that emails info@imadeforteholdings.com
+with a spam honeypot). Tabs deep-link by URL hash, and the copy is drawn from the company profile and
+the live site.
 
-Two setup notes:
-- Contact form emails. Get a free key at web3forms.com, set its destination to
-  info@imadeforteholdings.com, and add it in Vercel as VITE_WEB3FORMS_KEY, then redeploy. Submissions
-  then arrive by email. Until then the form opens the sender's own email app addressed to info@.
-- Replacing imadeforteholdings.com. In Vercel, open the project, then Settings, then Domains, add
-  imadeforteholdings.com, and follow Vercel's DNS instructions at your domain registrar. Once it
-  verifies, the site answers on your domain.
+Setup notes: add a free web3forms.com key as VITE_WEB3FORMS_KEY in Vercel so the contact form sends
+by email; to use your domain, add imadeforteholdings.com in Vercel under Settings then Domains; and
+to turn on privacy-friendly analytics, set your domain in index.html at window.__ENV.PLAUSIBLE.
+

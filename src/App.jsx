@@ -714,22 +714,28 @@ function ShieldLogo({ className = '' }) {
     </svg>
   )
 }
-function IFBrand({ onHome }) {
+function IFBrand({ onHome, light }) {
   return (
     <button className="if-brand" onClick={onHome} aria-label="Imade Forte Holdings home">
-      <ShieldLogo className="if-brand-shield" />
-      <span className="if-wordmark"><b>IMADE FORTE</b><em>HOLDINGS LTD.</em></span>
+      <img className="if-logo" src="/imade-forte-logo-hires.png" alt="Imade Forte Holdings Limited" />
     </button>
   )
 }
 
 const IF_SERVICES = [
-  ['01', 'Strategic & Institutional Consulting', 'We help public and private organizations define strategy, sharpen operations, and build the institutional capacity to last.', ['Corporate and organizational strategy', 'Business process optimization', 'Institutional restructuring and reform', 'Performance management systems', 'Change management and capacity building']],
-  ['02', 'Healthcare Systems & Policy Advisory', 'Specialized advisory for healthcare institutions, investors, and government agencies working to strengthen health systems and improve outcomes.', ['Health policy and systems strengthening', 'Healthcare management consulting', 'Health project design and implementation', 'Health financing and sustainability advisory', 'Public-private partnerships in healthcare']],
-  ['03', 'Financial & Investment Advisory', 'Practical insight and structuring that enable sound investment decisions and efficient use of capital.', ['Feasibility studies and market analysis', 'Financial modeling and valuation', 'Project finance and investment structuring', 'Due diligence and transaction support', 'PPP and infrastructure investment advisory']],
-  ['04', 'Governance, Risk & Compliance', 'We strengthen governance and help organizations meet local and international standards for accountability and performance.', ['Corporate governance frameworks', 'Risk assessment and management', 'Regulatory and compliance audits', 'Internal control systems', 'ESG and sustainability advisory']],
-  ['05', 'Real Estate & Infrastructure Consulting', 'Strategic insight and transaction support for investors and developers building sustainable value in real estate and infrastructure.', ['Feasibility and viability assessments', 'Project structuring and finance advisory', 'Asset management and portfolio optimization', 'Transaction and negotiation support', 'Market and investment analysis']],
+  ['01', 'Strategic & Institutional Consulting', 'We help public and private organizations define strategy, sharpen operations, and build the institutional capacity to last.', ['Corporate and organizational strategy', 'Business process optimization', 'Institutional restructuring and reform', 'Performance management systems', 'Change management and capacity building'], 'Strategy', 'Corporate strategy, restructuring, and performance systems for public and private institutions.'],
+  ['02', 'Healthcare Systems & Policy Advisory', 'Specialized advisory for healthcare institutions, investors, and government agencies working to strengthen health systems and improve outcomes.', ['Health policy and systems strengthening', 'Healthcare management consulting', 'Health project design and implementation', 'Health financing and sustainability advisory', 'Public-private partnerships in healthcare'], 'Healthcare', 'Health-systems strengthening and healthcare PPP structuring across public and private providers.'],
+  ['03', 'Financial & Investment Advisory', 'Practical insight and structuring that enable sound investment decisions and efficient use of capital.', ['Feasibility studies and market analysis', 'Financial modeling and valuation', 'Project finance and investment structuring', 'Due diligence and transaction support', 'PPP and infrastructure investment advisory'], 'Finance', 'Feasibility, valuation, and investment structuring, including infrastructure and PPP finance.'],
+  ['04', 'Governance, Risk & Compliance', 'We strengthen governance and help organizations meet local and international standards for accountability and performance.', ['Corporate governance frameworks', 'Risk assessment and management', 'Regulatory and compliance audits', 'Internal control systems', 'ESG and sustainability advisory'], 'Governance', 'Governance frameworks, risk management, and regulatory and ESG compliance.'],
+  ['05', 'Real Estate & Infrastructure Consulting', 'Strategic insight and transaction support for investors and developers building sustainable value in real estate and infrastructure.', ['Feasibility and viability assessments', 'Project structuring and finance advisory', 'Asset management and portfolio optimization', 'Transaction and negotiation support', 'Market and investment analysis'], 'Real estate', 'Feasibility and transaction advisory, including the LASMIIZO (Lagos State Medical, Industrial & Innovation Zone) feasibility study with Lekki Worldwide Investment.'],
 ]
+const IF_SECTORS = ['Healthcare', 'Finance', 'Real estate', 'Governance', 'Investment']
+const IF_INSIGHTS = [
+  ['Healthcare', 'Health systems that outlast the project', 'Sustainable financing and reliable data are what keep health interventions running long after launch. We design for the operating model, not just the pilot.'],
+  ['Infrastructure', 'Making PPPs investment-ready', 'Bankability starts with rigorous feasibility. Clear demand, credible structuring, and aligned governance move projects from ambition to financial close.'],
+  ['Governance', 'Governance as a growth asset', 'Strong controls and transparent reporting lower risk and unlock capital. Compliance, done well, compounds into institutional value.'],
+]
+const IF_RECOGNITION = 'Recognised among The Guardian\u2019s 25 Exceptional & Most Value-Adding Female Professionals in Nigeria.'
 const IF_VALUES = [
   ['Integrity', 'We uphold the highest ethical standards in every engagement.'],
   ['Excellence', 'We deliver world-class quality and measurable results.'],
@@ -748,7 +754,19 @@ const IF_LEADERS = [
   ['Dr. Olamide Okulaja', 'Chairman / CEO', 'A healthcare executive and entrepreneur with over two decades across clinical practice, public health, and healthcare management. As Chief Executive of Genesys Health Information Systems, a pioneering health-technology company, he is improving healthcare delivery across Africa. His work in health-systems reform, policy, and strategic leadership anchors the direction of Imade Forte Holdings.'],
   ['Jennifer Kaja', 'Managing Director', 'A distinguished Nigerian lawyer with first-class honours from the University of Wales and a decade of practice across corporate, commercial, and real-estate law, spanning transactions, joint ventures, public-private partnerships, restructuring, and regulatory compliance. As Chief Legal Officer of Periwinkle Empire, she led legal affairs, governance, and compliance, and was recognised among The Guardian\u2019s 25 Exceptional and Most Value-Adding Female Professionals in Nigeria.'],
 ]
-const initialsOf = (name) => name.replace(/^Dr\.?\s+/i, '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+const IF_LEADER_IMG = ['/site/olamide.webp', '/site/jennifer.webp']
+const IF_PRAC_IMG = ['p_strategy', 'p_health', 'p_finance', 'p_governance', 'p_realestate']
+const IF_INSIGHT_IMG = ['p_health', 'i_infra', 'globe']
+function CountUp({ to, suffix = '', dur = 1300 }) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    let raf; const t0 = performance.now()
+    const tick = (t) => { const p = Math.min(1, (t - t0) / dur); setN(Math.round(to * (1 - Math.pow(1 - p, 3)))); if (p < 1) raf = requestAnimationFrame(tick) }
+    raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf)
+  }, [to])
+  return <>{n}{suffix}</>
+}
+function initialsOf(name) { return name.replace(/^Dr\.?\s+/i, '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() }
 function Colonnade({ className = '' }) {
   const cols = [0, 1, 2, 3, 4]
   return (
@@ -785,11 +803,12 @@ function ColMark({ className = '' }) {
 }
 
 function ContactForm() {
-  const [f, setF] = useState({ name: '', email: '', company: '', message: '' })
+  const [f, setF] = useState({ name: '', email: '', company: '', message: '', botcheck: '' })
   const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   async function submit() {
+    if (f.botcheck) { setSent(true); return } // honeypot: silently drop bots
     if (!f.name.trim() || !f.email.trim() || !f.message.trim()) return
     setBusy(true)
     const key = import.meta.env.VITE_WEB3FORMS_KEY
@@ -809,167 +828,268 @@ function ContactForm() {
   if (sent) return <div className="if-form-sent"><b>Thank you.</b><p>Your message is on its way to our team. We will be in touch shortly.</p></div>
   return (
     <div className="if-form">
-      <div className="if-form-row"><input className="if-input" placeholder="Full name" value={f.name} onChange={set('name')} /><input className="if-input" placeholder="Email address" value={f.email} onChange={set('email')} /></div>
-      <input className="if-input" placeholder="Organization (optional)" value={f.company} onChange={set('company')} />
-      <textarea className="if-input if-textarea" placeholder="How can we help?" value={f.message} onChange={set('message')} rows={4} />
+      <input className="if-hp" type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.botcheck} onChange={set('botcheck')} />
+      <div className="if-form-row"><input className="if-input" aria-label="Full name" placeholder="Full name" value={f.name} onChange={set('name')} /><input className="if-input" aria-label="Email address" placeholder="Email address" value={f.email} onChange={set('email')} /></div>
+      <input className="if-input" aria-label="Organization" placeholder="Organization (optional)" value={f.company} onChange={set('company')} />
+      <textarea className="if-input if-textarea" aria-label="Message" placeholder="How can we help?" value={f.message} onChange={set('message')} rows={4} />
       <button className="if-btn if-btn-gold" disabled={busy || !f.name.trim() || !f.email.trim() || !f.message.trim()} onClick={submit}>{busy ? 'Sending\u2026' : 'Send message'}</button>
     </div>
   )
 }
 
+const IF_PAGES = ['home', 'about', 'practices', 'advantages', 'insights', 'leadership', 'careers', 'contact']
+const IF_TAB_LABELS = { home: 'Home', about: 'About', practices: 'Practices', advantages: 'Advantages', insights: 'Insights', leadership: 'Leadership', careers: 'Careers', contact: 'Contact' }
+function AfricaMark({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 200 240" fill="none" aria-hidden="true">
+      <path d="M78 14c14-3 24 3 31 11 5 6 14 6 19 12 4 6 2 13 5 19 3 7 12 9 14 17 2 8-5 15-5 24 0 10 7 19 3 28-4 11-15 18-20 29-5 10-5 26-14 34-7 6-18 4-25-2-7-6-8-18-11-27-5-12-15-21-20-33-4-10-2-22-7-32-5-11-15-20-18-32-2-11 0-23 3-34 3-10 9-19 15-28 5-7 6-16 12-22 4-4 9-3 18-4Z" stroke="#B8924A" strokeWidth="1.4" opacity="0.5" />
+    </svg>
+  )
+}
+
 function LandingPage({ onCompass }) {
-  const nav = (id) => () => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }) }
+  const initial = (typeof location !== 'undefined' && IF_PAGES.includes((location.hash || '').replace('#', ''))) ? location.hash.replace('#', '') : 'home'
+  const [page, setPage] = useState(initial)
   useEffect(() => {
-    const els = Array.from(document.querySelectorAll('.if-reveal'))
-    if (!('IntersectionObserver' in window)) { els.forEach((e) => e.classList.add('in')); return }
-    const io = new IntersectionObserver((ents) => ents.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) } }), { rootMargin: '0px 0px -8% 0px' })
-    els.forEach((e) => io.observe(e))
-    const t = setTimeout(() => els.forEach((e) => e.classList.add('in')), 1400)
-    return () => { io.disconnect(); clearTimeout(t) }
+    const onHash = () => { const h = (location.hash || '').replace('#', ''); if (IF_PAGES.includes(h)) setPage(h) }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
   }, [])
+  const go = (id) => { setPage(id); try { history.replaceState(null, '', '#' + id) } catch { location.hash = id } }
   return (
     <div className="if">
+      <div className="if-glow" aria-hidden="true" />
       <header className="if-top">
-        <IFBrand onHome={nav('if-hero')} />
-        <nav className="if-nav">
-          <button onClick={nav('if-about')}>About</button>
-          <button onClick={nav('if-services')}>Practices</button>
-          <button onClick={nav('if-leaders')}>Leadership</button>
-          <button onClick={nav('if-contact')}>Contact</button>
+        <IFBrand onHome={() => go('home')} />
+        <nav className="if-nav" role="tablist" aria-label="Sections">
+          {IF_PAGES.map((id) => (
+            <button key={id} role="tab" aria-selected={page === id} className={`if-tab ${page === id ? 'is-active' : ''}`} onClick={() => go(id)}>{IF_TAB_LABELS[id]}</button>
+          ))}
           <button className="if-nav-compass" onClick={onCompass}>Forte Compass</button>
         </nav>
       </header>
-
-      <section id="if-hero" className="if-hero">
-        <div className="if-hero-inner">
-          <div className="if-hero-copy">
-            <p className="if-eyebrow">Consulting · Advisory · Impact</p>
-            <h1 className="if-hero-h">
-              <span className="if-line">Strategy that</span>
-              <span className="if-line">strengthens</span>
-              <span className="if-line"><em>institutions.</em></span>
-            </h1>
-            <p className="if-lede">A consulting and advisory firm delivering strategic guidance, operational excellence, and sustainable growth across the sectors that shape Africa's future.</p>
-            <div className="if-hero-cta">
-              <button className="if-btn if-btn-gold" onClick={nav('if-contact')}>Get in touch</button>
-              <button className="if-btn if-btn-line" onClick={nav('if-services')}>Our practices</button>
-            </div>
-          </div>
-          <div className="if-hero-art"><Colonnade className="if-colonnade" /></div>
+      <main className="if-stage" role="tabpanel">
+        <div key={page} className="if-page">
+          {page === 'home' && <HomePage go={go} />}
+          {page === 'about' && <AboutPage />}
+          {page === 'practices' && <PracticesPage go={go} />}
+          {page === 'advantages' && <AdvantagesPage />}
+          {page === 'insights' && <InsightsPage go={go} />}
+          {page === 'leadership' && <LeadershipPage />}
+          {page === 'careers' && <CareersPage go={go} onCompass={onCompass} />}
+          {page === 'contact' && <ContactPage />}
         </div>
-        <div className="if-hero-strip">
-          <span>imadeforteholdings.com</span><i /><span>+234 805 873 3019</span><i /><span>Lekki Phase 1, Lagos</span>
-        </div>
-      </section>
-
-      <section id="if-about" className="if-band if-band-light">
-        <div className="if-about if-reveal">
-          <div className="if-about-copy">
-            <p className="if-kicker"><ColMark className="if-kicker-mark" />Who we are</p>
-            <h2>A trusted partner to the institutions we serve.</h2>
-            <p>Imade Forte Holdings Limited is a specialised consulting and advisory firm, incorporated in 2023 under the laws of the Federal Republic of Nigeria.</p>
-            <p>We work with organisations, government institutions, and investors seeking strategic guidance and durable growth, with a strong emphasis on healthcare systems and institutional strengthening. Multidisciplinary expertise and data-driven insight, anchored on integrity, precision, and measurable impact.</p>
-          </div>
-          <dl className="if-glance">
-            {[['Company', 'Imade Forte Holdings Limited'], ['Incorporated', '2023 · Federal Republic of Nigeria'], ['Sector', 'Consulting & strategic advisory'], ['Practices', 'Strategy · Healthcare · Finance · Governance · Real estate'], ['Clients', 'Organisations, government, investors'], ['Head office', '21 Fatai Arobieke Street, Lekki Phase 1, Lagos']].map((r) => (
-              <div key={r[0]} className="if-glance-row"><dt>{r[0]}</dt><dd>{r[1]}</dd></div>
-            ))}
-          </dl>
-        </div>
-      </section>
-
-      <section className="if-band if-stats-band">
-        <div className="if-stats if-reveal">
-          {[['2023', 'Incorporated in Nigeria'], ['5', 'Practice areas'], ['20+', 'Years of leadership'], ['Africa', 'Reach and ambition']].map((s) => (
-            <div key={s[1]} className="if-stat"><b>{s[0]}</b><span>{s[1]}</span></div>
-          ))}
-        </div>
-      </section>
-
-      <section id="if-direction" className="if-band if-band-light">
-        <div className="if-vmv if-reveal">
-          <div className="if-vmv-statements">
-            <div className="if-vm"><span className="if-vm-tag">Vision</span><p>To be Africa's most trusted and value-driven consulting partner, empowering institutions to achieve operational excellence, sustainability, and measurable impact.</p></div>
-            <div className="if-vm"><span className="if-vm-tag">Mission</span><p>To deliver evidence-based consulting and advisory that strengthens institutions, improves systems, and lifts organisational performance through expertise, collaboration, and insight.</p></div>
-          </div>
-          <div className="if-values">
-            <p className="if-kicker"><ColMark className="if-kicker-mark" />What we stand for</p>
-            {IF_VALUES.map((v) => (<div key={v[0]} className="if-value"><b>{v[0]}</b><span>{v[1]}</span></div>))}
-          </div>
-        </div>
-      </section>
-
-      <section id="if-services" className="if-band if-band-dark">
-        <div className="if-reveal">
-          <p className="if-kicker if-kicker-c"><ColMark className="if-kicker-mark" />What we do</p>
-          <h2 className="if-h2-c if-on-dark">Five practices, one standard.</h2>
-          <div className="if-svc-grid">
-            {IF_SERVICES.map((s) => (
-              <article key={s[1]} className="if-svc">
-                <ColMark className="if-svc-mark" />
-                <h3>{s[1]}</h3>
-                <p className="if-svc-lede">{s[2]}</p>
-                <ul>{s[3].map((it) => <li key={it}>{it}</li>)}</ul>
-              </article>
-            ))}
-          </div>
-          <div className="if-svc-foot"><p>A broad range of advisory across critical sectors, toward efficiency, compliance, and sustainable value.</p><button className="if-btn if-btn-gold" onClick={nav('if-contact')}>Start a conversation</button></div>
-        </div>
-      </section>
-
-      <section id="if-diff" className="if-band if-band-light">
-        <div className="if-diff if-reveal">
-          <div className="if-diff-copy">
-            <p className="if-kicker"><ColMark className="if-kicker-mark" />Why Imade Forte</p>
-            <h2>What sets the work apart.</h2>
-            <div className="if-diff-list">
-              {IF_DIFF.map((d) => (<div key={d[0]} className="if-diff-item"><b>{d[0]}</b><span>{d[1]}</span></div>))}
-            </div>
-          </div>
-          <aside className="if-commit">
-            <p className="if-commit-tag">Our commitment</p>
-            <p className="if-commit-body">More than consultants, we are catalysts for transformation, supporting government initiatives, strengthening institutions, and empowering businesses through insight, innovation, and integrity.</p>
-          </aside>
-        </div>
-      </section>
-
-      <section id="if-leaders" className="if-band if-band-dark">
-        <div className="if-reveal">
-          <p className="if-kicker if-kicker-c"><ColMark className="if-kicker-mark" />Our people</p>
-          <h2 className="if-h2-c if-on-dark">Leadership.</h2>
-          <div className="if-leaders">
-            {IF_LEADERS.map((l) => (
-              <article key={l[0]} className="if-leader">
-                <div className="if-monogram"><span>{initialsOf(l[0])}</span></div>
-                <div className="if-leader-body"><h3>{l[0]}</h3><p className="if-leader-role">{l[1]}</p><p className="if-leader-bio">{l[2]}</p></div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="if-contact" className="if-band if-contact-band">
-        <div className="if-contact if-reveal">
-          <div className="if-contact-left">
-            <p className="if-kicker"><ColMark className="if-kicker-mark" />Get in touch</p>
-            <h2>Let's shape what's next.</h2>
-            <div className="if-contact-details">
-              <div><dt>Registered office</dt><dd>21 Fatai Arobieke Street, Off Admiralty Way, Lekki Phase 1, Lagos</dd></div>
-              <div><dt>Email</dt><dd>info@imadeforteholdings.com</dd></div>
-              <div><dt>Phone</dt><dd>+234 805 873 3019</dd></div>
-              <div><dt>Hours</dt><dd>Monday to Friday, 9AM to 6PM</dd></div>
-            </div>
-          </div>
-          <ContactForm />
-        </div>
-      </section>
-
+      </main>
       <footer className="if-footer">
-        <IFBrand onHome={nav('if-hero')} />
-        <span className="if-foot-tag">Catalysts for transformation · strategic guidance, operational excellence, sustainable growth.</span>
+        <span>© {new Date().getFullYear()} Imade Forte Holdings Limited</span>
+        <span className="if-foot-sep">·</span>
+        <span>Lekki Phase 1, Lagos</span>
         <button className="if-foot-compass" onClick={onCompass}>Staff portal · Forte Compass</button>
       </footer>
     </div>
+  )
+}
+
+function HomePage({ go }) {
+  return (
+    <section className="if-home">
+      <div className="if-home-bg" aria-hidden="true"><img src="/site/hero_bg.webp" alt="" /></div>
+      <div className="if-home-grid">
+        <div className="if-home-copy">
+          <p className="if-eyebrow">Consulting · Advisory · Impact</p>
+          <h1 className="if-hero-h">
+            <span className="if-line">Strategy that</span>
+            <span className="if-line">strengthens</span>
+            <span className="if-line"><em>institutions.</em></span>
+          </h1>
+          <p className="if-lede">A consulting and advisory firm partnering with organisations, government, and investors to deliver strategic guidance, operational excellence, and measurable impact across the sectors that shape Africa's future.</p>
+          <div className="if-hero-cta">
+            <button className="if-btn if-btn-gold" onClick={() => go('contact')}>Get in touch</button>
+            <button className="if-btn if-btn-line" onClick={() => go('practices')}>Our practices</button>
+          </div>
+        </div>
+        <div className="if-home-art"><AfricaMark className="if-africa" /><Colonnade className="if-colonnade" /></div>
+      </div>
+      <div className="if-home-stats">
+        <div className="if-stat"><b>2023</b><span>Incorporated in Nigeria</span></div>
+        <div className="if-stat"><b><CountUp to={5} /></b><span>Practice areas</span></div>
+        <div className="if-stat"><b><CountUp to={20} suffix="+" /></b><span>Years of leadership</span></div>
+        <div className="if-stat"><b>Africa</b><span>Reach and ambition</span></div>
+      </div>
+      <div className="if-partners">
+        <span className="if-partners-lead">Partnering with</span>
+        <span className="if-partners-tags">government institutions · organisations · investors</span>
+      </div>
+    </section>
+  )
+}
+
+function AboutPage() {
+  return (
+    <section className="if-sec if-about">
+      <div className="if-about-copy">
+        <p className="if-kicker"><ColMark className="if-kicker-mark" />Who we are</p>
+        <h2>A trusted partner to the institutions we serve.</h2>
+        <p>Imade Forte Holdings Limited is a specialised consulting and advisory firm, incorporated in 2023 under the laws of the Federal Republic of Nigeria.</p>
+        <p>We provide evidence-based advisory across healthcare, finance, real estate, governance, and investment, combining global standards with local insight to create long-term institutional value. Our work is anchored on integrity, innovation, and data-driven insight, with a strong emphasis on healthcare systems development.</p>
+        <div className="if-vmv-statements">
+          <div className="if-vm"><span className="if-vm-tag">Vision</span><p>Africa's most trusted and value-driven consulting partner, empowering institutions to operate with excellence and sustainability.</p></div>
+          <div className="if-vm"><span className="if-vm-tag">Mission</span><p>Evidence-based consulting and advisory that strengthens institutions, improves systems, and lifts organisational performance.</p></div>
+        </div>
+        <a className="if-btn if-btn-line if-dl" href="/Imade-Forte-Holdings-Company-Profile.pdf" download>Download company profile (PDF)</a>
+      </div>
+      <aside className="if-about-side">
+        <div className="if-side-media"><img src="/site/about.webp" alt="Imade Forte offices" loading="lazy" /></div>
+        <dl className="if-glance">
+          {[['Company', 'Imade Forte Holdings Limited'], ['Incorporated', '2023 · Nigeria'], ['Sector', 'Consulting & advisory'], ['Practices', 'Strategy · Healthcare · Finance · Governance · Real estate'], ['Clients', 'Organisations, government, investors'], ['Head office', 'Lekki Phase 1, Lagos']].map((r) => (
+            <div key={r[0]} className="if-glance-row"><dt>{r[0]}</dt><dd>{r[1]}</dd></div>
+          ))}
+        </dl>
+        <div className="if-values-compact">
+          <p className="if-kicker"><ColMark className="if-kicker-mark" />What we stand for</p>
+          <div className="if-vchips">{IF_VALUES.map((v) => <span key={v[0]} className="if-vchip" title={v[1]}>{v[0]}</span>)}</div>
+        </div>
+      </aside>
+    </section>
+  )
+}
+
+function PracticesPage({ go }) {
+  const [sector, setSector] = useState('All')
+  const filtered = IF_SERVICES.map((s, idx) => ({ s, idx })).filter(({ s }) => sector === 'All' || s[4] === sector)
+  const [pick, setPick] = useState(0)
+  const active = filtered.find(({ idx }) => idx === pick) ? pick : (filtered[0] ? filtered[0].idx : 0)
+  const s = IF_SERVICES[active]
+  const filters = ['All', 'Healthcare', 'Finance', 'Real estate', 'Governance', 'Strategy']
+  return (
+    <section className="if-sec">
+      <p className="if-kicker"><ColMark className="if-kicker-mark" />What we do</p>
+      <h2>Five practices, one standard.</h2>
+      <div className="if-prac-filter">
+        {filters.map((f) => (
+          <button key={f} className={`if-fchip ${sector === f ? 'is-on' : ''}`} onClick={() => { setSector(f); const first = IF_SERVICES.findIndex((sv) => f === 'All' || sv[4] === f); if (first >= 0) setPick(first) }}>{f}</button>
+        ))}
+      </div>
+      <div className="if-practices">
+        <ul className="if-prac-list">
+          {filtered.map(({ s: sv, idx }) => (
+            <li key={sv[1]}><button className={idx === active ? 'is-active' : ''} onClick={() => setPick(idx)}><span className="if-prac-dot" /><span>{sv[1]}</span></button></li>
+          ))}
+        </ul>
+        <div className="if-prac-detail" key={active}>
+          <div className="if-prac-media"><img src={`/site/${IF_PRAC_IMG[active]}.webp`} alt={s[1]} loading="lazy" /></div>
+          <span className="if-prac-sector">{s[4]}</span>
+          <h3>{s[1]}</h3>
+          <p className="if-prac-lede">{s[2]}</p>
+          <ul className="if-prac-points">{s[3].map((pt) => <li key={pt}>{pt}</li>)}</ul>
+          <p className="if-prac-focus"><b>In focus.</b> {s[5]}</p>
+          <button className="if-btn if-btn-gold" onClick={() => go('contact')}>Discuss this practice</button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function AdvantagesPage() {
+  return (
+    <section className="if-sec if-adv">
+      <div className="if-adv-copy">
+        <p className="if-kicker"><ColMark className="if-kicker-mark" />Why Imade Forte</p>
+        <h2>What sets the work apart.</h2>
+        <div className="if-diff-list">
+          {IF_DIFF.map((d) => (<div key={d[0]} className="if-diff-item"><b>{d[0]}</b><span>{d[1]}</span></div>))}
+        </div>
+      </div>
+      <aside className="if-commit">
+        <div className="if-commit-media"><img src="/site/globe.webp" alt="" aria-hidden="true" loading="lazy" /></div>
+        <p className="if-commit-tag">Our commitment</p>
+        <p className="if-commit-body">More than consultants, we are catalysts for transformation, supporting government initiatives, strengthening institutions, and empowering businesses through insight, innovation, and integrity.</p>
+      </aside>
+    </section>
+  )
+}
+
+function InsightsPage({ go }) {
+  return (
+    <section className="if-sec">
+      <p className="if-kicker"><ColMark className="if-kicker-mark" />Perspectives</p>
+      <h2>Insights from the work.</h2>
+      <div className="if-insights">
+        {IF_INSIGHTS.map((it, idx) => (
+          <article key={it[1]} className="if-insight">
+            <div className="if-insight-media"><img src={`/site/${IF_INSIGHT_IMG[idx]}.webp`} alt={it[1]} loading="lazy" /></div>
+            <span className="if-insight-tag">{it[0]}</span>
+            <h3>{it[1]}</h3>
+            <p>{it[2]}</p>
+          </article>
+        ))}
+      </div>
+      <div className="if-svc-foot"><p>Want our view on a challenge you are facing?</p><button className="if-btn if-btn-gold" onClick={() => go('contact')}>Talk to us</button></div>
+    </section>
+  )
+}
+
+function LeadershipPage() {
+  return (
+    <section className="if-sec">
+      <p className="if-kicker"><ColMark className="if-kicker-mark" />Our people</p>
+      <h2>Leadership.</h2>
+      <div className="if-leaders">
+        {IF_LEADERS.map((l, idx) => (
+          <article key={l[0]} className="if-leader">
+            <div className="if-leader-photo"><img src={IF_LEADER_IMG[idx]} alt={`Portrait of ${l[0]}`} loading="lazy" /></div>
+            <div className="if-leader-body">
+              <h3>{l[0]}</h3>
+              <p className="if-leader-role">{l[1]}</p>
+              <p className="if-leader-bio">{l[2]}</p>
+              {idx === 1 && <p className="if-recognition">★ {IF_RECOGNITION}</p>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CareersPage({ go, onCompass }) {
+  return (
+    <section className="if-sec if-careers">
+      <div className="if-careers-copy">
+        <p className="if-kicker"><ColMark className="if-kicker-mark" />Join us</p>
+        <h2>Build institutions that last.</h2>
+        <p>We are assembling a multidisciplinary team across strategy, healthcare, finance, governance, and real estate, people who pair global standards with local insight and care about measurable impact.</p>
+        <p className="if-careers-note">New team members onboard through Forte Compass, our internal performance platform, from day one.</p>
+        <div className="if-hero-cta">
+          <button className="if-btn if-btn-gold" onClick={() => go('contact')}>Introduce yourself</button>
+          <button className="if-btn if-btn-line" onClick={onCompass}>Staff portal</button>
+        </div>
+      </div>
+      <aside className="if-careers-side">
+        <div className="if-side-media"><img src="/site/careers.webp" alt="" aria-hidden="true" loading="lazy" /></div>
+        {['Strategy & institutions', 'Healthcare systems', 'Finance & investment', 'Governance & compliance', 'Real estate & infrastructure'].map((r) => (
+          <div key={r} className="if-role-row"><ColMark className="if-role-mark" /><span>{r}</span></div>
+        ))}
+      </aside>
+    </section>
+  )
+}
+
+function ContactPage() {
+  return (
+    <section className="if-sec if-contact">
+      <div className="if-contact-left">
+        <p className="if-kicker"><ColMark className="if-kicker-mark" />Get in touch</p>
+        <h2>Let's shape what's next.</h2>
+        <div className="if-contact-details">
+          <div><dt>Registered office</dt><dd>21 Fatai Arobieke Street, Off Admiralty Way, Lekki Phase 1, Lagos</dd></div>
+          <div><dt>Email</dt><dd>info@imadeforteholdings.com</dd></div>
+          <div><dt>Phone</dt><dd>+234 805 873 3019</dd></div>
+          <div><dt>Hours</dt><dd>Monday to Friday, 9AM to 6PM</dd></div>
+        </div>
+        <a className="if-btn if-btn-wa" href="https://wa.me/2348058733019" target="_blank" rel="noreferrer">Chat on WhatsApp</a>
+      </div>
+      <ContactForm />
+    </section>
   )
 }
 
@@ -3517,145 +3637,196 @@ option{color:#111}
 
 /* ===== Imade Forte corporate site ===== */
 /* ===================== Imade Forte public site ===================== */
-.if{--nv:#0E2240;--nv2:#091A33;--gold:#B8924A;--gold2:#D8B66E;--parch:#F3EFE7;--ink:#1D2733;--mut:#7F8A99;background:var(--parch);color:var(--ink);font-family:'Lora',Georgia,serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+.if{--nv:#0E2240;--nv2:#081627;--gold:#B8924A;--gold2:#DFC07E;--parch:#F3EFE7;--ink:#1D2733;position:relative;min-height:100vh;display:flex;flex-direction:column;background:linear-gradient(160deg,#12294a 0%,var(--nv) 44%,var(--nv2) 100%);color:#e9edf3;font-family:'Lora',Georgia,serif;line-height:1.6;overflow-x:hidden}
 .if *{box-sizing:border-box}
 .if h1,.if h2,.if h3{font-family:'Lora',Georgia,serif;font-weight:600;letter-spacing:-.01em}
 .if button{font-family:inherit}
-.if-gr{font-family:ui-sans-serif,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
-/* header */
-.if-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem clamp(1rem,5vw,4rem);background:rgba(9,26,51,.94);backdrop-filter:blur(8px);border-bottom:1px solid rgba(184,146,74,.28)}
-.if-brand{display:flex;align-items:center;gap:.6rem;background:none;border:none;cursor:pointer;padding:0}
-.if-brand-shield,.if-brand .if-brand-shield{width:30px;height:36px}
-.if-wordmark{display:flex;flex-direction:column;line-height:1;text-align:left}
-.if-wordmark b{font-family:ui-sans-serif,'Segoe UI',Roboto,sans-serif;font-size:.82rem;letter-spacing:.22em;color:#fff;font-weight:700}
-.if-wordmark em{font-family:ui-sans-serif,sans-serif;font-style:normal;font-size:.56rem;letter-spacing:.34em;color:var(--gold2);margin-top:3px}
-.if-nav{display:flex;align-items:center;gap:.4rem}
-.if-nav button{background:none;border:none;color:#cfd6e0;cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.82rem;letter-spacing:.04em;padding:.5rem .7rem;border-radius:4px}
-.if-nav button:hover{color:#fff}
-.if-nav-compass{margin-left:.5rem;border:1px solid var(--gold)!important;color:var(--gold2)!important;padding:.5rem 1rem!important}
-.if-nav-compass:hover{background:var(--gold);color:var(--nv)!important}
-/* hero */
-.if-hero{position:relative;background:radial-gradient(120% 120% at 82% 20%,#12294a 0%,var(--nv) 42%,var(--nv2) 100%);color:#eef1f6;overflow:hidden}
-.if-hero-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1.05fr .95fr;gap:2rem;align-items:center;padding:clamp(3rem,8vw,6.5rem) clamp(1rem,5vw,4rem) clamp(2.5rem,6vw,4rem)}
-.if-eyebrow{font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.32em;text-transform:uppercase;color:var(--gold2);margin:0 0 1.4rem}
-.if-hero-h{font-size:clamp(2.6rem,6.4vw,5rem);line-height:1.02;margin:0;font-weight:600}
-.if-hero-h .if-line{display:block;opacity:0;transform:translateY(18px);animation:ifrise .8s cubic-bezier(.2,.7,.2,1) forwards}
-.if-hero-h .if-line:nth-child(2){animation-delay:.12s}
-.if-hero-h .if-line:nth-child(3){animation-delay:.24s}
-.if-hero-h em{font-style:italic;color:var(--gold2)}
-@keyframes ifrise{to{opacity:1;transform:none}}
-.if-lede{max-width:34rem;color:#c3ccd9;font-size:1.08rem;margin:1.6rem 0 2rem;opacity:0;animation:iffade 1s ease .4s forwards}
-@keyframes iffade{to{opacity:1}}
-.if-hero-cta{display:flex;gap:.8rem;flex-wrap:wrap;opacity:0;animation:iffade 1s ease .55s forwards}
-.if-btn{cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.85rem;letter-spacing:.03em;padding:.85rem 1.5rem;border-radius:3px;border:1px solid transparent;transition:.18s}
+.if-glow{position:fixed;top:-25%;right:-10%;width:70vw;height:70vw;background:radial-gradient(circle,rgba(184,146,74,.16),transparent 60%);pointer-events:none;animation:ifglow 14s ease-in-out infinite alternate}
+@keyframes ifglow{to{transform:translate(-6%,8%) scale(1.1)}}
+/* header + tabs */
+.if-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem clamp(1rem,5vw,3.5rem);background:rgba(8,22,39,.72);backdrop-filter:blur(10px);border-bottom:1px solid rgba(184,146,74,.24)}
+.if-brand{background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center}
+.if-logo{height:38px;width:auto;display:block}
+.if-nav{display:flex;align-items:center;gap:.15rem;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.if-nav::-webkit-scrollbar{display:none}
+.if-tab,.if-nav-compass{flex:none}
+.if-tab{position:relative;background:none;border:none;color:#c2cbd8;cursor:pointer;font-family:ui-sans-serif,'Segoe UI',Roboto,sans-serif;font-size:.82rem;letter-spacing:.03em;padding:.55rem .85rem;border-radius:5px;transition:color .2s}
+.if-tab:hover{color:#fff}
+.if-tab.is-active{color:#fff}
+.if-tab.is-active::after{content:'';position:absolute;left:.85rem;right:.85rem;bottom:.2rem;height:2px;background:var(--gold);border-radius:2px;animation:iftab .3s ease}
+@keyframes iftab{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
+.if-nav-compass{margin-left:.6rem;background:none;border:1px solid var(--gold);color:var(--gold2);cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.8rem;letter-spacing:.03em;padding:.5rem 1rem;border-radius:5px;transition:.18s}
+.if-nav-compass:hover{background:var(--gold);color:var(--nv)}
+/* stage + page transition */
+.if-stage{flex:1;display:flex;flex-direction:column;max-width:1180px;width:100%;margin:0 auto;padding:clamp(1.1rem,3vw,2.2rem) clamp(1rem,5vw,3.5rem)}
+.if-page{margin:auto 0;width:100%;animation:ifpage .5s cubic-bezier(.2,.7,.2,1)}
+@keyframes ifpage{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.if-eyebrow,.if-kicker{font-family:ui-sans-serif,sans-serif;text-transform:uppercase}
+.if-eyebrow{font-size:.72rem;letter-spacing:.32em;color:var(--gold2);margin:0 0 1.3rem}
+.if-kicker{display:flex;align-items:center;gap:.5rem;font-size:.7rem;letter-spacing:.24em;color:var(--gold);margin:0 0 .9rem}
+.if-kicker-mark{width:15px;height:19px}
+.if h2{font-size:clamp(1.6rem,3.2vw,2.3rem);line-height:1.14;margin:0 0 1rem;color:#fff}
+.if-btn{cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.85rem;letter-spacing:.02em;padding:.8rem 1.5rem;border-radius:4px;border:1px solid transparent;transition:transform .18s,background .18s,border-color .18s}
+.if-btn:hover{transform:translateY(-2px)}
 .if-btn-gold{background:var(--gold);color:var(--nv);border-color:var(--gold);font-weight:600}
 .if-btn-gold:hover{background:var(--gold2);border-color:var(--gold2)}
-.if-btn-line{background:none;color:#eef1f6;border-color:rgba(238,241,246,.4)}
+.if-btn-line{background:none;color:#e9edf3;border-color:rgba(233,237,243,.4)}
 .if-btn-line:hover{border-color:var(--gold2);color:var(--gold2)}
-.if-hero-art{display:flex;justify-content:center;align-items:flex-end;align-self:stretch}
-.if-colonnade{width:100%;max-width:520px;height:auto;filter:drop-shadow(0 12px 40px rgba(0,0,0,.35));clip-path:inset(0 0 100% 0);animation:ifwipe 1.7s cubic-bezier(.2,.7,.2,1) .35s forwards}
+/* home */
+.if-home-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:2rem;align-items:center}
+.if-hero-h{font-size:clamp(2.5rem,6vw,4.6rem);line-height:1.02;margin:0;font-weight:600}
+.if-hero-h .if-line{display:block;opacity:0;transform:translateY(18px);animation:ifrise .8s cubic-bezier(.2,.7,.2,1) forwards}
+.if-hero-h .if-line:nth-child(2){animation-delay:.12s}.if-hero-h .if-line:nth-child(3){animation-delay:.24s}
+.if-hero-h em{font-style:italic;color:var(--gold2)}
+@keyframes ifrise{to{opacity:1;transform:none}}
+.if-lede{max-width:33rem;color:#c3ccd9;font-size:1.04rem;margin:1.2rem 0 1.5rem;opacity:0;animation:iffade 1s ease .4s forwards}
+@keyframes iffade{to{opacity:1}}
+.if-hero-cta{display:flex;gap:.8rem;flex-wrap:wrap;opacity:0;animation:iffade 1s ease .55s forwards}
+.if-home-art{display:flex;justify-content:center}
+.if-colonnade{width:100%;max-width:460px;height:auto;filter:drop-shadow(0 14px 44px rgba(0,0,0,.4));clip-path:inset(0 0 100% 0);animation:ifwipe 1.7s cubic-bezier(.2,.7,.2,1) .35s forwards}
 @keyframes ifwipe{to{clip-path:inset(0 0 0 0)}}
-.if-hero-strip{border-top:1px solid rgba(184,146,74,.28);max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:1rem;padding:1rem clamp(1rem,5vw,4rem);font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:#96a2b4}
-.if-hero-strip i{width:4px;height:4px;border-radius:50%;background:var(--gold)}
-/* bands */
-.if-band{padding:clamp(3.2rem,7vw,6rem) clamp(1rem,5vw,4rem)}
-.if-band-light{background:var(--parch)}
-.if-band-dark{background:var(--nv);color:#eef1f6}
-.if-band>div{max-width:1200px;margin:0 auto}
-.if-kicker{display:flex;align-items:center;gap:.5rem;font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin:0 0 1rem}
-.if-kicker-c{justify-content:center}
-.if-kicker-mark{width:16px;height:20px}
-.if h2{font-size:clamp(1.8rem,3.6vw,2.7rem);line-height:1.12;margin:0 0 1.4rem}
-.if-h2-c{text-align:center;margin-bottom:2.6rem}
-.if-on-dark{color:#fff}
-.if-reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
-.if-reveal.in{opacity:1;transform:none}
-/* about */
-.if-about{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(2rem,5vw,4rem);align-items:start}
-.if-about-copy p{color:#46525f;margin:0 0 1rem;max-width:36rem}
-.if-glance{border-top:2px solid var(--nv);margin:0}
-.if-glance-row{display:grid;grid-template-columns:.8fr 1.4fr;gap:1rem;padding:.85rem 0;border-bottom:1px solid rgba(29,39,51,.14)}
-.if-glance-row dt{font-family:ui-sans-serif,sans-serif;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:600}
-.if-glance-row dd{margin:0;color:var(--ink);font-size:.98rem}
-/* stats */
-.if-stats-band{background:var(--nv2);padding-top:clamp(2.4rem,5vw,3.4rem);padding-bottom:clamp(2.4rem,5vw,3.4rem)}
-.if-stats{display:grid;grid-template-columns:repeat(4,1fr)}
-.if-stat{text-align:center;padding:.5rem 1rem;border-left:1px solid rgba(184,146,74,.24)}
+.if-home-stats{display:grid;grid-template-columns:repeat(4,1fr);margin-top:clamp(1rem,3vw,1.6rem);border-top:1px solid rgba(184,146,74,.24);padding-top:1rem}
+.if-stat{text-align:center;padding:.3rem 1rem;border-left:1px solid rgba(184,146,74,.18)}
 .if-stat:first-child{border-left:none}
-.if-stat b{display:block;font-size:clamp(2rem,4vw,3rem);color:var(--gold2);line-height:1}
-.if-stat span{font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#9aa6b8;margin-top:.5rem;display:block}
-/* vision mission values */
-.if-vmv{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(2rem,5vw,4rem)}
-.if-vm{border-left:2px solid var(--gold);padding:.2rem 0 .2rem 1.3rem;margin-bottom:1.8rem}
-.if-vm-tag{font-family:ui-sans-serif,sans-serif;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:.5rem}
-.if-vm p{margin:0;font-size:1.15rem;color:var(--ink)}
-.if-value{padding:.85rem 0;border-bottom:1px solid rgba(29,39,51,.12)}
-.if-value b{color:var(--nv);margin-right:.5rem}
-.if-value span{color:#556}
-/* services */
-.if-svc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem}
-.if-svc{background:rgba(255,255,255,.02);border:1px solid rgba(184,146,74,.26);border-radius:5px;padding:1.7rem 1.5rem;transition:transform .2s ease,border-color .2s ease}
-.if-svc:hover{transform:translateY(-4px);border-color:var(--gold)}
-.if-svc-mark{width:20px;height:24px;margin-bottom:1rem;opacity:.9}
-.if-svc h3{font-size:1.18rem;color:#fff;margin:0 0 .6rem}
-.if-svc-lede{color:#aeb9c8;font-size:.92rem;margin:0 0 1rem}
-.if-svc ul{list-style:none;margin:0;padding:0}
-.if-svc li{font-family:ui-sans-serif,sans-serif;font-size:.82rem;color:#c7d0dc;padding:.32rem 0 .32rem 1rem;position:relative}
-.if-svc li::before{content:'';position:absolute;left:0;top:.72rem;width:5px;height:5px;background:var(--gold);border-radius:1px}
-.if-svc-foot{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-top:2rem;padding-top:1.6rem;border-top:1px solid rgba(184,146,74,.24)}
-.if-svc-foot p{margin:0;color:#c3ccd9;max-width:40rem}
-/* differentiators */
-.if-diff{display:grid;grid-template-columns:1.3fr .7fr;gap:clamp(2rem,5vw,3.5rem);align-items:start}
-.if-diff-list{display:grid;grid-template-columns:1fr 1fr;gap:.2rem 2rem}
-.if-diff-item{padding:1rem 0;border-top:1px solid rgba(29,39,51,.14)}
-.if-diff-item b{display:block;color:var(--nv);margin-bottom:.25rem}
-.if-diff-item span{color:#5a6673;font-size:.92rem}
-.if-commit{background:var(--nv);color:#eef1f6;padding:1.8rem;border-radius:4px;align-self:stretch}
-.if-commit-tag{font-family:ui-sans-serif,sans-serif;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold2);margin:0 0 1rem}
-.if-commit-body{margin:0;color:#c8d1de;font-size:1.02rem}
+.if-stat b{display:block;font-size:clamp(1.8rem,3.6vw,2.7rem);color:var(--gold2);line-height:1}
+.if-stat span{font-family:ui-sans-serif,sans-serif;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#94a1b4;margin-top:.45rem;display:block}
+/* generic section */
+.if-sec{width:100%}
+/* about */
+.if-about{display:grid;grid-template-columns:1.15fr .85fr;gap:clamp(2rem,5vw,3.5rem);align-items:start}
+.if-about-copy p{color:#c3ccd9;margin:0 0 1rem;max-width:38rem}
+.if-vmv-statements{margin-top:1.4rem}
+.if-vm{border-left:2px solid var(--gold);padding:.1rem 0 .1rem 1.1rem;margin-bottom:1rem}
+.if-vm-tag{font-family:ui-sans-serif,sans-serif;font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:.3rem}
+.if-vm p{margin:0;color:#dbe2ec;font-size:.98rem}
+.if-glance{margin:0;border-top:2px solid var(--gold)}
+.if-glance-row{display:grid;grid-template-columns:.75fr 1.25fr;gap:.8rem;padding:.6rem 0;border-bottom:1px solid rgba(233,237,243,.1)}
+.if-glance-row dt{font-family:ui-sans-serif,sans-serif;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600}
+.if-glance-row dd{margin:0;color:#dbe2ec;font-size:.9rem}
+.if-values-compact{margin-top:1.6rem}
+.if-vchips{display:flex;flex-wrap:wrap;gap:.5rem}
+.if-vchip{font-family:ui-sans-serif,sans-serif;font-size:.78rem;color:var(--gold2);border:1px solid rgba(184,146,74,.4);border-radius:20px;padding:.35rem .85rem;cursor:default;transition:.18s}
+.if-vchip:hover{background:var(--gold);color:var(--nv);border-color:var(--gold)}
+/* practices explorer */
+.if-practices{display:grid;grid-template-columns:.9fr 1.1fr;gap:clamp(1.5rem,4vw,3rem);align-items:start;margin-top:.5rem}
+.if-prac-list{list-style:none;margin:0;padding:0;border-top:1px solid rgba(184,146,74,.2)}
+.if-prac-list button{width:100%;display:flex;align-items:center;gap:.7rem;background:none;border:none;border-bottom:1px solid rgba(233,237,243,.08);color:#c2cbd8;cursor:pointer;font-family:'Lora',serif;font-size:1.05rem;text-align:left;padding:.9rem .4rem;transition:.18s}
+.if-prac-list button:hover{color:#fff;padding-left:.8rem}
+.if-prac-list button.is-active{color:var(--gold2)}
+.if-prac-dot{width:7px;height:7px;border-radius:50%;background:rgba(184,146,74,.4);flex:none;transition:.18s}
+.if-prac-list button.is-active .if-prac-dot{background:var(--gold);box-shadow:0 0 0 4px rgba(184,146,74,.18)}
+.if-prac-detail{background:rgba(255,255,255,.03);border:1px solid rgba(184,146,74,.24);border-radius:6px;padding:1.25rem;animation:ifpage .35s ease}
+.if-prac-detail h3{color:#fff;font-size:1.35rem;margin:0 0 .6rem}
+.if-prac-lede{color:#aeb9c8;margin:0 0 .7rem;font-size:.92rem}
+.if-prac-points{list-style:none;margin:0 0 1.4rem;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.3rem 1rem}
+.if-prac-points li{font-family:ui-sans-serif,sans-serif;font-size:.82rem;color:#c7d0dc;padding:.18rem 0 .18rem .95rem;position:relative}
+.if-prac-points li::before{content:'';position:absolute;left:0;top:.62rem;width:5px;height:5px;background:var(--gold);border-radius:1px}
+/* advantages */
+.if-adv{display:grid;grid-template-columns:1.3fr .7fr;gap:clamp(1.6rem,4vw,3rem);align-items:start}
+.if-diff-list{display:grid;grid-template-columns:1fr 1fr;gap:.1rem 2rem}
+.if-diff-item{padding:.9rem 0;border-top:1px solid rgba(233,237,243,.12)}
+.if-diff-item b{display:block;color:#fff;margin-bottom:.2rem}
+.if-diff-item span{color:#aeb9c8;font-size:.9rem}
+.if-commit{background:rgba(184,146,74,.08);border:1px solid rgba(184,146,74,.3);border-radius:6px;padding:1.7rem;align-self:stretch}
+.if-commit-tag{font-family:ui-sans-serif,sans-serif;font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold2);margin:0 0 .9rem}
+.if-commit-body{margin:0;color:#dbe2ec;font-size:1rem}
 /* leadership */
 .if-leaders{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
-.if-leader{display:flex;gap:1.3rem;background:rgba(255,255,255,.03);border:1px solid rgba(184,146,74,.24);border-radius:4px;padding:1.6rem}
-.if-monogram{flex:none;width:76px;height:76px;border-radius:50%;border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#14294733,#0000)}
-.if-monogram span{font-size:1.5rem;color:var(--gold2);letter-spacing:.02em}
-.if-leader-body h3{color:#fff;margin:0 0 .2rem;font-size:1.2rem}
-.if-leader-role{font-family:ui-sans-serif,sans-serif;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:0 0 .8rem}
-.if-leader-bio{color:#aeb9c8;font-size:.9rem;margin:0}
+.if-leader{display:grid;grid-template-columns:auto 1fr;gap:1.3rem;background:rgba(255,255,255,.03);border:1px solid rgba(184,146,74,.24);border-radius:6px;padding:1.4rem;transition:transform .2s,border-color .2s}
+.if-leader:hover{transform:translateY(-4px);border-color:var(--gold)}
+.if-leader-photo{width:120px;height:150px;border-radius:5px;overflow:hidden;border:1px solid rgba(184,146,74,.4);flex:none}
+.if-leader-photo img{width:100%;height:100%;object-fit:cover;object-position:center top;filter:saturate(1.02)}
+.if-leader-body h3{color:#fff;margin:0 0 .15rem;font-size:1.15rem}
+.if-leader-role{font-family:ui-sans-serif,sans-serif;font-size:.68rem;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);margin:0 0 .7rem}
+.if-leader-bio{color:#aeb9c8;font-size:.85rem;margin:0}
 /* contact */
-.if-contact-band{background:linear-gradient(180deg,var(--nv) 0%,var(--nv2) 100%);color:#eef1f6}
-.if-contact{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2rem,5vw,4rem);align-items:start}
-.if-contact-left h2{color:#fff}
-.if-contact-details{margin-top:1.6rem}
-.if-contact-details>div{padding:.85rem 0;border-top:1px solid rgba(184,146,74,.22)}
-.if-contact-details dt{font-family:ui-sans-serif,sans-serif;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:.25rem}
+.if-contact{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2rem,5vw,3.5rem);align-items:start}
+.if-contact-details{margin-top:1.3rem}
+.if-contact-details>div{padding:.75rem 0;border-top:1px solid rgba(184,146,74,.22)}
+.if-contact-details dt{font-family:ui-sans-serif,sans-serif;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:.2rem}
 .if-contact-details dd{margin:0;color:#dbe2ec}
-.if-form{background:var(--parch);border-radius:5px;padding:1.6rem;display:flex;flex-direction:column;gap:.8rem}
-.if-form-row{display:flex;gap:.8rem}
-.if-input{width:100%;font-family:ui-sans-serif,sans-serif;font-size:.92rem;padding:.8rem .9rem;border:1px solid #cdc6b6;border-radius:3px;background:#fff;color:var(--ink)}
-.if-input:focus{outline:none;border-color:var(--gold)}
-.if-textarea{resize:vertical;min-height:110px}
-.if-form .if-btn-gold{align-self:flex-start;margin-top:.3rem}
-.if-form-sent{background:var(--parch);border-radius:5px;padding:2rem}
+.if-form{background:var(--parch);border-radius:6px;padding:1.5rem;display:flex;flex-direction:column;gap:.75rem}
+.if-form-row{display:flex;gap:.75rem}
+.if-input{width:100%;font-family:ui-sans-serif,sans-serif;font-size:.92rem;padding:.75rem .85rem;border:1px solid #cdc6b6;border-radius:4px;background:#fff;color:var(--ink)}
+.if-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,146,74,.16)}
+.if-textarea{resize:vertical;min-height:96px}
+.if-form .if-btn-gold{align-self:flex-start;margin-top:.2rem}
+.if-form-sent{background:var(--parch);border-radius:6px;padding:2rem;color:var(--ink)}
 .if-form-sent b{color:var(--nv);font-size:1.2rem}
 .if-form-sent p{color:#556;margin:.4rem 0 0}
 /* footer */
-.if-footer{background:var(--nv2);color:#9aa6b8;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:1.6rem clamp(1rem,5vw,4rem);border-top:1px solid rgba(184,146,74,.28)}
-.if-foot-tag{font-family:ui-sans-serif,sans-serif;font-size:.75rem;letter-spacing:.04em;flex:1;min-width:220px;text-align:center}
-.if-foot-compass{background:none;border:1px solid var(--gold);color:var(--gold2);padding:.5rem 1rem;border-radius:3px;cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.78rem;letter-spacing:.04em}
+.if-footer{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;padding:.9rem clamp(1rem,5vw,3.5rem);border-top:1px solid rgba(184,146,74,.2);font-family:ui-sans-serif,sans-serif;font-size:.74rem;color:#8a97aa;background:rgba(8,22,39,.5)}
+.if-foot-sep{opacity:.5}
+.if-foot-compass{margin-left:auto;background:none;border:1px solid rgba(184,146,74,.5);color:var(--gold2);padding:.4rem .9rem;border-radius:4px;cursor:pointer;font-family:inherit;font-size:.74rem}
 .if-foot-compass:hover{background:var(--gold);color:var(--nv)}
-@media (prefers-reduced-motion:reduce){.if-hero-h .if-line,.if-lede,.if-hero-cta{animation:none;opacity:1;transform:none}.if-reveal{transition:none;opacity:1;transform:none}}
-@media(max-width:860px){
-  .if-nav button:not(.if-nav-compass){display:none}
-  .if-hero-inner{grid-template-columns:1fr}
-  .if-hero-art{order:-1;max-width:340px;margin:0 auto}
-  .if-about,.if-vmv,.if-diff,.if-contact{grid-template-columns:1fr}
-  .if-svc-grid{grid-template-columns:1fr}
-  .if-diff-list{grid-template-columns:1fr}
-  .if-leaders{grid-template-columns:1fr}
-  .if-stats{grid-template-columns:1fr 1fr}
+/* --- images + new elements --- */
+.if-home{position:relative}
+.if-home-bg{position:absolute;inset:-2rem -4rem;z-index:0;overflow:hidden;pointer-events:none}
+.if-home-bg img{width:100%;height:100%;object-fit:cover;opacity:.16;filter:saturate(.7)}
+.if-home-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(120deg,var(--nv) 24%,rgba(14,34,64,.55) 62%,rgba(8,22,39,.92))}
+.if-home-grid,.if-home-stats,.if-partners{position:relative;z-index:1}
+.if-home-art{position:relative}
+.if-africa{position:absolute;width:120%;max-width:none;top:-8%;left:-8%;opacity:.5;z-index:0}
+.if-colonnade{position:relative;z-index:1}
+.if-partners{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:.85rem;padding-top:.75rem;border-top:1px solid rgba(184,146,74,.18)}
+.if-partners-lead{font-family:ui-sans-serif,sans-serif;font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.if-partners-tags{font-family:ui-sans-serif,sans-serif;font-size:.82rem;color:#aeb9c8}
+.if-dl{display:inline-block;margin-top:1.3rem;text-decoration:none}
+.if-prac-filter{display:flex;flex-wrap:wrap;gap:.5rem;margin:.1rem 0 .9rem}
+.if-fchip{background:none;border:1px solid rgba(184,146,74,.35);color:#c2cbd8;border-radius:20px;padding:.3rem .85rem;font-family:ui-sans-serif,sans-serif;font-size:.76rem;cursor:pointer;transition:.18s}
+.if-fchip:hover{color:#fff;border-color:var(--gold)}
+.if-fchip.is-on{background:var(--gold);color:var(--nv);border-color:var(--gold);font-weight:600}
+.if-prac-media{width:100%;height:88px;border-radius:5px;overflow:hidden;margin-bottom:1rem;border:1px solid rgba(184,146,74,.28)}
+.if-prac-media img{width:100%;height:100%;object-fit:cover;display:block}
+.if-prac-sector{display:inline-block;font-family:ui-sans-serif,sans-serif;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(184,146,74,.4);border-radius:3px;padding:.18rem .5rem;margin-bottom:.6rem}
+.if-prac-focus{margin:.1rem 0 .8rem;color:#c3ccd9;font-size:.88rem;border-left:2px solid var(--gold);padding-left:.9rem}
+.if-prac-focus b{color:var(--gold2)}
+.if-insights{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
+.if-insight{background:rgba(255,255,255,.03);border:1px solid rgba(184,146,74,.24);border-radius:6px;overflow:hidden;transition:transform .2s,border-color .2s;display:flex;flex-direction:column}
+.if-insight:hover{transform:translateY(-4px);border-color:var(--gold)}
+.if-insight-media{height:128px;overflow:hidden}
+.if-insight-media img{width:100%;height:100%;object-fit:cover;display:block}
+.if-insight-tag{font-family:ui-sans-serif,sans-serif;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:.95rem 1.1rem .35rem}
+.if-insight h3{color:#fff;font-size:1.08rem;margin:0 1.1rem .45rem}
+.if-insight p{color:#aeb9c8;font-size:.86rem;margin:0 1.1rem 1.1rem}
+.if-svc-foot{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-top:1.7rem;padding-top:1.3rem;border-top:1px solid rgba(184,146,74,.2)}
+.if-svc-foot p{margin:0;color:#c3ccd9}
+.if-side-media{width:100%;height:146px;border-radius:6px;overflow:hidden;margin-bottom:1.1rem;border:1px solid rgba(184,146,74,.28)}
+.if-side-media img{width:100%;height:100%;object-fit:cover;display:block}
+.if-commit{position:relative;overflow:hidden}
+.if-commit-media{position:absolute;inset:0;z-index:0}
+.if-commit-media img{width:100%;height:100%;object-fit:cover;opacity:.13}
+.if-commit-tag,.if-commit-body{position:relative;z-index:1}
+.if-recognition{margin:.85rem 0 0;color:var(--gold2);font-size:.82rem;font-style:italic;border-top:1px solid rgba(184,146,74,.24);padding-top:.65rem}
+.if-careers{display:grid;grid-template-columns:1.2fr .8fr;gap:clamp(2rem,5vw,3.5rem);align-items:start}
+.if-careers-copy p{color:#c3ccd9;margin:0 0 1rem;max-width:34rem}
+.if-careers-note{color:#aeb9c8;font-size:.9rem}
+.if-role-row{display:flex;align-items:center;gap:.7rem;padding:.65rem 0;border-bottom:1px solid rgba(233,237,243,.1);color:#dbe2ec;font-size:.94rem}
+.if-role-mark{width:15px;height:19px;flex:none}
+.if-btn-wa{display:inline-block;text-decoration:none;background:none;border:1px solid #25D366;color:#3bdd7d}
+.if-btn-wa:hover{background:#25D366;color:#04231a}
+.if-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.if a:focus-visible,.if button:focus-visible,.if input:focus-visible,.if textarea:focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-radius:3px}
+@media (prefers-reduced-motion:reduce){.if-glow,.if-page,.if-hero-h .if-line,.if-lede,.if-hero-cta,.if-colonnade,.if-prac-detail{animation:none!important;opacity:1!important;transform:none!important;clip-path:none!important}}
+@media(max-width:880px){
+
+  .if-tab{padding:.5rem .55rem;font-size:.76rem}
+  .if-tab.is-active::after{left:.55rem;right:.55rem}
+  .if-nav-compass{margin-left:.3rem;padding:.45rem .7rem;font-size:.74rem}
+  .if-page{margin:.5rem 0}
+  .if-home-grid,.if-about,.if-practices,.if-adv,.if-leaders,.if-contact{grid-template-columns:1fr}
+  .if-home-art{order:-1;max-width:320px;margin:0 auto}
+  .if-home-stats{grid-template-columns:1fr 1fr;gap:1rem 0}
   .if-stat:nth-child(3){border-left:none}
+  .if-diff-list,.if-prac-points{grid-template-columns:1fr}
+  .if-insights{grid-template-columns:1fr}
+  .if-careers{grid-template-columns:1fr}
+  .if-partners{flex-direction:column;align-items:flex-start;gap:.4rem}
   .if-form-row{flex-direction:column}
+  .if-logo{height:32px}
 }
+
+
 .fc-top-actions{display:flex;align-items:center;gap:.6rem}
 .fc-back-site{font-size:.9rem}
 

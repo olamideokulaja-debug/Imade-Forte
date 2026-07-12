@@ -839,6 +839,8 @@ function ContactForm() {
 
 const IF_PAGES = ['home', 'about', 'approach', 'practices', 'sectors', 'engagements', 'advantages', 'insights', 'leadership', 'careers', 'faq', 'contact']
 const IF_TAB_LABELS = { home: 'Home', about: 'About', approach: 'Approach', practices: 'Practices', sectors: 'Sectors', engagements: 'Engagements', advantages: 'Advantages', insights: 'Insights', leadership: 'Leadership', careers: 'Careers', faq: 'FAQ', contact: 'Contact' }
+const IF_PRIMARY = ['home', 'about', 'practices', 'sectors', 'leadership', 'careers', 'contact']
+const IF_MORE = ['approach', 'engagements', 'advantages', 'insights', 'faq']
 function AfricaMark({ className = '' }) {
   return (
     <svg className={className} viewBox="0 0 1000 1000" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
@@ -848,7 +850,7 @@ function AfricaMark({ className = '' }) {
           <feDisplacementMap in="SourceGraphic" in2="n" scale="6" />
         </filter>
       </defs>
-      <path d="M157 457 L88 409 L62 367 L38 349 L36 329 L24 313 L36 301 L42 280 L42 239 L31 227 L46 189 L86 135 L106 127 L135 103 L132 86 L139 66 L172 45 L186 22 L238 30 L288 10 L355 3 L400 0 L409 2 L409 9 L421 4 L411 49 L479 70 L486 83 L532 98 L546 88 L547 71 L566 62 L668 90 L697 80 L711 89 L743 85 L752 109 L741 132 L727 124 L717 104 L721 120 L762 186 L760 197 L779 213 L787 260 L800 268 L812 297 L868 346 L858 371 L868 385 L930 407 L946 387 L946 359 L976 355 L968 390 L941 444 L913 478 L826 553 L811 582 L805 607 L814 612 L811 635 L829 667 L833 721 L815 749 L786 761 L750 792 L761 824 L759 852 L719 874 L724 881 L714 916 L659 972 L625 988 L581 987 L546 1000 L522 991 L516 969 L520 956 L479 893 L465 824 L431 768 L431 736 L457 684 L457 666 L433 587 L390 533 L404 475 L398 466 L386 451 L350 458 L328 431 L294 432 L241 452 L203 446 L157 457ZM963 739 L959 731 L920 863 L897 872 L878 864 L867 823 L883 796 L877 759 L884 742 L910 736 L929 720 L950 684 L961 705 L963 739Z" fill="none" stroke="#B8924A" strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" filter="url(#ifrough)" />
+      <path d="M157 457 L88 409 L62 367 L38 349 L36 329 L24 313 L36 301 L42 280 L42 239 L31 227 L46 189 L86 135 L106 127 L135 103 L132 86 L139 66 L172 45 L186 22 L238 30 L288 10 L355 3 L400 0 L409 2 L409 9 L421 4 L411 49 L479 70 L486 83 L532 98 L546 88 L547 71 L566 62 L668 90 L697 80 L711 89 L743 85 L752 109 L741 132 L727 124 L717 104 L721 120 L762 186 L760 197 L779 213 L787 260 L800 268 L812 297 L868 346 L858 371 L868 385 L930 407 L946 387 L946 359 L976 355 L968 390 L941 444 L913 478 L826 553 L811 582 L805 607 L814 612 L811 635 L829 667 L833 721 L815 749 L786 761 L750 792 L761 824 L759 852 L719 874 L724 881 L714 916 L659 972 L625 988 L581 987 L546 1000 L522 991 L516 969 L520 956 L479 893 L465 824 L431 768 L431 736 L457 684 L457 666 L433 587 L390 533 L404 475 L398 466 L386 451 L350 458 L328 431 L294 432 L241 452 L203 446 L157 457ZM963 739 L959 731 L920 863 L897 872 L878 864 L867 823 L883 796 L877 759 L884 742 L910 736 L929 720 L950 684 L961 705 L963 739Z" fill="none" stroke="#D8B66E" strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" filter="url(#ifrough)" />
     </svg>
   )
 }
@@ -856,21 +858,38 @@ function AfricaMark({ className = '' }) {
 function LandingPage({ onCompass }) {
   const initial = (typeof location !== 'undefined' && IF_PAGES.includes((location.hash || '').replace('#', ''))) ? location.hash.replace('#', '') : 'home'
   const [page, setPage] = useState(initial)
+  const [moreOpen, setMoreOpen] = useState(false)
   useEffect(() => {
     const onHash = () => { const h = (location.hash || '').replace('#', ''); if (IF_PAGES.includes(h)) setPage(h) }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
-  const go = (id) => { setPage(id); try { history.replaceState(null, '', '#' + id) } catch { location.hash = id } }
+  useEffect(() => {
+    if (!moreOpen) return
+    const h = (e) => { if (!e.target.closest('.if-more')) setMoreOpen(false) }
+    document.addEventListener('click', h)
+    return () => document.removeEventListener('click', h)
+  }, [moreOpen])
+  const go = (id) => { setPage(id); setMoreOpen(false); try { history.replaceState(null, '', '#' + id) } catch { location.hash = id } }
   const View = { home: HomeView, about: AboutView, approach: ApproachView, practices: PracticesView, sectors: SectorsView, engagements: EngagementsView, advantages: AdvantagesView, insights: InsightsView, leadership: LeadershipView, careers: CareersView, faq: FaqView, contact: ContactView }[page] || HomeView
   return (
     <div className="if">
       <header className="if-top"><div className="if-top-inner">
         <IFBrand onHome={() => go('home')} />
         <nav className="if-nav" role="tablist" aria-label="Sections">
-          {IF_PAGES.map((id) => (
+          {IF_PRIMARY.map((id) => (
             <button key={id} role="tab" aria-selected={page === id} className={`if-tab ${page === id ? 'on' : ''}`} onClick={() => go(id)}>{IF_TAB_LABELS[id]}</button>
           ))}
+          <div className="if-more">
+            <button className={`if-tab if-more-btn ${IF_MORE.includes(page) ? 'on' : ''}`} aria-expanded={moreOpen} aria-haspopup="true" onClick={() => setMoreOpen((o) => !o)}>More <span className={`if-caret ${moreOpen ? 'up' : ''}`}>▾</span></button>
+            {moreOpen && (
+              <div className="if-more-menu" role="menu">
+                {IF_MORE.map((id) => (
+                  <button key={id} role="menuitem" className={`if-more-item ${page === id ? 'on' : ''}`} onClick={() => go(id)}>{IF_TAB_LABELS[id]}</button>
+                ))}
+              </div>
+            )}
+          </div>
         </nav>
         <button className="if-compass" onClick={onCompass}>Forte Compass</button>
       </div></header>
@@ -1038,23 +1057,41 @@ function LeadershipView() {
 
 function CareersView({ go, onCompass }) {
   return (
-    <div className="if-grid2">
-      <div className="if-col">
-        <p className="if-eyebrow"><ColMark />Join us</p>
-        <h2>Build institutions that last.</h2>
-        <p className="if-mut">We are assembling a multidisciplinary team across strategy, healthcare, finance, governance, and real estate, people who pair global standards with local insight and care about measurable impact.</p>
-        <p className="if-note">New team members onboard through Forte Compass, our internal performance platform, from day one.</p>
-        <div className="if-cta">
-          <button className="if-btn if-btn-gold" onClick={() => go('contact')}>Introduce yourself</button>
-          <button className="if-btn if-btn-ghost" onClick={onCompass}>Staff portal</button>
+    <div className="if-stack">
+      <p className="if-eyebrow"><ColMark />Careers</p>
+      <h2>Build institutions that last.</h2>
+      <div className="if-careers2">
+        <div className="if-col">
+          <div className="if-frame if-wide"><img src="/site/careers.webp" alt="" aria-hidden="true" loading="lazy" /></div>
+          <p className="if-mut">We are assembling a multidisciplinary team across strategy, healthcare, finance, governance, and real estate, people who pair global standards with local insight and care about measurable impact.</p>
+          <div className="if-offer">
+            {['Real, high-stakes institutional work', 'Multidisciplinary teams and mentorship', 'Onboarding through Forte Compass from day one', 'Growth tied to measurable impact'].map((o) => (
+              <div key={o} className="if-offer-item"><ColMark /><span>{o}</span></div>
+            ))}
+          </div>
+          <div className="if-cta">
+            <a className="if-btn if-btn-gold" href="mailto:info@imadeforteholdings.com?subject=Working with Imade Forte">Introduce yourself</a>
+            <button className="if-btn if-btn-ghost" onClick={onCompass}>Staff portal</button>
+          </div>
         </div>
-      </div>
-      <div className="if-col">
-        <div className="if-frame if-wide"><img src="/site/careers.webp" alt="" aria-hidden="true" loading="lazy" /></div>
-        <div className="if-roles">
-          {['Strategy & institutions', 'Healthcare systems', 'Finance & investment', 'Governance & compliance', 'Real estate & infrastructure'].map((r) => (
-            <div key={r} className="if-role"><ColMark /><span>{r}</span></div>
-          ))}
+        <div className="if-roles-panel">
+          <div className="if-roles-head"><h3>Open roles</h3><span className="if-tag">{IF_VACANCIES.length ? IF_VACANCIES.length + ' open' : 'None open'}</span></div>
+          {IF_VACANCIES.length === 0 ? (
+            <p className="if-mut">No open roles right now. We are always glad to hear from exceptional people, so please introduce yourself.</p>
+          ) : (
+            <div className="if-vacs">
+              {IF_VACANCIES.map((v, i) => (
+                <div key={i} className="if-vac">
+                  <div className="if-vac-main">
+                    <b>{v[0]}</b>
+                    <span className="if-vac-meta">{v[1]} · {v[2]} · {v[3]}</span>
+                    <p>{v[4]}</p>
+                  </div>
+                  <a className="if-btn if-btn-ghost if-vac-apply" href={'mailto:info@imadeforteholdings.com?subject=Application: ' + encodeURIComponent(v[0])}>Apply</a>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1073,6 +1110,21 @@ const IF_SECTOR_CARDS = [
   ['Financial services', 'Investment structuring, feasibility, and transaction advisory.', 'p_finance'],
   ['Real estate & infrastructure', 'Feasibility, structuring, and value creation for developers and investors.', 'p_realestate'],
   ['Investment & development finance', 'Bankable projects and partnerships aligned with long-term value.', 'i_infra'],
+]
+const IF_VACANCIES = [
+  ['Strategy Consultant', 'Strategy & Institutions', 'Lekki, Lagos', 'Full-time', 'Lead strategy, restructuring, and performance engagements for public and private institutions.'],
+  ['Health Systems Analyst', 'Healthcare Advisory', 'Lagos', 'Full-time', 'Support health-systems strengthening, financing, and delivery projects with data-driven analysis.'],
+  ['Investment Analyst', 'Finance & Investment', 'Lagos', 'Full-time', 'Build feasibility models and support investment structuring, valuation, and due diligence.'],
+  ['Governance & Compliance Associate', 'Governance, Risk & Compliance', 'Lagos', 'Full-time', 'Develop governance frameworks and support regulatory, risk, and ESG compliance work.'],
+]
+const IF_FAQ = [
+  ['What does Imade Forte Holdings do?', 'We are a consulting and advisory firm delivering strategy, healthcare, finance, governance, and real estate advisory, with a strong emphasis on strengthening institutions and health systems.'],
+  ['Which sectors do you work in?', 'Healthcare, government and the public sector, financial services, real estate and infrastructure, and investment and development finance.'],
+  ['Who do you typically work with?', 'Organisations, government institutions, and investors, from early strategy through to delivery and long-term sustainability.'],
+  ['How does an engagement start?', 'It starts with a conversation. We take time to understand the institution and the outcome that matters before proposing an approach.'],
+  ['Do you work with government institutions?', 'Yes. A significant part of our work supports government initiatives and public institutions, including feasibility and structuring for major public developments.'],
+  ['Where are you based?', 'Our head office is at 21 Fatai Arobieke Street, Off Admiralty Way, Lekki Phase 1, Lagos, Nigeria.'],
+  ['How do we get in touch?', 'Email info@imadeforteholdings.com, call +234 805 873 3019, or use the contact form, and we will get back to you.'],
 ]
 
 function ApproachView() {
@@ -1121,16 +1173,6 @@ function SectorsView({ go }) {
     </div>
   )
 }
-
-const IF_FAQ = [
-  ['What does Imade Forte Holdings do?', 'We are a consulting and advisory firm delivering strategy, healthcare, finance, governance, and real estate advisory, with a strong emphasis on strengthening institutions and health systems.'],
-  ['Which sectors do you work in?', 'Healthcare, government and the public sector, financial services, real estate and infrastructure, and investment and development finance.'],
-  ['Who do you typically work with?', 'Organisations, government institutions, and investors, from early strategy through to delivery and long-term sustainability.'],
-  ['How does an engagement start?', 'It starts with a conversation. We take time to understand the institution and the outcome that matters before proposing an approach.'],
-  ['Do you work with government institutions?', 'Yes. A significant part of our work supports government initiatives and public institutions, including feasibility and structuring for major public developments.'],
-  ['Where are you based?', 'Our head office is at 21 Fatai Arobieke Street, Off Admiralty Way, Lekki Phase 1, Lagos, Nigeria.'],
-  ['How do we get in touch?', 'Email info@imadeforteholdings.com, call +234 805 873 3019, or use the contact form, and we will get back to you.'],
-]
 
 function EngagementsView({ go }) {
   const caps = [['Feasibility & investment structuring', 'Bankable studies and structures for major projects.'], ['Health-systems strengthening', 'Strategy, financing, and delivery for health institutions.'], ['Governance & compliance', 'Frameworks, controls, and regulatory readiness.'], ['PPP & infrastructure', 'Public-private structures that reach delivery.']]
@@ -3791,7 +3833,7 @@ option{color:#111}
 .if-chip{font-family:var(--sans);font-size:.78rem;color:var(--gold2);border:1px solid rgba(184,146,74,.4);border-radius:20px;padding:.34rem .85rem}
 .if-home{position:relative;display:flex;flex-direction:column;gap:clamp(1.6rem,3.5vh,2.6rem)}
 .if-hero,.if-stats,.if-partners{position:relative;z-index:1}
-.if-africa-wm{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);height:132%;width:auto;opacity:.09;z-index:0;pointer-events:none}
+.if-africa-wm{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);height:132%;width:auto;opacity:.16;z-index:0;pointer-events:none}
 .if-hero{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(2rem,5vw,4rem);align-items:center}
 .if-hero h1{font-size:clamp(2.6rem,5.4vw,4.3rem);line-height:1.04;margin-bottom:1.3rem}
 .if-hero h1 em{font-style:italic;color:var(--gold2)}
@@ -3914,6 +3956,28 @@ option{color:#111}
 .if-sector-cta{background:linear-gradient(135deg,rgba(184,146,74,.18),rgba(184,146,74,.04));cursor:pointer;justify-content:center}
 .if-sector-cta .if-sector-body{padding:1.7rem}
 .if-sector-arrow{margin-top:.4rem;font-family:var(--sans);font-size:.84rem;color:var(--gold2);font-weight:600}
+.if-more{position:relative}
+.if-more-btn{display:flex;align-items:center;gap:.35rem}
+.if-caret{font-size:.7rem;transition:transform .2s}
+.if-caret.up{transform:rotate(180deg)}
+.if-more-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:210px;background:#0d1c34;border:1px solid var(--line);border-radius:10px;padding:.4rem;display:flex;flex-direction:column;gap:.1rem;box-shadow:0 22px 44px rgba(0,0,0,.45);z-index:60;animation:if-in .18s ease}
+.if-more-item{text-align:left;background:none;border:none;color:#B7C2D1;font-family:var(--sans);font-size:.86rem;padding:.6rem .8rem;border-radius:7px;cursor:pointer;transition:.15s}
+.if-more-item:hover{background:rgba(184,146,74,.12);color:#fff}
+.if-more-item.on{color:var(--gold2)}
+.if-careers2{display:grid;grid-template-columns:1fr 1.05fr;gap:clamp(2rem,4vw,3.5rem);align-items:start;margin-top:.3rem}
+.if-offer{display:flex;flex-direction:column;margin:.3rem 0}
+.if-offer-item{display:flex;align-items:center;gap:.7rem;padding:.6rem 0;border-bottom:1px solid rgba(232,236,243,.1);color:#D2DAE6;font-size:.94rem}
+.if-offer-item svg{width:15px;height:19px;flex:none}
+.if-roles-panel{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:12px;padding:1.6rem}
+.if-roles-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--line)}
+.if-roles-head h3{color:#fff;font-size:1.3rem}
+.if-vacs{display:flex;flex-direction:column;gap:.9rem}
+.if-vac{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;border:1px solid var(--line);border-radius:10px;transition:border-color .2s,transform .2s}
+.if-vac:hover{border-color:var(--gold);transform:translateY(-2px)}
+.if-vac-main b{color:#fff;font-size:1.02rem;display:block;margin-bottom:.2rem}
+.if-vac-meta{font-family:var(--sans);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--gold2);display:block;margin-bottom:.35rem}
+.if-vac-main p{color:#B4BFCE;font-size:.85rem;max-width:42ch}
+.if-vac-apply{flex:none;padding:.6rem 1.15rem;font-size:.8rem}
 .if-eyebrow-sm{font-family:var(--sans);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.8rem}
 .if-eng{display:grid;grid-template-columns:1.45fr .55fr;gap:clamp(1.5rem,4vw,3rem);align-items:start}
 .if-eng-featured{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:12px;padding:1.9rem;display:flex;flex-direction:column;gap:.85rem}
@@ -3938,7 +4002,9 @@ option{color:#111}
   .if-top-inner{grid-template-columns:auto 1fr auto;gap:.5rem;width:92vw}
   .if-view,.if-foot-inner{width:92vw}
   .if-africa-wm{opacity:.05;right:-25%}
-  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points,.if-steps,.if-sectors,.if-eng{grid-template-columns:1fr}
+  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points,.if-steps,.if-sectors,.if-eng,.if-careers2{grid-template-columns:1fr}
+  .if-vac{flex-direction:column;align-items:flex-start}
+  .if-more-menu{right:auto;left:0}
   .if-stats{grid-template-columns:1fr 1fr;gap:1.2rem 0}
   .if-form-row{flex-direction:column}
   .if-view{min-height:auto;justify-content:flex-start}

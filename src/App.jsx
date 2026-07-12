@@ -837,8 +837,8 @@ function ContactForm() {
   )
 }
 
-const IF_PAGES = ['home', 'about', 'practices', 'advantages', 'insights', 'leadership', 'careers', 'contact']
-const IF_TAB_LABELS = { home: 'Home', about: 'About', practices: 'Practices', advantages: 'Advantages', insights: 'Insights', leadership: 'Leadership', careers: 'Careers', contact: 'Contact' }
+const IF_PAGES = ['home', 'about', 'approach', 'practices', 'sectors', 'advantages', 'insights', 'leadership', 'careers', 'contact']
+const IF_TAB_LABELS = { home: 'Home', about: 'About', approach: 'Approach', practices: 'Practices', sectors: 'Sectors', advantages: 'Advantages', insights: 'Insights', leadership: 'Leadership', careers: 'Careers', contact: 'Contact' }
 function AfricaMark({ className = '' }) {
   return (
     <svg className={className} viewBox="0 0 1000 1000" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
@@ -862,7 +862,7 @@ function LandingPage({ onCompass }) {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   const go = (id) => { setPage(id); try { history.replaceState(null, '', '#' + id) } catch { location.hash = id } }
-  const View = { home: HomeView, about: AboutView, practices: PracticesView, advantages: AdvantagesView, insights: InsightsView, leadership: LeadershipView, careers: CareersView, contact: ContactView }[page] || HomeView
+  const View = { home: HomeView, about: AboutView, approach: ApproachView, practices: PracticesView, sectors: SectorsView, advantages: AdvantagesView, insights: InsightsView, leadership: LeadershipView, careers: CareersView, contact: ContactView }[page] || HomeView
   return (
     <div className="if">
       <header className="if-top"><div className="if-top-inner">
@@ -910,6 +910,9 @@ function HomeView({ go }) {
         <div className="if-stat"><b>Africa</b><span>Reach and ambition</span></div>
       </div>
       <p className="if-partners"><b>Partnering with</b> government institutions · organisations · investors</p>
+      <div className="if-marquee"><div className="if-marquee-track">
+        {['Strategy', 'Healthcare', 'Finance', 'Governance', 'Real estate', 'Investment', 'Feasibility', 'Public-private partnerships', 'ESG', 'Institutional strengthening', 'Strategy', 'Healthcare', 'Finance', 'Governance', 'Real estate', 'Investment', 'Feasibility', 'Public-private partnerships', 'ESG', 'Institutional strengthening'].map((k, i) => (<span key={i}>{k}</span>))}
+      </div></div>
     </div>
   )
 }
@@ -1053,6 +1056,67 @@ function CareersView({ go, onCompass }) {
             <div key={r} className="if-role"><ColMark /><span>{r}</span></div>
           ))}
         </div>
+      </div>
+    </div>
+  )
+}
+
+const IF_APPROACH = [
+  ['Discover', 'We begin by understanding the institution, its context, and the outcome that truly matters before proposing anything.', ['Stakeholder and needs assessment', 'Data and baseline review', 'Problem and opportunity framing']],
+  ['Design', 'We shape an evidence-based strategy and a delivery plan built around measurable results.', ['Options and business case', 'Target operating model', 'Roadmap and milestones']],
+  ['Deliver', 'We move from plan to execution, managing risk and momentum throughout.', ['Implementation support', 'Governance and controls', 'Progress tracking and reporting']],
+  ['Sustain', 'We hand over capability that lasts, not dependence on us.', ['Capacity building and training', 'Monitoring and evaluation', 'Continuous improvement']],
+]
+const IF_SECTOR_CARDS = [
+  ['Healthcare', 'Systems strengthening, management, and financing for providers, investors, and regulators.', 'p_health'],
+  ['Government & public sector', 'Policy, institutional reform, and delivery support for public institutions.', 'p_governance'],
+  ['Financial services', 'Investment structuring, feasibility, and transaction advisory.', 'p_finance'],
+  ['Real estate & infrastructure', 'Feasibility, structuring, and value creation for developers and investors.', 'p_realestate'],
+  ['Investment & development finance', 'Bankable projects and partnerships aligned with long-term value.', 'i_infra'],
+]
+
+function ApproachView() {
+  const [i, setI] = useState(0)
+  const s = IF_APPROACH[i]
+  return (
+    <div className="if-stack">
+      <p className="if-eyebrow"><ColMark />How we work</p>
+      <h2>A disciplined path from insight to impact.</h2>
+      <div className="if-steps">
+        <div className="if-steprail">
+          {IF_APPROACH.map((st, idx) => (
+            <button key={st[0]} className={`if-step ${idx === i ? 'on' : ''}`} onClick={() => setI(idx)}>
+              <span className="if-stepnum">{String(idx + 1).padStart(2, '0')}</span>
+              <span className="if-steplabel">{st[0]}</span>
+            </button>
+          ))}
+        </div>
+        <div className="if-stepdetail" key={i}>
+          <span className="if-tag">Step {i + 1} of {IF_APPROACH.length}</span>
+          <h3>{s[0]}</h3>
+          <p className="if-mut">{s[1]}</p>
+          <ul className="if-points">{s[2].map((pt) => <li key={pt}>{pt}</li>)}</ul>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SectorsView({ go }) {
+  return (
+    <div className="if-stack">
+      <p className="if-eyebrow"><ColMark />Where we work</p>
+      <h2>Sectors we serve.</h2>
+      <div className="if-sectors">
+        {IF_SECTOR_CARDS.map((c) => (
+          <article key={c[0]} className="if-sector">
+            <div className="if-sector-media"><img src={`/site/${c[2]}.webp`} alt={c[0]} loading="lazy" /></div>
+            <div className="if-sector-body"><h3>{c[0]}</h3><p>{c[1]}</p></div>
+          </article>
+        ))}
+        <button className="if-sector if-sector-cta" onClick={() => go('contact')}>
+          <div className="if-sector-body"><h3>Have a brief for us?</h3><p>Tell us about the institution and the outcome you are working toward.</p><span className="if-sector-arrow">Start a conversation →</span></div>
+        </button>
       </div>
     </div>
   )
@@ -3628,7 +3692,7 @@ option{color:#111}
 .if p{margin:0}
 .if-mut{color:#B4BFCE}
 .if-top{position:sticky;top:0;z-index:40;background:rgba(9,20,38,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-.if-top-inner{width:var(--wrap);margin:0 auto;height:64px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1rem}
+.if-top-inner{width:100%;padding:0 clamp(1.25rem,2vw,2.25rem);height:64px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:1rem}
 .if-brand{justify-self:start;background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center}
 .if-logo{height:38px;width:auto;display:block}
 .if-nav{justify-self:center;display:flex;align-items:center;gap:.1rem;max-width:100%;overflow-x:auto;scrollbar-width:none}
@@ -3756,13 +3820,47 @@ option{color:#111}
 .if-foot-dot{opacity:.5}
 .if-foot-link{margin-left:auto;background:none;border:1px solid rgba(184,146,74,.5);color:var(--gold2);padding:.4rem .9rem;border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:.74rem;white-space:nowrap}
 .if-foot-link:hover{background:var(--gold);color:var(--nv)}
+/* ---- motion + interactive parts ---- */
+.if::before{content:'';position:fixed;top:-18%;right:-8%;width:58vw;height:58vw;background:radial-gradient(circle,rgba(184,146,74,.10),transparent 62%);pointer-events:none;z-index:0;animation:if-drift 20s ease-in-out infinite alternate}
+@keyframes if-drift{to{transform:translate(-7%,9%) scale(1.14)}}
+.if-main{position:relative;z-index:1}
+.if-hero-media{animation:if-float 7s ease-in-out infinite}
+@keyframes if-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.if-leader,.if-sector{transition:transform .2s,border-color .2s,box-shadow .2s}
+.if-leader:hover,.if-sector:hover{transform:translateY(-4px);border-color:var(--gold);box-shadow:0 18px 40px rgba(0,0,0,.3)}
+.if-marquee{margin-top:.3rem;overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:.8rem 0;-webkit-mask:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}
+.if-marquee-track{display:flex;gap:2.7rem;width:max-content;animation:if-marq 36s linear infinite}
+.if-marquee:hover .if-marquee-track{animation-play-state:paused}
+.if-marquee-track span{font-family:var(--sans);font-size:.76rem;letter-spacing:.2em;text-transform:uppercase;color:#93A0B3;white-space:nowrap;position:relative}
+.if-marquee-track span::after{content:'';position:absolute;right:-1.4rem;top:50%;width:4px;height:4px;border-radius:50%;background:var(--gold);transform:translateY(-50%);opacity:.55}
+@keyframes if-marq{to{transform:translateX(-50%)}}
+.if-steps{display:grid;grid-template-columns:.85fr 1.65fr;gap:clamp(1.5rem,4vw,3.5rem);align-items:start;margin-top:.4rem}
+.if-steprail{display:flex;flex-direction:column;gap:.55rem}
+.if-step{display:flex;align-items:center;gap:1rem;text-align:left;background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:10px;padding:.95rem 1.2rem;cursor:pointer;color:#B7C2D1;transition:.18s;font-family:var(--sans)}
+.if-step:hover{color:#fff;border-color:rgba(184,146,74,.5)}
+.if-step.on{background:rgba(184,146,74,.1);border-color:var(--gold);color:#fff}
+.if-stepnum{font-family:'Lora',serif;font-size:1.5rem;color:var(--gold2);line-height:1}
+.if-steplabel{font-size:.98rem;letter-spacing:.02em}
+.if-stepdetail{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:12px;padding:1.9rem;display:flex;flex-direction:column;gap:.7rem;animation:if-in .35s ease}
+.if-stepdetail h3{color:#fff;font-size:1.6rem}
+.if-sectors{display:grid;grid-template-columns:repeat(3,1fr);gap:1.3rem}
+.if-sector{display:flex;flex-direction:column;text-align:left;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:12px;overflow:hidden;padding:0}
+.if-sector-media{aspect-ratio:16/10;overflow:hidden}
+.if-sector-media img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .45s ease}
+.if-sector:hover .if-sector-media img{transform:scale(1.06)}
+.if-sector-body{padding:1.2rem;display:flex;flex-direction:column;gap:.45rem}
+.if-sector-body h3{color:#fff;font-size:1.12rem}
+.if-sector-body p{color:#B4BFCE;font-size:.88rem}
+.if-sector-cta{background:linear-gradient(135deg,rgba(184,146,74,.18),rgba(184,146,74,.04));cursor:pointer;justify-content:center}
+.if-sector-cta .if-sector-body{padding:1.7rem}
+.if-sector-arrow{margin-top:.4rem;font-family:var(--sans);font-size:.84rem;color:var(--gold2);font-weight:600}
 .if a:focus-visible,.if button:focus-visible,.if input:focus-visible,.if textarea:focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-radius:4px}
-@media (prefers-reduced-motion:reduce){.if-view,.if-pdetail,.if-tab.on::after{animation:none!important}.if *{transition:none!important}}
+@media (prefers-reduced-motion:reduce){.if-view,.if-pdetail,.if-tab.on::after,.if::before,.if-hero-media,.if-marquee-track,.if-stepdetail{animation:none!important}.if *{transition:none!important}}
 @media(max-width:900px){
   .if-top-inner{grid-template-columns:auto 1fr auto;gap:.5rem;width:92vw}
   .if-view,.if-foot-inner{width:92vw}
   .if-africa-wm{opacity:.05;right:-25%}
-  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points{grid-template-columns:1fr}
+  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points,.if-steps,.if-sectors{grid-template-columns:1fr}
   .if-stats{grid-template-columns:1fr 1fr;gap:1.2rem 0}
   .if-form-row{flex-direction:column}
   .if-view{min-height:auto;justify-content:flex-start}

@@ -862,243 +862,220 @@ function LandingPage({ onCompass }) {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   const go = (id) => { setPage(id); try { history.replaceState(null, '', '#' + id) } catch { location.hash = id } }
+  const View = { home: HomeView, about: AboutView, practices: PracticesView, advantages: AdvantagesView, insights: InsightsView, leadership: LeadershipView, careers: CareersView, contact: ContactView }[page] || HomeView
   return (
     <div className="if">
-      <div className="if-glow" aria-hidden="true" />
       <header className="if-top">
         <IFBrand onHome={() => go('home')} />
         <nav className="if-nav" role="tablist" aria-label="Sections">
           {IF_PAGES.map((id) => (
-            <button key={id} role="tab" aria-selected={page === id} className={`if-tab ${page === id ? 'is-active' : ''}`} onClick={() => go(id)}>{IF_TAB_LABELS[id]}</button>
+            <button key={id} role="tab" aria-selected={page === id} className={`if-tab ${page === id ? 'on' : ''}`} onClick={() => go(id)}>{IF_TAB_LABELS[id]}</button>
           ))}
         </nav>
-        <button className="if-nav-compass" onClick={onCompass}>Forte Compass</button>
+        <button className="if-compass" onClick={onCompass}>Forte Compass</button>
       </header>
-      <main className="if-stage" role="tabpanel">
-        <div key={page} className="if-page">
-          {page === 'home' && <HomePage go={go} />}
-          {page === 'about' && <AboutPage />}
-          {page === 'practices' && <PracticesPage go={go} />}
-          {page === 'advantages' && <AdvantagesPage />}
-          {page === 'insights' && <InsightsPage go={go} />}
-          {page === 'leadership' && <LeadershipPage />}
-          {page === 'careers' && <CareersPage go={go} onCompass={onCompass} />}
-          {page === 'contact' && <ContactPage />}
-        </div>
+      <main className="if-main" role="tabpanel">
+        <div key={page} className="if-view"><View go={go} onCompass={onCompass} /></div>
       </main>
-      <footer className="if-footer">
+      <footer className="if-foot">
         <span>© {new Date().getFullYear()} Imade Forte Holdings Limited</span>
-        <span className="if-foot-sep">·</span>
-        <span>Lekki Phase 1, Lagos</span>
-        <button className="if-foot-compass" onClick={onCompass}>Staff portal · Forte Compass</button>
+        <span className="if-foot-dot">·</span>
+        <span className="if-foot-addr">21 Fatai Arobieke Street, Lekki Phase 1, Lagos</span>
+        <button className="if-foot-link" onClick={onCompass}>Staff portal · Forte Compass</button>
       </footer>
     </div>
   )
 }
 
-function HomePage({ go }) {
+function HomeView({ go }) {
   return (
-    <section className="if-home">
-      <div className="if-home-bg" aria-hidden="true"><img src="/site/hero_bg.webp" alt="" /></div>
-      <AfricaMark className="if-home-africa" />
-      <div className="if-home-grid">
-        <div className="if-home-copy">
-          <p className="if-eyebrow">Consulting · Advisory · Impact</p>
-          <h1 className="if-hero-h">
-            <span className="if-line">Strategy that</span>
-            <span className="if-line">strengthens</span>
-            <span className="if-line"><em>institutions.</em></span>
-          </h1>
+    <div className="if-home">
+      <div className="if-hero">
+        <div className="if-hero-copy">
+          <p className="if-eyebrow"><ColMark />Consulting · Advisory · Impact</p>
+          <h1>Strategy that strengthens <em>institutions.</em></h1>
           <p className="if-lede">A consulting and advisory firm partnering with organisations, government, and investors to deliver strategic guidance, operational excellence, and measurable impact across the sectors that shape Africa's future.</p>
-          <div className="if-hero-cta">
+          <div className="if-cta">
             <button className="if-btn if-btn-gold" onClick={() => go('contact')}>Get in touch</button>
-            <button className="if-btn if-btn-line" onClick={() => go('practices')}>Our practices</button>
+            <button className="if-btn if-btn-ghost" onClick={() => go('practices')}>Our practices</button>
           </div>
         </div>
-        <div className="if-home-art"><Colonnade className="if-colonnade" /></div>
+        <div className="if-frame if-hero-media"><img src="/site/hero_bg.webp" alt="Modern institutional architecture" /></div>
       </div>
-      <div className="if-home-stats">
+      <div className="if-stats">
         <div className="if-stat"><b>2023</b><span>Incorporated in Nigeria</span></div>
         <div className="if-stat"><b><CountUp to={5} /></b><span>Practice areas</span></div>
         <div className="if-stat"><b><CountUp to={20} suffix="+" /></b><span>Years of leadership</span></div>
         <div className="if-stat"><b>Africa</b><span>Reach and ambition</span></div>
       </div>
-      <div className="if-partners">
-        <span className="if-partners-lead">Partnering with</span>
-        <span className="if-partners-tags">government institutions · organisations · investors</span>
-      </div>
-    </section>
+      <p className="if-partners"><b>Partnering with</b> government institutions · organisations · investors</p>
+    </div>
   )
 }
 
-function AboutPage() {
+function AboutView() {
+  const glance = [['Company', 'Imade Forte Holdings Limited'], ['Incorporated', '2023 · Nigeria'], ['Sector', 'Consulting & advisory'], ['Practices', 'Strategy · Healthcare · Finance · Governance · Real estate'], ['Clients', 'Organisations, government, investors'], ['Head office', 'Lekki Phase 1, Lagos']]
   return (
-    <section className="if-sec if-about">
-      <div className="if-about-copy">
-        <p className="if-kicker"><ColMark className="if-kicker-mark" />Who we are</p>
+    <div className="if-grid2">
+      <div className="if-col">
+        <p className="if-eyebrow"><ColMark />Who we are</p>
         <h2>A trusted partner to the institutions we serve.</h2>
-        <p>Imade Forte Holdings Limited is a specialised consulting and advisory firm, incorporated in 2023 under the laws of the Federal Republic of Nigeria.</p>
-        <p>We provide evidence-based advisory across healthcare, finance, real estate, governance, and investment, combining global standards with local insight to create long-term institutional value. Our work is anchored on integrity, innovation, and data-driven insight, with a strong emphasis on healthcare systems development.</p>
-        <div className="if-vmv-statements">
-          <div className="if-vm"><span className="if-vm-tag">Vision</span><p>Africa's most trusted and value-driven consulting partner, empowering institutions to operate with excellence and sustainability.</p></div>
-          <div className="if-vm"><span className="if-vm-tag">Mission</span><p>Evidence-based consulting and advisory that strengthens institutions, improves systems, and lifts organisational performance.</p></div>
-        </div>
-        <a className="if-btn if-btn-line if-dl" href="/Imade-Forte-Holdings-Company-Profile.pdf" download>Download company profile (PDF)</a>
+        <p className="if-mut">Imade Forte Holdings Limited is a specialised consulting and advisory firm, incorporated in 2023 under the laws of the Federal Republic of Nigeria.</p>
+        <p className="if-mut">We provide evidence-based advisory across healthcare, finance, real estate, governance, and investment, combining global standards with local insight to create long-term institutional value. Our work is anchored on integrity, innovation, and data-driven insight.</p>
+        <div className="if-vm"><span className="if-vm-tag">Vision</span><p>Africa's most trusted and value-driven consulting partner, empowering institutions to operate with excellence and sustainability.</p></div>
+        <div className="if-vm"><span className="if-vm-tag">Mission</span><p>Evidence-based consulting and advisory that strengthens institutions, improves systems, and lifts organisational performance.</p></div>
+        <a className="if-btn if-btn-ghost" href="/Imade-Forte-Holdings-Company-Profile.pdf" download>Download company profile (PDF)</a>
       </div>
-      <aside className="if-about-side">
-        <div className="if-side-media"><img src="/site/about.webp" alt="Imade Forte offices" loading="lazy" /></div>
-        <dl className="if-glance">
-          {[['Company', 'Imade Forte Holdings Limited'], ['Incorporated', '2023 · Nigeria'], ['Sector', 'Consulting & advisory'], ['Practices', 'Strategy · Healthcare · Finance · Governance · Real estate'], ['Clients', 'Organisations, government, investors'], ['Head office', 'Lekki Phase 1, Lagos']].map((r) => (
-            <div key={r[0]} className="if-glance-row"><dt>{r[0]}</dt><dd>{r[1]}</dd></div>
-          ))}
+      <div className="if-col">
+        <div className="if-frame if-wide"><img src="/site/about.webp" alt="Imade Forte offices" loading="lazy" /></div>
+        <dl className="if-card if-glance">
+          {glance.map((r) => (<div key={r[0]} className="if-grow"><dt>{r[0]}</dt><dd>{r[1]}</dd></div>))}
         </dl>
-        <div className="if-values-compact">
-          <p className="if-kicker"><ColMark className="if-kicker-mark" />What we stand for</p>
-          <div className="if-vchips">{IF_VALUES.map((v) => <span key={v[0]} className="if-vchip" title={v[1]}>{v[0]}</span>)}</div>
-        </div>
-      </aside>
-    </section>
+        <div className="if-chips">{IF_VALUES.map((v) => <span key={v[0]} className="if-chip" title={v[1]}>{v[0]}</span>)}</div>
+      </div>
+    </div>
   )
 }
 
-function PracticesPage({ go }) {
+function PracticesView({ go }) {
   const [sector, setSector] = useState('All')
-  const filtered = IF_SERVICES.map((s, idx) => ({ s, idx })).filter(({ s }) => sector === 'All' || s[4] === sector)
   const [pick, setPick] = useState(0)
-  const active = filtered.find(({ idx }) => idx === pick) ? pick : (filtered[0] ? filtered[0].idx : 0)
-  const s = IF_SERVICES[active]
   const filters = ['All', 'Healthcare', 'Finance', 'Real estate', 'Governance', 'Strategy']
+  const visible = IF_SERVICES.map((s, i) => ({ s, i })).filter(({ s }) => sector === 'All' || s[4] === sector)
+  const active = visible.some(({ i }) => i === pick) ? pick : (visible[0] ? visible[0].i : 0)
+  const s = IF_SERVICES[active]
   return (
-    <section className="if-sec if-stack">
-      <p className="if-kicker"><ColMark className="if-kicker-mark" />What we do</p>
+    <div className="if-stack">
+      <p className="if-eyebrow"><ColMark />What we do</p>
       <h2>Five practices, one standard.</h2>
-      <div className="if-prac-filter">
+      <div className="if-chips if-filter">
         {filters.map((f) => (
-          <button key={f} className={`if-fchip ${sector === f ? 'is-on' : ''}`} onClick={() => { setSector(f); const first = IF_SERVICES.findIndex((sv) => f === 'All' || sv[4] === f); if (first >= 0) setPick(first) }}>{f}</button>
+          <button key={f} className={`if-fchip ${sector === f ? 'on' : ''}`} onClick={() => { setSector(f); const first = IF_SERVICES.findIndex((sv) => f === 'All' || sv[4] === f); if (first >= 0) setPick(first) }}>{f}</button>
         ))}
       </div>
-      <div className="if-practices">
-        <ul className="if-prac-list">
-          {filtered.map(({ s: sv, idx }) => (
-            <li key={sv[1]}><button className={idx === active ? 'is-active' : ''} onClick={() => setPick(idx)}><span className="if-prac-dot" /><span>{sv[1]}</span></button></li>
+      <div className="if-explorer">
+        <ul className="if-plist">
+          {visible.map(({ s: sv, i }) => (
+            <li key={sv[1]}><button className={i === active ? 'on' : ''} onClick={() => setPick(i)}><span className="if-pdot" /><span>{sv[1]}</span></button></li>
           ))}
         </ul>
-        <div className="if-prac-detail" key={active}>
-          <div className="if-prac-media"><img src={`/site/${IF_PRAC_IMG[active]}.webp`} alt={s[1]} loading="lazy" /></div>
-          <span className="if-prac-sector">{s[4]}</span>
+        <div className="if-pdetail" key={active}>
+          <div className="if-frame"><img src={`/site/${IF_PRAC_IMG[active]}.webp`} alt={s[1]} loading="lazy" /></div>
+          <span className="if-tag">{s[4]}</span>
           <h3>{s[1]}</h3>
-          <p className="if-prac-lede">{s[2]}</p>
-          <ul className="if-prac-points">{s[3].map((pt) => <li key={pt}>{pt}</li>)}</ul>
-          <p className="if-prac-focus"><b>In focus.</b> {s[5]}</p>
+          <p className="if-mut">{s[2]}</p>
+          <ul className="if-points">{s[3].map((pt) => <li key={pt}>{pt}</li>)}</ul>
+          <p className="if-focus"><b>In focus.</b> {s[5]}</p>
           <button className="if-btn if-btn-gold" onClick={() => go('contact')}>Discuss this practice</button>
         </div>
       </div>
-    </section>
+    </div>
   )
 }
 
-function AdvantagesPage() {
+function AdvantagesView() {
   return (
-    <section className="if-sec if-adv">
-      <div className="if-adv-copy">
-        <p className="if-kicker"><ColMark className="if-kicker-mark" />Why Imade Forte</p>
+    <div className="if-grid2">
+      <div className="if-col">
+        <p className="if-eyebrow"><ColMark />Why Imade Forte</p>
         <h2>What sets the work apart.</h2>
-        <div className="if-diff-list">
+        <div className="if-diff">
           {IF_DIFF.map((d) => (<div key={d[0]} className="if-diff-item"><b>{d[0]}</b><span>{d[1]}</span></div>))}
         </div>
       </div>
       <aside className="if-commit">
-        <div className="if-commit-media"><img src="/site/globe.webp" alt="" aria-hidden="true" loading="lazy" /></div>
+        <div className="if-commit-bg"><img src="/site/globe.webp" alt="" aria-hidden="true" loading="lazy" /></div>
         <p className="if-commit-tag">Our commitment</p>
-        <p className="if-commit-body">More than consultants, we are catalysts for transformation, supporting government initiatives, strengthening institutions, and empowering businesses through insight, innovation, and integrity.</p>
+        <p>More than consultants, we are catalysts for transformation, supporting government initiatives, strengthening institutions, and empowering businesses through insight, innovation, and integrity.</p>
       </aside>
-    </section>
+    </div>
   )
 }
 
-function InsightsPage({ go }) {
+function InsightsView({ go }) {
   return (
-    <section className="if-sec if-stack">
-      <p className="if-kicker"><ColMark className="if-kicker-mark" />Perspectives</p>
+    <div className="if-stack">
+      <p className="if-eyebrow"><ColMark />Perspectives</p>
       <h2>Insights from the work.</h2>
-      <div className="if-insights">
-        {IF_INSIGHTS.map((it, idx) => (
-          <article key={it[1]} className="if-insight">
-            <div className="if-insight-media"><img src={`/site/${IF_INSIGHT_IMG[idx]}.webp`} alt={it[1]} loading="lazy" /></div>
-            <span className="if-insight-tag">{it[0]}</span>
-            <h3>{it[1]}</h3>
-            <p>{it[2]}</p>
+      <div className="if-cards3">
+        {IF_INSIGHTS.map((it, i) => (
+          <article key={it[1]} className="if-icard">
+            <div className="if-icard-media"><img src={`/site/${IF_INSIGHT_IMG[i]}.webp`} alt={it[1]} loading="lazy" /></div>
+            <div className="if-icard-body"><span className="if-tag">{it[0]}</span><h3>{it[1]}</h3><p>{it[2]}</p></div>
           </article>
         ))}
       </div>
-      <div className="if-svc-foot"><p>Want our view on a challenge you are facing?</p><button className="if-btn if-btn-gold" onClick={() => go('contact')}>Talk to us</button></div>
-    </section>
+      <div className="if-cta-row"><p>Want our view on a challenge you are facing?</p><button className="if-btn if-btn-gold" onClick={() => go('contact')}>Talk to us</button></div>
+    </div>
   )
 }
 
-function LeadershipPage() {
+function LeadershipView() {
   return (
-    <section className="if-sec if-stack">
-      <p className="if-kicker"><ColMark className="if-kicker-mark" />Our people</p>
+    <div className="if-stack">
+      <p className="if-eyebrow"><ColMark />Our people</p>
       <h2>Leadership.</h2>
       <div className="if-leaders">
-        {IF_LEADERS.map((l, idx) => (
+        {IF_LEADERS.map((l, i) => (
           <article key={l[0]} className="if-leader">
-            <div className="if-leader-photo"><img src={IF_LEADER_IMG[idx]} alt={`Portrait of ${l[0]}`} loading="lazy" /></div>
-            <div className="if-leader-body">
+            <div className="if-frame"><img src={IF_LEADER_IMG[i]} alt={`Portrait of ${l[0]}`} loading="lazy" /></div>
+            <div className="if-lbody">
               <h3>{l[0]}</h3>
-              <p className="if-leader-role">{l[1]}</p>
-              <p className="if-leader-bio">{l[2]}</p>
-              {idx === 1 && <p className="if-recognition">★ {IF_RECOGNITION}</p>}
+              <p className="if-lrole">{l[1]}</p>
+              <p className="if-lbio">{l[2]}</p>
+              {i === 1 && <p className="if-recog">★ {IF_RECOGNITION}</p>}
             </div>
           </article>
         ))}
       </div>
-    </section>
+    </div>
   )
 }
 
-function CareersPage({ go, onCompass }) {
+function CareersView({ go, onCompass }) {
   return (
-    <section className="if-sec if-careers">
-      <div className="if-careers-copy">
-        <p className="if-kicker"><ColMark className="if-kicker-mark" />Join us</p>
+    <div className="if-grid2">
+      <div className="if-col">
+        <p className="if-eyebrow"><ColMark />Join us</p>
         <h2>Build institutions that last.</h2>
-        <p>We are assembling a multidisciplinary team across strategy, healthcare, finance, governance, and real estate, people who pair global standards with local insight and care about measurable impact.</p>
-        <p className="if-careers-note">New team members onboard through Forte Compass, our internal performance platform, from day one.</p>
-        <div className="if-hero-cta">
+        <p className="if-mut">We are assembling a multidisciplinary team across strategy, healthcare, finance, governance, and real estate, people who pair global standards with local insight and care about measurable impact.</p>
+        <p className="if-note">New team members onboard through Forte Compass, our internal performance platform, from day one.</p>
+        <div className="if-cta">
           <button className="if-btn if-btn-gold" onClick={() => go('contact')}>Introduce yourself</button>
-          <button className="if-btn if-btn-line" onClick={onCompass}>Staff portal</button>
+          <button className="if-btn if-btn-ghost" onClick={onCompass}>Staff portal</button>
         </div>
       </div>
-      <aside className="if-careers-side">
-        <div className="if-side-media"><img src="/site/careers.webp" alt="" aria-hidden="true" loading="lazy" /></div>
-        {['Strategy & institutions', 'Healthcare systems', 'Finance & investment', 'Governance & compliance', 'Real estate & infrastructure'].map((r) => (
-          <div key={r} className="if-role-row"><ColMark className="if-role-mark" /><span>{r}</span></div>
-        ))}
-      </aside>
-    </section>
+      <div className="if-col">
+        <div className="if-frame if-wide"><img src="/site/careers.webp" alt="" aria-hidden="true" loading="lazy" /></div>
+        <div className="if-roles">
+          {['Strategy & institutions', 'Healthcare systems', 'Finance & investment', 'Governance & compliance', 'Real estate & infrastructure'].map((r) => (
+            <div key={r} className="if-role"><ColMark /><span>{r}</span></div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
-function ContactPage() {
+function ContactView() {
   return (
-    <section className="if-sec if-contact">
-      <div className="if-contact-left">
-        <p className="if-kicker"><ColMark className="if-kicker-mark" />Get in touch</p>
+    <div className="if-grid2">
+      <div className="if-col">
+        <p className="if-eyebrow"><ColMark />Get in touch</p>
         <h2>Let's shape what's next.</h2>
-        <div className="if-contact-details">
+        <dl className="if-cdetails">
           <div><dt>Registered office</dt><dd>21 Fatai Arobieke Street, Off Admiralty Way, Lekki Phase 1, Lagos</dd></div>
           <div><dt>Email</dt><dd>info@imadeforteholdings.com</dd></div>
           <div><dt>Phone</dt><dd>+234 805 873 3019</dd></div>
           <div><dt>Hours</dt><dd>Monday to Friday, 9AM to 6PM</dd></div>
-        </div>
+        </dl>
         <a className="if-btn if-btn-wa" href="https://wa.me/2348058733019" target="_blank" rel="noreferrer">Chat on WhatsApp</a>
       </div>
       <ContactForm />
-    </section>
+    </div>
   )
 }
+
 
 /* --------------------------- Compass overview --------------------- */
 function Gateway({ tenant, onSignIn, onBackToSite }) {
@@ -3643,204 +3620,148 @@ option{color:#111}
 .fc-export-card .fc-btn{margin-top:auto;align-self:flex-start}
 
 /* ===== Imade Forte corporate site ===== */
-/* ===================== Imade Forte public site ===================== */
-.if{--nv:#0E2240;--nv2:#081627;--gold:#B8924A;--gold2:#DFC07E;--parch:#F3EFE7;--ink:#1D2733;position:relative;min-height:100vh;display:flex;flex-direction:column;background:linear-gradient(160deg,#12294a 0%,var(--nv) 44%,var(--nv2) 100%);color:#e9edf3;font-family:'Lora',Georgia,serif;line-height:1.6;overflow-x:hidden}
+/* ===================== Imade Forte site ===================== */
+.if{--nv:#0E2240;--nv2:#0A1830;--gold:#B8924A;--gold2:#E2C888;--parch:#F4F0E7;--line:rgba(184,146,74,.22);--sans:ui-sans-serif,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;position:relative;overflow-x:hidden;background:radial-gradient(130% 90% at 82% -12%,#173763 0%,#0E2240 46%,#091628 100%);color:#E8ECF3;font-family:'Lora',Georgia,serif;line-height:1.62;-webkit-font-smoothing:antialiased}
 .if *{box-sizing:border-box}
-.if h1,.if h2,.if h3{font-family:'Lora',Georgia,serif;font-weight:600;letter-spacing:-.01em}
-.if button{font-family:inherit}
-.if-glow{position:fixed;top:-25%;right:-10%;width:70vw;height:70vw;background:radial-gradient(circle,rgba(184,146,74,.16),transparent 60%);pointer-events:none;animation:ifglow 14s ease-in-out infinite alternate}
-@keyframes ifglow{to{transform:translate(-6%,8%) scale(1.1)}}
-/* header + tabs */
-.if-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem clamp(1rem,5vw,3.5rem);background:rgba(8,22,39,.72);backdrop-filter:blur(10px);border-bottom:1px solid rgba(184,146,74,.24)}
-.if-brand{flex:none;background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center}
+.if h1,.if h2,.if h3{font-family:'Lora',Georgia,serif;font-weight:600;letter-spacing:-.015em;color:#fff;margin:0}
+.if p{margin:0}
+.if-mut{color:#B4BFCE}
+.if-top{position:sticky;top:0;z-index:40;height:64px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1rem;padding:0 clamp(1rem,4vw,3rem);background:rgba(9,20,38,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.if-brand{justify-self:start;background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center}
 .if-logo{height:38px;width:auto;display:block}
-.if-nav{flex:1;display:flex;align-items:center;justify-content:center;gap:.15rem;overflow-x:auto;scrollbar-width:none}
+.if-nav{justify-self:center;display:flex;align-items:center;gap:.1rem;max-width:100%;overflow-x:auto;scrollbar-width:none}
 .if-nav::-webkit-scrollbar{display:none}
-.if-tab,.if-nav-compass{flex:none}
-.if-tab{position:relative;background:none;border:none;color:#c2cbd8;cursor:pointer;font-family:ui-sans-serif,'Segoe UI',Roboto,sans-serif;font-size:.82rem;letter-spacing:.03em;padding:.55rem .85rem;border-radius:5px;transition:color .2s}
+.if-tab{position:relative;flex:none;background:none;border:none;color:#B7C2D1;cursor:pointer;font-family:var(--sans);font-size:.85rem;letter-spacing:.01em;padding:.5rem .8rem;border-radius:6px;transition:color .18s}
 .if-tab:hover{color:#fff}
-.if-tab.is-active{color:#fff}
-.if-tab.is-active::after{content:'';position:absolute;left:.85rem;right:.85rem;bottom:.2rem;height:2px;background:var(--gold);border-radius:2px;animation:iftab .3s ease}
-@keyframes iftab{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
-.if-nav-compass{margin-left:.6rem;background:none;border:1px solid var(--gold);color:var(--gold2);cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.8rem;letter-spacing:.03em;padding:.5rem 1rem;border-radius:5px;transition:.18s}
-.if-nav-compass:hover{background:var(--gold);color:var(--nv)}
-/* stage + page transition */
-.if-stage{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;justify-content:flex-start;max-width:1360px;width:100%;margin:0 auto;padding:clamp(1.4rem,4vw,2.6rem) clamp(1.4rem,6vw,4rem)}
-.if-page{flex:1;width:100%;display:flex;flex-direction:column;animation:ifpage .5s cubic-bezier(.2,.7,.2,1)}
-@keyframes ifpage{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-.if-eyebrow,.if-kicker{font-family:ui-sans-serif,sans-serif;text-transform:uppercase}
-.if-eyebrow{font-size:.72rem;letter-spacing:.32em;color:var(--gold2);margin:0 0 1.3rem}
-.if-kicker{display:flex;align-items:center;gap:.5rem;font-size:.7rem;letter-spacing:.24em;color:var(--gold);margin:0 0 .9rem}
-.if-kicker-mark{width:15px;height:19px}
-.if h2{font-size:clamp(1.6rem,3.2vw,2.3rem);line-height:1.14;margin:0 0 1rem;color:#fff}
-.if-btn{cursor:pointer;font-family:ui-sans-serif,sans-serif;font-size:.85rem;letter-spacing:.02em;padding:.8rem 1.5rem;border-radius:4px;border:1px solid transparent;transition:transform .18s,background .18s,border-color .18s}
+.if-tab.on{color:#fff}
+.if-tab.on::after{content:'';position:absolute;left:.8rem;right:.8rem;bottom:.34rem;height:2px;background:var(--gold);border-radius:2px;animation:if-uline .3s ease}
+@keyframes if-uline{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.if-compass{justify-self:end;flex:none;background:none;border:1px solid var(--gold);color:var(--gold2);cursor:pointer;font-family:var(--sans);font-size:.82rem;padding:.5rem 1.05rem;border-radius:6px;white-space:nowrap;transition:.18s}
+.if-compass:hover{background:var(--gold);color:var(--nv)}
+.if-main{flex:1;display:flex;flex-direction:column}
+.if-view{min-height:calc(100vh - 116px);width:100%;max-width:1360px;margin:0 auto;padding:clamp(2rem,5vh,4rem) clamp(1.4rem,5vw,4rem);display:flex;flex-direction:column;justify-content:center;animation:if-in .5s ease}
+@keyframes if-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.if-stack{display:flex;flex-direction:column}
+.if-eyebrow{font-family:var(--sans);font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--gold2);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.if-eyebrow svg{width:15px;height:19px}
+.if-view h2{font-size:clamp(1.8rem,3.4vw,2.6rem);line-height:1.12;margin-bottom:1.2rem}
+.if-cta{display:flex;gap:.8rem;flex-wrap:wrap}
+.if-btn{font-family:var(--sans);cursor:pointer;font-size:.86rem;letter-spacing:.01em;padding:.82rem 1.5rem;border-radius:6px;border:1px solid transparent;transition:transform .16s,background .16s,border-color .16s,color .16s;text-decoration:none;display:inline-block}
 .if-btn:hover{transform:translateY(-2px)}
 .if-btn-gold{background:var(--gold);color:var(--nv);border-color:var(--gold);font-weight:600}
 .if-btn-gold:hover{background:var(--gold2);border-color:var(--gold2)}
-.if-btn-line{background:none;color:#e9edf3;border-color:rgba(233,237,243,.4)}
-.if-btn-line:hover{border-color:var(--gold2);color:var(--gold2)}
-/* home */
-.if-home-grid{flex:1;display:grid;grid-template-columns:1.05fr .95fr;gap:2rem;align-items:center;max-height:640px}
-.if-hero-h{font-size:clamp(2.5rem,6vw,4.6rem);line-height:1.02;margin:0;font-weight:600}
-.if-hero-h .if-line{display:block;opacity:0;transform:translateY(18px);animation:ifrise .8s cubic-bezier(.2,.7,.2,1) forwards}
-.if-hero-h .if-line:nth-child(2){animation-delay:.12s}.if-hero-h .if-line:nth-child(3){animation-delay:.24s}
-.if-hero-h em{font-style:italic;color:var(--gold2)}
-@keyframes ifrise{to{opacity:1;transform:none}}
-.if-lede{max-width:33rem;color:#c3ccd9;font-size:1.04rem;margin:1.2rem 0 1.5rem;opacity:0;animation:iffade 1s ease .4s forwards}
-@keyframes iffade{to{opacity:1}}
-.if-hero-cta{display:flex;gap:.8rem;flex-wrap:wrap;opacity:0;animation:iffade 1s ease .55s forwards}
-.if-home-art{display:flex;justify-content:center}
-.if-colonnade{width:100%;max-width:460px;height:auto;filter:drop-shadow(0 14px 44px rgba(0,0,0,.4));clip-path:inset(0 0 100% 0);animation:ifwipe 1.7s cubic-bezier(.2,.7,.2,1) .35s forwards}
-@keyframes ifwipe{to{clip-path:inset(0 0 0 0)}}
-.if-home-stats{display:grid;grid-template-columns:repeat(4,1fr);margin-top:clamp(1rem,3vw,1.6rem);border-top:1px solid rgba(184,146,74,.24);padding-top:1rem}
-.if-stat{text-align:center;padding:.3rem 1rem;border-left:1px solid rgba(184,146,74,.18)}
-.if-stat:first-child{border-left:none}
-.if-stat b{display:block;font-size:clamp(1.8rem,3.6vw,2.7rem);color:var(--gold2);line-height:1}
-.if-stat span{font-family:ui-sans-serif,sans-serif;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#94a1b4;margin-top:.45rem;display:block}
-/* generic section */
-.if-sec{flex:1;width:100%}
-.if-stack{display:flex;flex-direction:column}
-/* about */
-.if-about{display:grid;grid-template-columns:1.15fr .85fr;gap:clamp(2rem,5vw,3.5rem);align-items:stretch}
-.if-about-copy p{color:#c3ccd9;margin:0 0 1rem;max-width:38rem}
-.if-vmv-statements{margin-top:1.4rem}
-.if-vm{border-left:2px solid var(--gold);padding:.1rem 0 .1rem 1.1rem;margin-bottom:1rem}
-.if-vm-tag{font-family:ui-sans-serif,sans-serif;font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:.3rem}
-.if-vm p{margin:0;color:#dbe2ec;font-size:.98rem}
-.if-glance{margin:0;border-top:2px solid var(--gold)}
-.if-glance-row{display:grid;grid-template-columns:.75fr 1.25fr;gap:.8rem;padding:.6rem 0;border-bottom:1px solid rgba(233,237,243,.1)}
-.if-glance-row dt{font-family:ui-sans-serif,sans-serif;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600}
-.if-glance-row dd{margin:0;color:#dbe2ec;font-size:.9rem}
-.if-values-compact{margin-top:1.6rem}
-.if-vchips{display:flex;flex-wrap:wrap;gap:.5rem}
-.if-vchip{font-family:ui-sans-serif,sans-serif;font-size:.78rem;color:var(--gold2);border:1px solid rgba(184,146,74,.4);border-radius:20px;padding:.35rem .85rem;cursor:default;transition:.18s}
-.if-vchip:hover{background:var(--gold);color:var(--nv);border-color:var(--gold)}
-/* practices explorer */
-.if-practices{flex:1;display:grid;grid-template-columns:.9fr 1.1fr;gap:clamp(1.5rem,4vw,3rem);align-items:stretch;margin-top:.5rem}
-.if-prac-list{list-style:none;margin:0;padding:0;border-top:1px solid rgba(184,146,74,.2)}
-.if-prac-list button{width:100%;display:flex;align-items:center;gap:.7rem;background:none;border:none;border-bottom:1px solid rgba(233,237,243,.08);color:#c2cbd8;cursor:pointer;font-family:'Lora',serif;font-size:1.05rem;text-align:left;padding:.9rem .4rem;transition:.18s}
-.if-prac-list button:hover{color:#fff;padding-left:.8rem}
-.if-prac-list button.is-active{color:var(--gold2)}
-.if-prac-dot{width:7px;height:7px;border-radius:50%;background:rgba(184,146,74,.4);flex:none;transition:.18s}
-.if-prac-list button.is-active .if-prac-dot{background:var(--gold);box-shadow:0 0 0 4px rgba(184,146,74,.18)}
-.if-prac-detail{display:flex;flex-direction:column;background:rgba(255,255,255,.03);border:1px solid rgba(184,146,74,.24);border-radius:6px;padding:1.4rem;animation:ifpage .35s ease}
-.if-prac-detail .if-btn-gold{margin-top:auto;align-self:flex-start}
-.if-prac-detail h3{color:#fff;font-size:1.35rem;margin:0 0 .6rem}
-.if-prac-lede{color:#aeb9c8;margin:0 0 .7rem;font-size:.92rem}
-.if-prac-points{list-style:none;margin:0 0 1.4rem;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.3rem 1rem}
-.if-prac-points li{font-family:ui-sans-serif,sans-serif;font-size:.82rem;color:#c7d0dc;padding:.14rem 0 .14rem .95rem;position:relative}
-.if-prac-points li::before{content:'';position:absolute;left:0;top:.62rem;width:5px;height:5px;background:var(--gold);border-radius:1px}
-/* advantages */
-.if-adv{display:grid;grid-template-columns:1.3fr .7fr;gap:clamp(1.6rem,4vw,3rem);align-items:stretch}
-.if-diff-list{display:grid;grid-template-columns:1fr 1fr;gap:.1rem 2rem}
-.if-diff-item{padding:.9rem 0;border-top:1px solid rgba(233,237,243,.12)}
-.if-diff-item b{display:block;color:#fff;margin-bottom:.2rem}
-.if-diff-item span{color:#aeb9c8;font-size:.9rem}
-.if-commit{background:rgba(184,146,74,.08);border:1px solid rgba(184,146,74,.3);border-radius:6px;padding:1.7rem;align-self:stretch}
-.if-commit-tag{font-family:ui-sans-serif,sans-serif;font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold2);margin:0 0 .9rem}
-.if-commit-body{margin:0;color:#dbe2ec;font-size:1rem}
-/* leadership */
-.if-leaders{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:stretch}
-.if-leader{display:grid;grid-template-columns:auto 1fr;gap:1.3rem;background:rgba(255,255,255,.03);border:1px solid rgba(184,146,74,.24);border-radius:6px;padding:1.4rem;transition:transform .2s,border-color .2s}
-.if-leader:hover{transform:translateY(-4px);border-color:var(--gold)}
-.if-leader-photo{width:150px;align-self:stretch;min-height:170px;border-radius:5px;overflow:hidden;border:1px solid rgba(184,146,74,.4);flex:none}
-.if-leader-photo img{width:100%;height:100%;object-fit:cover;object-position:center top;filter:saturate(1.02)}
-.if-leader-body h3{color:#fff;margin:0 0 .15rem;font-size:1.15rem}
-.if-leader-role{font-family:ui-sans-serif,sans-serif;font-size:.68rem;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);margin:0 0 .7rem}
-.if-leader-bio{color:#aeb9c8;font-size:.85rem;margin:0}
-/* contact */
-.if-contact{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2rem,5vw,3.5rem);align-items:stretch}
-.if-contact-details{margin-top:1.3rem}
-.if-contact-details>div{padding:.75rem 0;border-top:1px solid rgba(184,146,74,.22)}
-.if-contact-details dt{font-family:ui-sans-serif,sans-serif;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:.2rem}
-.if-contact-details dd{margin:0;color:#dbe2ec}
-.if-form{background:var(--parch);border-radius:6px;padding:1.5rem;display:flex;flex-direction:column;justify-content:center;gap:.85rem}
-.if-form-row{display:flex;gap:.75rem}
-.if-input{width:100%;font-family:ui-sans-serif,sans-serif;font-size:.92rem;padding:.75rem .85rem;border:1px solid #cdc6b6;border-radius:4px;background:#fff;color:var(--ink)}
-.if-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,146,74,.16)}
-.if-textarea{resize:vertical;min-height:96px}
-.if-form .if-btn-gold{align-self:flex-start;margin-top:.2rem}
-.if-form-sent{background:var(--parch);border-radius:6px;padding:2rem;color:var(--ink)}
-.if-form-sent b{color:var(--nv);font-size:1.2rem}
-.if-form-sent p{color:#556;margin:.4rem 0 0}
-/* footer */
-.if-footer{position:relative;z-index:1;display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;padding:.9rem clamp(1rem,5vw,3.5rem);border-top:1px solid rgba(184,146,74,.2);font-family:ui-sans-serif,sans-serif;font-size:.74rem;color:#8a97aa;background:rgba(8,22,39,.5)}
-.if-foot-sep{opacity:.5}
-.if-foot-compass{margin-left:auto;background:none;border:1px solid rgba(184,146,74,.5);color:var(--gold2);padding:.4rem .9rem;border-radius:4px;cursor:pointer;font-family:inherit;font-size:.74rem}
-.if-foot-compass:hover{background:var(--gold);color:var(--nv)}
-/* --- images + new elements --- */
-.if-home{position:relative;flex:1;display:flex;flex-direction:column;justify-content:center}
-.if-home-bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-.if-home-bg img{width:100%;height:100%;object-fit:cover;opacity:.16;filter:saturate(.7)}
-.if-home-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(120deg,var(--nv) 24%,rgba(14,34,64,.55) 62%,rgba(8,22,39,.92))}
-.if-home-grid,.if-home-stats,.if-partners{position:relative;z-index:1}
-.if-home-art{position:relative}
-.if-home-africa{position:absolute;left:56%;top:50%;transform:translate(-50%,-52%);height:150%;width:auto;max-width:none;opacity:.22;z-index:0;pointer-events:none;animation:ifafr 1.8s ease .4s both}
-@keyframes ifafr{from{opacity:0}to{opacity:.22}}
-.if-colonnade{position:relative;z-index:1}
-.if-partners{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:.85rem;padding-top:.75rem;border-top:1px solid rgba(184,146,74,.18)}
-.if-partners-lead{font-family:ui-sans-serif,sans-serif;font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
-.if-partners-tags{font-family:ui-sans-serif,sans-serif;font-size:.82rem;color:#aeb9c8}
-.if-dl{display:inline-block;margin-top:1.3rem;text-decoration:none}
-.if-prac-filter{display:flex;flex-wrap:wrap;gap:.5rem;margin:.1rem 0 .9rem}
-.if-fchip{background:none;border:1px solid rgba(184,146,74,.35);color:#c2cbd8;border-radius:20px;padding:.3rem .85rem;font-family:ui-sans-serif,sans-serif;font-size:.76rem;cursor:pointer;transition:.18s}
-.if-fchip:hover{color:#fff;border-color:var(--gold)}
-.if-fchip.is-on{background:var(--gold);color:var(--nv);border-color:var(--gold);font-weight:600}
-.if-prac-media{width:100%;height:clamp(92px,15vh,150px);border-radius:5px;overflow:hidden;margin-bottom:1rem;border:1px solid rgba(184,146,74,.28)}
-.if-prac-media img{width:100%;height:100%;object-fit:cover;display:block}
-.if-prac-sector{display:inline-block;font-family:ui-sans-serif,sans-serif;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(184,146,74,.4);border-radius:3px;padding:.18rem .5rem;margin-bottom:.6rem}
-.if-prac-focus{margin:.1rem 0 .8rem;color:#c3ccd9;font-size:.88rem;border-left:2px solid var(--gold);padding-left:.9rem}
-.if-prac-focus b{color:var(--gold2)}
-.if-insights{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;align-items:stretch}
-.if-insight{background:rgba(255,255,255,.03);border:1px solid rgba(184,146,74,.24);border-radius:6px;overflow:hidden;transition:transform .2s,border-color .2s;display:flex;flex-direction:column}
-.if-insight:hover{transform:translateY(-4px);border-color:var(--gold)}
-.if-insight-media{height:170px;overflow:hidden;flex:none}
-.if-insight-media img{width:100%;height:100%;object-fit:cover;display:block}
-.if-insight-tag{font-family:ui-sans-serif,sans-serif;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:.95rem 1.1rem .35rem}
-.if-insight h3{color:#fff;font-size:1.08rem;margin:0 1.1rem .45rem}
-.if-insight p{color:#aeb9c8;font-size:.86rem;margin:0 1.1rem 1.1rem}
-.if-svc-foot{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-top:1.7rem;padding-top:1.3rem;border-top:1px solid rgba(184,146,74,.2)}
-.if-svc-foot p{margin:0;color:#c3ccd9}
-.if-side-media{width:100%;height:200px;border-radius:6px;overflow:hidden;margin-bottom:1.1rem;border:1px solid rgba(184,146,74,.28)}
-.if-side-media img{width:100%;height:100%;object-fit:cover;display:block}
-.if-commit{position:relative;overflow:hidden}
-.if-commit-media{position:absolute;inset:0;z-index:0}
-.if-commit-media img{width:100%;height:100%;object-fit:cover;opacity:.13}
-.if-commit-tag,.if-commit-body{position:relative;z-index:1}
-.if-recognition{margin:.85rem 0 0;color:var(--gold2);font-size:.82rem;font-style:italic;border-top:1px solid rgba(184,146,74,.24);padding-top:.65rem}
-.if-careers{display:grid;grid-template-columns:1.2fr .8fr;gap:clamp(2rem,5vw,3.5rem);align-items:stretch}
-.if-careers-copy p{color:#c3ccd9;margin:0 0 1rem;max-width:34rem}
-.if-careers-note{color:#aeb9c8;font-size:.9rem}
-.if-role-row{display:flex;align-items:center;gap:.7rem;padding:.65rem 0;border-bottom:1px solid rgba(233,237,243,.1);color:#dbe2ec;font-size:.94rem}
-.if-role-mark{width:15px;height:19px;flex:none}
-.if-btn-wa{display:inline-block;text-decoration:none;background:none;border:1px solid #25D366;color:#3bdd7d}
+.if-btn-ghost{background:none;color:#E8ECF3;border-color:rgba(232,236,243,.34)}
+.if-btn-ghost:hover{border-color:var(--gold2);color:var(--gold2)}
+.if-btn-wa{background:none;border-color:#25D366;color:#5fe39a}
 .if-btn-wa:hover{background:#25D366;color:#04231a}
+.if-frame{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--line);box-shadow:0 24px 50px rgba(0,0,0,.34);background:#0b1a30}
+.if-frame img{width:100%;height:100%;object-fit:cover;display:block}
+.if-wide{aspect-ratio:16/9}
+.if-tag{align-self:flex-start;font-family:var(--sans);font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold2);border:1px solid rgba(184,146,74,.4);border-radius:4px;padding:.2rem .55rem}
+.if-grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(2rem,5vw,4rem);align-items:start}
+.if-grid2.if-stretch{align-items:stretch}
+.if-col{display:flex;flex-direction:column;gap:1.1rem}
+.if-chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.if-chip{font-family:var(--sans);font-size:.78rem;color:var(--gold2);border:1px solid rgba(184,146,74,.4);border-radius:20px;padding:.34rem .85rem}
+.if-home{position:relative;display:flex;flex-direction:column;gap:clamp(1.6rem,3.5vh,2.6rem)}
+.if-hero,.if-stats,.if-partners{position:relative;z-index:1}
+.if-hero{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(2rem,5vw,4rem);align-items:center}
+.if-hero h1{font-size:clamp(2.6rem,5.4vw,4.3rem);line-height:1.04;margin-bottom:1.3rem}
+.if-hero h1 em{font-style:italic;color:var(--gold2)}
+.if-lede{max-width:34rem;font-size:1.08rem;color:#C4CDDC;margin-bottom:1.9rem}
+.if-hero-media{aspect-ratio:4/3}
+.if-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;border-top:1px solid var(--line);padding-top:1.5rem}
+.if-stat{text-align:center}
+.if-stat b{display:block;font-size:clamp(1.9rem,3vw,2.7rem);color:var(--gold2);line-height:1}
+.if-stat span{font-family:var(--sans);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:#93A0B3;margin-top:.5rem;display:block}
+.if-partners{font-family:var(--sans);font-size:.82rem;color:#9AA7B9;text-align:center}
+.if-partners b{color:var(--gold);font-weight:600;letter-spacing:.16em;text-transform:uppercase;font-size:.68rem;margin-right:.55rem}
+.if-vm{border-left:2px solid var(--gold);padding:.1rem 0 .1rem 1.1rem}
+.if-vm-tag{display:block;font-family:var(--sans);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.3rem}
+.if-vm p{color:#D2DAE6;font-size:.98rem}
+.if-glance{padding:.2rem 1.2rem;margin:0}
+.if-grow{display:grid;grid-template-columns:.8fr 1.2fr;gap:.8rem;padding:.7rem 0;border-bottom:1px solid rgba(232,236,243,.09)}
+.if-grow:last-child{border-bottom:none}
+.if-grow dt{font-family:var(--sans);font-size:.66rem;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);font-weight:600;margin:0}
+.if-grow dd{margin:0;color:#D2DAE6;font-size:.9rem}
+.if-filter{margin-bottom:1.4rem}
+.if-fchip{font-family:var(--sans);font-size:.76rem;color:#B7C2D1;background:none;border:1px solid rgba(184,146,74,.34);border-radius:20px;padding:.32rem .85rem;cursor:pointer;transition:.16s}
+.if-fchip:hover{color:#fff;border-color:var(--gold)}
+.if-fchip.on{background:var(--gold);color:var(--nv);border-color:var(--gold);font-weight:600}
+.if-explorer{display:grid;grid-template-columns:.82fr 1.18fr;gap:clamp(1.5rem,4vw,3rem);align-items:start}
+.if-plist{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.if-plist button{width:100%;display:flex;align-items:center;gap:.7rem;background:none;border:none;border-bottom:1px solid rgba(232,236,243,.08);color:#B7C2D1;cursor:pointer;font-family:'Lora',serif;font-size:1.06rem;text-align:left;padding:.95rem .3rem;transition:.16s}
+.if-plist button:hover{color:#fff;padding-left:.7rem}
+.if-plist button.on{color:var(--gold2)}
+.if-pdot{width:7px;height:7px;border-radius:50%;background:rgba(184,146,74,.4);flex:none;transition:.16s}
+.if-plist button.on .if-pdot{background:var(--gold);box-shadow:0 0 0 4px rgba(184,146,74,.16)}
+.if-pdetail{display:flex;flex-direction:column;gap:.8rem;animation:if-in .35s ease}
+.if-pdetail .if-frame{height:clamp(140px,20vh,220px)}
+.if-pdetail h3{color:#fff;font-size:1.4rem}
+.if-points{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.25rem 1rem}
+.if-points li{font-family:var(--sans);font-size:.82rem;color:#C7D0DC;padding:.28rem 0 .28rem .95rem;position:relative}
+.if-points li::before{content:'';position:absolute;left:0;top:.62rem;width:5px;height:5px;background:var(--gold);border-radius:1px}
+.if-focus{color:#C4CDDC;font-size:.9rem;border-left:2px solid var(--gold);padding-left:.9rem}
+.if-focus b{color:var(--gold2)}
+.if-pdetail .if-btn{align-self:flex-start;margin-top:.2rem}
+.if-diff{display:grid;grid-template-columns:1fr 1fr;gap:.1rem 2rem}
+.if-diff-item{padding:.95rem 0;border-top:1px solid rgba(232,236,243,.12)}
+.if-diff-item b{display:block;color:#fff;margin-bottom:.2rem}
+.if-diff-item span{color:#B4BFCE;font-size:.9rem}
+.if-commit{position:relative;overflow:hidden;border-radius:10px;border:1px solid var(--line);padding:1.8rem;display:flex;flex-direction:column;justify-content:center}
+.if-commit-bg{position:absolute;inset:0;z-index:0}
+.if-commit-bg img{width:100%;height:100%;object-fit:cover;opacity:.14}
+.if-commit-tag{position:relative;z-index:1;font-family:var(--sans);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold2);margin-bottom:.9rem}
+.if-commit p:not(.if-commit-tag){position:relative;z-index:1;color:#D8DFEA;font-size:1.05rem}
+.if-cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.3rem;align-items:start}
+.if-icard{display:flex;flex-direction:column;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:10px;overflow:hidden;transition:transform .2s,border-color .2s}
+.if-icard:hover{transform:translateY(-4px);border-color:var(--gold)}
+.if-icard-media{aspect-ratio:16/9;overflow:hidden}
+.if-icard-media img{width:100%;height:100%;object-fit:cover;display:block}
+.if-icard-body{padding:1.2rem;display:flex;flex-direction:column;gap:.55rem}
+.if-icard h3{color:#fff;font-size:1.12rem}
+.if-icard p{color:#B4BFCE;font-size:.88rem}
+.if-cta-row{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-top:1.6rem;padding-top:1.4rem;border-top:1px solid var(--line)}
+.if-cta-row p{color:#C4CDDC}
+.if-leaders{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem}
+.if-leader{display:grid;grid-template-columns:170px 1fr;gap:1.4rem;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:10px;padding:1.5rem;align-items:start}
+.if-leader .if-frame{width:170px;aspect-ratio:4/5}
+.if-leader h3{color:#fff;font-size:1.2rem;margin-bottom:.15rem}
+.if-lrole{font-family:var(--sans);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:.7rem}
+.if-lbio{color:#B4BFCE;font-size:.86rem}
+.if-recog{margin-top:.8rem;color:var(--gold2);font-size:.82rem;font-style:italic;border-top:1px solid var(--line);padding-top:.65rem}
+.if-roles{display:flex;flex-direction:column;margin-top:.3rem}
+.if-role{display:flex;align-items:center;gap:.7rem;padding:.7rem 0;border-bottom:1px solid rgba(232,236,243,.1);color:#D2DAE6;font-size:.95rem}
+.if-role svg{width:15px;height:19px;flex:none}
+.if-note{color:#B4BFCE;font-size:.92rem}
+.if-cdetails{display:flex;flex-direction:column;margin:1.2rem 0}
+.if-cdetails>div{padding:.75rem 0;border-top:1px solid var(--line)}
+.if-cdetails dt{font-family:var(--sans);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:.2rem}
+.if-cdetails dd{margin:0;color:#D8DFEA}
+.if-form{align-self:start;width:100%;max-width:560px;background:var(--parch);border-radius:10px;padding:1.7rem;display:flex;flex-direction:column;gap:.85rem}
+.if-form-row{display:flex;gap:.8rem}
+.if-input{width:100%;font-family:var(--sans);font-size:.92rem;padding:.8rem .9rem;border:1px solid #cdc6b6;border-radius:6px;background:#fff;color:#1D2733}
+.if-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,146,74,.16)}
+.if-textarea{resize:vertical;min-height:120px}
+.if-form .if-btn-gold{align-self:flex-start}
 .if-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
-.if a:focus-visible,.if button:focus-visible,.if input:focus-visible,.if textarea:focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-radius:3px}
-@media (prefers-reduced-motion:reduce){.if-glow,.if-page,.if-hero-h .if-line,.if-lede,.if-hero-cta,.if-colonnade,.if-prac-detail{animation:none!important;opacity:1!important;transform:none!important;clip-path:none!important}}
-@media(max-width:880px){
-
-  .if-tab{padding:.5rem .55rem;font-size:.76rem}
-  .if-tab.is-active::after{left:.55rem;right:.55rem}
-  .if-nav-compass{margin-left:.3rem;padding:.45rem .7rem;font-size:.74rem}
-  .if-page{margin:.5rem 0}
-  .if-home-grid,.if-about,.if-practices,.if-adv,.if-leaders,.if-contact{grid-template-columns:1fr}
-  .if-home-art{order:-1;max-width:320px;margin:0 auto}
-  .if-home-stats{grid-template-columns:1fr 1fr;gap:1rem 0}
-  .if-stat:nth-child(3){border-left:none}
-  .if-diff-list,.if-prac-points{grid-template-columns:1fr}
-  .if-insights{grid-template-columns:1fr}
-  .if-careers{grid-template-columns:1fr}
-  .if-partners{flex-direction:column;align-items:flex-start;gap:.4rem}
+.if-form-sent{background:var(--parch);border-radius:10px;padding:2rem;color:#1D2733}
+.if-form-sent b{color:var(--nv);font-size:1.2rem}
+.if-form-sent p{color:#556;margin-top:.4rem}
+.if-foot{height:52px;display:flex;align-items:center;gap:.7rem;padding:0 clamp(1rem,4vw,3rem);border-top:1px solid var(--line);font-family:var(--sans);font-size:.74rem;color:#8A97AA;background:rgba(9,20,38,.5)}
+.if-foot-dot{opacity:.5}
+.if-foot-link{margin-left:auto;background:none;border:1px solid rgba(184,146,74,.5);color:var(--gold2);padding:.4rem .9rem;border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:.74rem;white-space:nowrap}
+.if-foot-link:hover{background:var(--gold);color:var(--nv)}
+.if a:focus-visible,.if button:focus-visible,.if input:focus-visible,.if textarea:focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){.if-view,.if-pdetail,.if-tab.on::after{animation:none!important}.if *{transition:none!important}}
+@media(max-width:900px){
+  .if-top{grid-template-columns:auto 1fr auto;gap:.5rem;padding:0 1rem}
+  .if-hero,.if-grid2,.if-explorer,.if-leaders,.if-diff,.if-cards3,.if-points{grid-template-columns:1fr}
+  .if-stats{grid-template-columns:1fr 1fr;gap:1.2rem 0}
   .if-form-row{flex-direction:column}
+  .if-view{min-height:auto;justify-content:flex-start}
   .if-logo{height:32px}
+  .if-foot-addr{display:none}
 }
-
-
-.fc-top-actions{display:flex;align-items:center;gap:.6rem}
-.fc-back-site{font-size:.9rem}
-
-@media(max-width:900px){.if-hero{grid-template-columns:1fr}.if-hero-art{order:-1}.if-about{grid-template-columns:1fr}.if-vision{grid-template-columns:1fr}.if-svc-grid{grid-template-columns:1fr}.if-diffsec{grid-template-columns:1fr}.if-leaders{grid-template-columns:1fr}.if-contact{grid-template-columns:1fr}.if-stats{grid-template-columns:1fr 1fr}.if-nav button:not(.if-nav-compass){display:none}.if-form-row{flex-direction:column}.fc-hero{grid-template-columns:1fr}.fc-ladder{border-left:none;border-top:1px solid var(--hairline);padding-left:0;padding-top:2rem}.fc-cap-grid{grid-template-columns:repeat(2,1fr)}.fc-dash-cols{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:repeat(2,1fr)}.fc-kr-measures{grid-template-columns:1fr 1fr}.fc-suggest-grid{grid-template-columns:1fr}.fc-ci-form{grid-template-columns:1fr 1fr}.fc-admin-add{grid-template-columns:1fr 1fr}.fc-adm-row{min-width:660px}.fc-fb-form{grid-template-columns:1fr}.fc-rc-cols{grid-template-columns:1fr}.fc-perf-row{grid-template-columns:1fr 1fr}.fc-leave-form{grid-template-columns:1fr 1fr}.fc-leave-form .fc-col2{grid-column:1/3}.fc-leave-form .fc-btn{grid-column:1/3}.fc-pt-row{min-width:620px}.fc-docs-layout{grid-template-columns:1fr}.fc-doc-row{grid-template-columns:auto 1fr auto}.fc-export-grid{grid-template-columns:1fr}.fc-sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 24px rgba(0,0,0,.4)}.fc-sidebar.is-open{transform:translateX(0)}.fc-hamburger{display:inline-block}.fc-nav-scrim{display:block}}
-@media(max-width:560px){.fc-field-grid{grid-template-columns:1fr}.fc-col2{grid-column:1}.fc-cap-grid{grid-template-columns:1fr}.fc-board-grid{grid-template-columns:1fr 1fr}}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(max-width:560px){.if-leader{grid-template-columns:1fr}.if-leader .if-frame{width:150px}.if-cards3{gap:1rem}}
 `

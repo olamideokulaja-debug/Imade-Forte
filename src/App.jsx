@@ -1612,6 +1612,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   function decideLeave(id, status) { setData((d) => ({ ...d, leave: (d.leave || []).map((l) => (l.id === id ? { ...l, status, decidedBy: me.id, decidedAt: new Date().toISOString().slice(0, 10) } : l)) })) }
   function setSalary(id, salary) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, salary } : s)) })) }
   function setStaffEmail(id, email) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, email } : s)) })) }
+  function setEmailConfig(cfg) { setData((d) => ({ ...d, emailConfig: cfg })) }
   const today = () => new Date().toISOString().slice(0, 10)
   // Payroll moves HR -> MD -> Chairman -> Accountant. Every move is stamped into an
   // append-only trail so the run can always be audited after the fact.
@@ -1715,7 +1716,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'performance' && <Performance data={data} me={me} onRefer={referToHr} onResolve={resolveHrAction} />}
           {tab === 'leave' && <Leave data={data} me={me} onRequest={requestLeave} onDecide={decideLeave} />}
           {tab === 'mypayslip' && <MyPayslip data={data} me={me} tenant={tenant} />}
-          {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={setSalary} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} />}
+          {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={setSalary} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} onSetEmailConfig={setEmailConfig} />}
           {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} />}
           {tab === 'cycles' && <Cycles data={data} onActivate={activateCycle} onRoll={rollCycle} />}
           {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
@@ -2983,7 +2984,7 @@ async function buildPayslipPdf(s, opts, cycle, tenantName) {
 // Uploads payslips and emails them. Storage and the send function are optional:
 // when they are absent the run still completes and the files stay downloadable,
 // rather than blocking disbursement.
-async function deliverPayslips(items, cycle, onProgress) {
+async function deliverPayslips(items, cycle, cfg, onProgress) {
   const result = { uploaded: 0, emailed: 0, links: {}, errors: [] }
   const canUpload = !!supabase
   for (let i = 0; i < items.length; i++) {
@@ -3004,16 +3005,52 @@ async function deliverPayslips(items, cycle, onProgress) {
   const recipients = items
     .filter(({ s }) => s.email && result.links[s.id])
     .map(({ s }) => ({ name: s.name, email: s.email, url: result.links[s.id] }))
-  if (supabase && recipients.length) {
+  if (!recipients.length) return result
+
+  // Route 1: EmailJS, configured in the app by whoever runs payroll. Needs no
+  // server and no command line, which is why it is the default here.
+  if (cfg && cfg.serviceId && cfg.templateId && cfg.publicKey) {
+    for (const r of recipients) {
+      try {
+        const sent = await sendViaEmailJs(cfg, { to_email: r.email, to_name: r.name, cycle: String(cycle), payslip_link: r.url })
+        if (sent === true) result.emailed++
+        else result.errors.push(`Email to ${r.name}: ${sent}`)
+      } catch (e) {
+        result.errors.push(`Email to ${r.name}: ${e && e.message ? e.message : 'failed'}`)
+      }
+    }
+    return result
+  }
+
+  // Route 2: a Supabase Edge Function, if one has been deployed.
+  if (supabase) {
     try {
       const { data, error } = await supabase.functions.invoke('send-payslips', { body: { cycle, recipients } })
-      if (error) result.errors.push(`Email: ${error.message || 'send function unavailable'}`)
+      if (error) result.errors.push(`Email: ${error.message || 'no email method is set up yet'}`)
       else result.emailed = (data && data.sent) || recipients.length
     } catch (e) {
-      result.errors.push(`Email: ${e && e.message ? e.message : 'send function unavailable'}`)
+      result.errors.push(`Email: ${e && e.message ? e.message : 'no email method is set up yet'}`)
     }
   }
   return result
+}
+
+// Posts one email through EmailJS. The public key is meant to be public; EmailJS
+// restricts abuse by origin allow-list and monthly quota rather than by secrecy.
+async function sendViaEmailJs(cfg, params) {
+  const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      service_id: cfg.serviceId.trim(),
+      template_id: cfg.templateId.trim(),
+      user_id: cfg.publicKey.trim(),
+      template_params: params,
+    }),
+  })
+  if (res.ok) return true
+  const text = await res.text()
+  return text || `HTTP ${res.status}`
 }
 
 
@@ -3061,7 +3098,55 @@ function MyPayslip({ data, me, tenant }) {
   )
 }
 
-function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onReturn, onRecordPayslips }) {
+// Lets whoever runs payroll switch on automatic email without touching code or a
+// command line: three values pasted from an EmailJS account, and a test send.
+function EmailSetup({ cfg, onSave, tenant }) {
+  const [open, setOpen] = useState(false)
+  const [f, setF] = useState({ serviceId: (cfg && cfg.serviceId) || '', templateId: (cfg && cfg.templateId) || '', publicKey: (cfg && cfg.publicKey) || '' })
+  const [test, setTest] = useState('')
+  const [msg, setMsg] = useState(null)
+  const ready = f.serviceId.trim() && f.templateId.trim() && f.publicKey.trim()
+
+  async function sendTest() {
+    if (!ready) { setMsg({ ok: false, t: 'Fill in all three boxes first.' }); return }
+    if (!test.includes('@')) { setMsg({ ok: false, t: 'Type an email address to send the test to.' }); return }
+    setMsg({ ok: true, t: 'Sending…' })
+    try {
+      const r = await sendViaEmailJs(f, { to_email: test.trim(), to_name: 'Test', cycle: 'Test message', payslip_link: 'https://imadeforteholdings.com' })
+      setMsg(r === true ? { ok: true, t: `Test sent to ${test.trim()}. Check the inbox, including spam.` } : { ok: false, t: `Did not send: ${r}` })
+    } catch (e) {
+      setMsg({ ok: false, t: `Did not send: ${e && e.message ? e.message : 'failed'}` })
+    }
+  }
+
+  return (
+    <div className="fc-emailsetup">
+      <button className="fc-emailsetup-head" onClick={() => setOpen(!open)}>
+        <span><b>Automatic payslip email</b> <span className="fc-muted">· {cfg && cfg.serviceId ? 'set up' : 'not set up yet'}</span></span>
+        <span className="fc-muted">{open ? '−' : '+'}</span>
+      </button>
+      {open && (
+        <div className="fc-emailsetup-body">
+          <p className="fc-muted">Create a free account at emailjs.com, connect the mailbox payslips should come from, then make one template. Copy the three codes it gives you into the boxes below. Nothing else is needed.</p>
+          <div className="fc-emailsetup-grid">
+            <label>Service ID<input className="fc-input" value={f.serviceId} onChange={(e) => setF({ ...f, serviceId: e.target.value })} placeholder="service_xxxxxxx" /></label>
+            <label>Template ID<input className="fc-input" value={f.templateId} onChange={(e) => setF({ ...f, templateId: e.target.value })} placeholder="template_xxxxxxx" /></label>
+            <label>Public key<input className="fc-input" value={f.publicKey} onChange={(e) => setF({ ...f, publicKey: e.target.value })} placeholder="xxxxxxxxxxxxxxx" /></label>
+          </div>
+          <p className="fc-muted">Your template must use these four fields: <code>to_email</code>, <code>to_name</code>, <code>cycle</code>, <code>payslip_link</code>. Put <code>{'{{to_email}}'}</code> in the template's To field.</p>
+          <div className="fc-cta-row">
+            <input className="fc-input" style={{ maxWidth: 260 }} value={test} onChange={(e) => setTest(e.target.value)} placeholder="your email, to test" />
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={sendTest}>Send test</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSave(f); setMsg({ ok: true, t: 'Saved.' }) }}>Save</button>
+          </div>
+          {msg && <p className={msg.ok ? 'fc-pay-ok' : 'fc-pay-warn'}>{msg.t}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onReturn, onRecordPayslips, onSetEmailConfig }) {
   const canEdit = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
   const cycle = data.activeCycle || 'May 2026'
   const run = data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft', trail: [] }
@@ -3115,7 +3200,7 @@ function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onRetur
         items.push({ s, blob, filename })
       }
       setBusy('Delivering payslips…')
-      const res = await deliverPayslips(items, cycle, (n, total, name) => setBusy(`Delivering ${n} of ${total} · ${name}`))
+      const res = await deliverPayslips(items, cycle, data.emailConfig, (n, total, name) => setBusy(`Delivering ${n} of ${total} · ${name}`))
       const record = {}
       items.forEach(({ s, filename }) => { record[s.id] = { filename, url: res.links[s.id] || null } })
       onRecordPayslips(record)
@@ -3154,6 +3239,8 @@ function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onRetur
           </div>
         ))}
       </div>
+
+      {(isAcct || isHR) && <EmailSetup cfg={data.emailConfig} onSave={onSetEmailConfig} tenant={tenant} />}
 
       <div className={`fc-payrun fc-payrun-${status}`}>
         <div className="fc-payrun-status">
@@ -3742,6 +3829,15 @@ option{color:#111}
 .fc-demo-tag{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);border:1px solid var(--gold);border-radius:2px;padding:.1rem .45rem}
 .fc-auth-hint{color:var(--muted);font-size:.9rem;margin:0 0 1rem}
 .fc-auth-form{display:flex;flex-direction:column;gap:.7rem}
+.fc-emailsetup{border:1px solid var(--hairline);border-radius:8px;margin-bottom:1rem;overflow:hidden}
+.fc-emailsetup-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:1rem;background:none;border:none;color:var(--parchment);font-family:inherit;font-size:.9rem;padding:.85rem 1.1rem;cursor:pointer;text-align:left}
+.fc-emailsetup-head:hover{background:rgba(255,255,255,.03)}
+.fc-emailsetup-body{padding:0 1.1rem 1.1rem;display:flex;flex-direction:column;gap:.8rem;border-top:1px solid var(--hairline)}
+.fc-emailsetup-body p{font-size:.83rem;line-height:1.55;margin:.8rem 0 0}
+.fc-emailsetup-body code{background:rgba(255,255,255,.07);padding:.1rem .35rem;border-radius:3px;font-size:.8em}
+.fc-emailsetup-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+.fc-emailsetup-grid label{display:flex;flex-direction:column;gap:.3rem;font-size:.75rem;color:var(--muted)}
+@media(max-width:760px){.fc-emailsetup-grid{grid-template-columns:1fr}}
 .fc-payflow{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
 .fc-payflow-step{display:flex;align-items:center;gap:.5rem;padding:.5rem .85rem;border:1px solid var(--hairline);border-radius:999px;font-size:.78rem;color:var(--muted);background:transparent}
 .fc-payflow-step.is-done{color:var(--rag-g);border-color:rgba(90,160,110,.45)}

@@ -2981,6 +2981,92 @@ async function buildPayslipPdf(s, opts, cycle, tenantName) {
   return { blob: doc.output('blob'), filename: `Payslip_${String(s.name).replace(/[^A-Za-z0-9]+/g, '_')}_${String(cycle).replace(/\s+/g, '_')}.pdf` }
 }
 
+// Offer letter. Uses the same payroll engine as payslips, so the figures quoted
+// to a candidate are the figures they will actually be paid.
+async function buildOfferLetterPdf(s, opts, tenantName, startDate) {
+  const { jsPDF } = await import('jspdf')
+  const pr = payrollFor(s, opts)
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  const W = doc.internal.pageSize.getWidth()
+  const navy = [14, 34, 64]
+  const gold = [184, 146, 74]
+  const grey = [110, 120, 135]
+  const money = (n) => 'NGN ' + Math.round(n || 0).toLocaleString('en-NG')
+
+  doc.setFillColor(...navy); doc.rect(0, 0, W, 92, 'F')
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(16)
+  doc.text(tenantName || 'Imade Forte Holdings Limited', 40, 40)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...gold)
+  doc.text('LETTER OF OFFER', 40, 60)
+  doc.setTextColor(220); doc.setFontSize(9)
+  doc.text(new Date().toISOString().slice(0, 10), W - 40, 60, { align: 'right' })
+
+  let y = 130
+  doc.setTextColor(...navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
+  doc.text(s.name, 40, y)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...grey)
+  if (s.email) { y += 15; doc.text(s.email, 40, y) }
+
+  y += 34
+  doc.setTextColor(40, 48, 60); doc.setFontSize(10.5)
+  const co = String(tenantName || 'Imade Forte Holdings Limited').replace(/\.$/, '')
+  const intro = `We are pleased to offer you the position of ${s.title || roleLabel(s) || 'Staff'} at ${co}${s.sub && s.sub !== 'Corporate' ? `, within ${s.sub}` : ''}. Your appointment is expected to commence on ${startDate || 'a date to be agreed'}.`
+  const lines = doc.splitTextToSize(intro, W - 80)
+  doc.text(lines, 40, y); y += lines.length * 15 + 18
+
+  function section(title, rows, startY) {
+    let yy = startY
+    doc.setFillColor(244, 240, 231); doc.rect(40, yy, W - 80, 24, 'F')
+    doc.setTextColor(...navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+    doc.text(title, 50, yy + 16); yy += 24
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
+    rows.forEach(([k, v, strong]) => {
+      doc.setDrawColor(232, 232, 232); doc.line(40, yy, W - 40, yy)
+      doc.setFont('helvetica', strong ? 'bold' : 'normal')
+      doc.setTextColor(...(strong ? navy : [60, 68, 80]))
+      doc.text(String(k), 50, yy + 16)
+      doc.text(money(v), W - 50, yy + 16, { align: 'right' })
+      yy += 22
+    })
+    doc.setDrawColor(232, 232, 232); doc.line(40, yy, W - 40, yy)
+    return yy + 18
+  }
+
+  y = section('Remuneration (monthly)', [
+    ['Basic', pr.basic / 12], ['Housing', pr.housing / 12], ['Transport', pr.transport / 12],
+    ['Other allowances', pr.other / 12], ['Gross monthly pay', pr.grossM, true],
+  ], y)
+
+  const ded = [['Pension (8%)', pr.empPensionM]]
+  if (pr.nhfM > 0) ded.push(['NHF (2.5%)', pr.nhfM])
+  ded.push(['PAYE tax', pr.payeM])
+  if (pr.nhisEmpM > 0) ded.push(['NHIS (5%)', pr.nhisEmpM])
+  ded.push(['Development levy', pr.devLevyM])
+  y = section('Statutory deductions (monthly)', ded, y)
+
+  doc.setFillColor(...navy); doc.rect(40, y, W - 80, 40, 'F')
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+  doc.text('NET MONTHLY PAY', 50, y + 25)
+  doc.setTextColor(226, 200, 136); doc.setFontSize(13)
+  doc.text(money(pr.netM), W - 50, y + 25, { align: 'right' })
+  y += 58
+
+  doc.setTextColor(40, 48, 60); doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5)
+  doc.text(`Gross annual: ${money(pr.grossA)}      Net annual: ${money(pr.netA)}`, 40, y); y += 24
+
+  doc.setTextColor(...grey); doc.setFontSize(8.5)
+  const note = 'Deductions are computed under the Nigeria Tax Act 2025 and the Pension Reform Act, and may change if the law or your circumstances change. Your employment is subject to the terms of your contract, satisfactory references and the completion of onboarding. Please sign below to accept.'
+  const nl = doc.splitTextToSize(note, W - 80)
+  doc.text(nl, 40, y); y += nl.length * 12 + 40
+
+  doc.setDrawColor(150); doc.line(40, y, 240, y); doc.line(W - 240, y, W - 40, y)
+  doc.setTextColor(...grey); doc.setFontSize(9)
+  doc.text('Accepted by ' + s.name, 40, y + 14)
+  doc.text('For ' + (tenantName || 'Imade Forte Holdings Limited'), W - 240, y + 14)
+
+  return { blob: doc.output('blob'), filename: `Offer_Letter_${String(s.name).replace(/[^A-Za-z0-9]+/g, '_')}.pdf` }
+}
+
 // Uploads payslips and emails them. Storage and the send function are optional:
 // when they are absent the run still completes and the files stay downloadable,
 // rather than blocking disbursement.
@@ -3362,12 +3448,31 @@ function Onboarding({ data, tenant, onToggle, onAdd }) {
   const doneCount = people.filter((p) => p.complete).length
   const [open, setOpen] = useState(null)
   const [adding, setAdding] = useState(false)
-  const [f, setF] = useState({ name: '', role: 'staff', sub: 'Corporate', title: '' })
+  const blank = { name: '', email: '', role: 'staff', sub: 'Corporate', title: '', salary: '', rent: '', start: '' }
+  const [f, setF] = useState(blank)
+  const [letter, setLetter] = useState('')
   const orgs = ['Corporate', ...tenant.subsidiaries]
+  // Preview the offer on the same engine payroll uses, so what HR quotes is what gets paid.
+  const draft = { ...f, name: f.name.trim() || 'New hire', salary: Number(f.salary) || 0, rent: Number(f.rent) || 0 }
+  const preview = draft.salary > 0 ? payrollFor(draft, { nhf: true, nhis: true }) : null
+  const emailOk = !f.email.trim() || f.email.includes('@')
   function add() {
-    if (!f.name.trim()) return
-    onAdd({ id: uid(), name: f.name.trim(), role: f.role, sub: f.sub, title: f.title.trim() || undefined, tier: 'ops', band: 'green', score: 0 })
-    setF({ name: '', role: 'staff', sub: 'Corporate', title: '' }); setAdding(false)
+    if (!f.name.trim() || !emailOk) return
+    onAdd({
+      id: uid(), name: f.name.trim(), email: f.email.trim(), role: f.role, sub: f.sub,
+      title: f.title.trim() || undefined, tier: 'ops', band: 'green', score: 0,
+      salary: Number(f.salary) || 0, rent: Number(f.rent) || 0, startDate: f.start || '',
+    })
+    setF(blank); setLetter(''); setAdding(false)
+  }
+  async function makeOffer() {
+    if (!f.name.trim() || !(Number(f.salary) > 0)) { setLetter('Enter a name and a monthly gross salary first.'); return }
+    setLetter('Preparing…')
+    try {
+      const { blob, filename } = await buildOfferLetterPdf(draft, { nhf: true, nhis: true }, tenant && tenant.name, f.start)
+      downloadBlob(blob, filename)
+      setLetter('Offer letter downloaded.')
+    } catch (e) { setLetter('Could not build the letter: ' + (e && e.message ? e.message : 'error')) }
   }
   return (
     <div className="fc-onboard">
@@ -3378,11 +3483,31 @@ function Onboarding({ data, tenant, onToggle, onAdd }) {
         <section className="fc-panel fc-ob-add">
           <div className="fc-ob-addform">
             <input className="fc-input" placeholder="Full name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+            <input className="fc-input" placeholder="Work email (used to sign in and to receive payslips)" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
             <input className="fc-input" placeholder="Title (e.g. Customer Service)" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
             <select className="fc-input" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{['staff', 'lead', 'hr', 'accountant', 'admin'].map((r) => <option key={r} value={r}>{ROLES[r]}</option>)}</select>
             <select className="fc-input" value={f.sub} onChange={(e) => setF({ ...f, sub: e.target.value })}>{orgs.map((o) => <option key={o} value={o}>{o}</option>)}</select>
-            <button className="fc-btn fc-btn-gold" disabled={!f.name.trim()} onClick={add}>Add and start onboarding</button>
+            <input className="fc-input" placeholder="Monthly gross salary (NGN)" inputMode="numeric" value={f.salary} onChange={(e) => setF({ ...f, salary: e.target.value.replace(/[^0-9]/g, '') })} />
+            <input className="fc-input" placeholder="Annual rent, optional (NGN)" inputMode="numeric" value={f.rent} onChange={(e) => setF({ ...f, rent: e.target.value.replace(/[^0-9]/g, '') })} />
+            <input className="fc-input" type="date" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} />
           </div>
+          {!emailOk && <p className="fc-pay-warn">That email address does not look right.</p>}
+          {preview && (
+            <div className="fc-offer-preview">
+              <div className="fc-offer-figs">
+                <div><span>Gross monthly</span><b>{naira(preview.grossM)}</b></div>
+                <div><span>Deductions</span><b>{naira(preview.empPensionM + preview.nhfM + preview.payeM + preview.nhisEmpM + preview.devLevyM)}</b></div>
+                <div><span>Net monthly</span><b className="fc-offer-net">{naira(preview.netM)}</b></div>
+                <div><span>Gross annual</span><b>{naira(preview.grossA)}</b></div>
+              </div>
+              <p className="fc-muted">These are the figures that will appear on the offer letter, and the same ones payroll will use each month.</p>
+            </div>
+          )}
+          <div className="fc-cta-row">
+            <button className="fc-btn fc-btn-ghost" onClick={makeOffer}>Generate offer letter</button>
+            <button className="fc-btn fc-btn-gold" disabled={!f.name.trim() || !emailOk} onClick={add}>Add and start onboarding</button>
+          </div>
+          {letter && <p className="fc-pay-ok">{letter}</p>}
         </section>
       )}
       <div className="fc-board-grid fc-dash-metrics">
@@ -3829,6 +3954,14 @@ option{color:#111}
 .fc-demo-tag{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);border:1px solid var(--gold);border-radius:2px;padding:.1rem .45rem}
 .fc-auth-hint{color:var(--muted);font-size:.9rem;margin:0 0 1rem}
 .fc-auth-form{display:flex;flex-direction:column;gap:.7rem}
+.fc-offer-preview{border:1px solid var(--hairline);border-radius:8px;padding:1rem 1.1rem;margin:.9rem 0}
+.fc-offer-figs{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:.6rem}
+.fc-offer-figs div{display:flex;flex-direction:column;gap:.2rem}
+.fc-offer-figs span{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.fc-offer-figs b{font-size:1.05rem}
+.fc-offer-net{color:var(--gold)}
+.fc-offer-preview p{font-size:.8rem;margin:0}
+@media(max-width:760px){.fc-offer-figs{grid-template-columns:1fr 1fr}}
 .fc-emailsetup{border:1px solid var(--hairline);border-radius:8px;margin-bottom:1rem;overflow:hidden}
 .fc-emailsetup-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:1rem;background:none;border:none;color:var(--parchment);font-family:inherit;font-size:.9rem;padding:.85rem 1.1rem;cursor:pointer;text-align:left}
 .fc-emailsetup-head:hover{background:rgba(255,255,255,.03)}

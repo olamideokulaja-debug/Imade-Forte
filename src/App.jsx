@@ -101,7 +101,8 @@ STAFF.forEach((s) => { s.prev = PREV[s.id] ?? s.score; s.managerId = MGR[s.id] ?
 // Monthly gross salary (NGN) and optional annual rent (for rent relief).
 const SALARY = { s_jen: 2500000, s_ebi: 1500000, s_god: 1400000, s_ade: 1300000, s_buchi: 1300000, s_sol: 1200000, s_hr: 1100000, s_gud: 700000, s_chi: 550000, s_sun: 500000, s_ojo: 450000, s_tha: 450000, s_goo: 450000, s_kit: 300000, s_emma: 380000 }
 const RENT = { s_jen: 6000000, s_ebi: 3000000, s_emma: 900000 }
-STAFF.forEach((s) => { s.salary = SALARY[s.id] ?? 0; s.rent = RENT[s.id] ?? 0 })
+const EMAILS = {}
+STAFF.forEach((s) => { s.salary = SALARY[s.id] ?? 0; s.rent = RENT[s.id] ?? 0; s.email = EMAILS[s.id] || '' })
 
 const KR = (statement, kr_type, measure, baseline, target, unit, opts = {}) => ({
   id: uid(), statement, kr_type, measure, baseline, target, unit,
@@ -616,7 +617,7 @@ async function loadData(tenantId) {
       : [{ id: 'c1', name: 'Current cycle', status: 'active' }],
     activeCycle: forte ? 'May 2026' : 'Current cycle',
     hrActions: [],
-    payrollRun: { cycle: forte ? 'May 2026' : 'Current cycle', status: 'draft', preparedBy: null, approvedBy: null, paidBy: null },
+    payrollRun: { cycle: forte ? 'May 2026' : 'Current cycle', status: 'draft', trail: [], payslips: null },
   }
   return seeded
 }
@@ -1374,22 +1375,66 @@ function Gateway({ tenant, onSignIn, onBackToSite }) {
 }
 
 /* --------------------------- Auth screen -------------------------- */
+// Turns anything an auth call can fail with into a sentence a person can act on.
+// Supabase errors arrive in several shapes, and an unrecognised one used to be
+// stringified into "{}" or "[object Object]", which told the user nothing.
+function authErrorText(e) {
+  if (!e) return 'Something went wrong. Please try again.'
+  const raw = String(
+    (typeof e === 'string' ? e : e.message || e.msg || e.error_description || e.error || e.details || '')
+  ).trim()
+  const status = e.status || e.statusCode || e.code
+
+  if (!raw || raw === '{}' || raw === '[object Object]' || raw === 'undefined' || raw === 'null') {
+    return status
+      ? `The server rejected the request (code ${status}). Please try again, and tell your administrator if it continues.`
+      : 'Could not reach the server. Check your connection and try again.'
+  }
+  if (/database error saving new user/i.test(raw)) {
+    return 'The account could not be created because of a server setup issue, not anything you did. Please tell your administrator.'
+  }
+  if (/already registered|already been registered|user already exists/i.test(raw)) {
+    return 'That email already has an account. Try signing in instead, or reset the password.'
+  }
+  if (/invalid login credentials/i.test(raw)) return 'That email and password do not match an account.'
+  if (/email not confirmed/i.test(raw)) return 'Please confirm your email address first, then sign in.'
+  if (/password should be at least (\d+)/i.test(raw)) {
+    const n = raw.match(/at least (\d+)/i)[1]
+    return `Please choose a password of at least ${n} characters.`
+  }
+  if (/unable to validate email address|invalid format/i.test(raw)) return 'Please check the email address and try again.'
+  if (/rate limit|too many requests/i.test(raw)) return 'Too many attempts. Please wait a minute and try again.'
+  if (/failed to fetch|networkerror|load failed/i.test(raw)) return 'Could not reach the server. Check your connection and try again.'
+  return raw
+}
+
 function AuthScreen({ tenant, staff, onEnter, onBack }) {
   const [mode, setMode] = useState('pick')
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
   const [msg, setMsg] = useState('')
+  const [ok, setOk] = useState('')
+  const [busy, setBusy] = useState(false)
 
   async function liveAuth(kind) {
-    setMsg('')
+    setMsg(''); setOk('')
+    const addr = email.trim()
+    if (!addr || !addr.includes('@')) { setMsg('Please enter your email address.'); return }
+    if (!pw) { setMsg('Please enter a password.'); return }
+    if (kind === 'up' && pw.length < 6) { setMsg('Please choose a password of at least 6 characters.'); return }
+    setBusy(true)
     try {
-      const creds = { email: email.trim(), password: pw }
+      const creds = { email: addr, password: pw }
       const { error } = kind === 'up'
         ? await supabase.auth.signUp(creds)
         : await supabase.auth.signInWithPassword(creds)
-      if (error) setMsg(error.message)
-      else if (kind === 'up') setMsg('Account created. If email confirmation is on, confirm then sign in.')
-    } catch (e) { setMsg(String(e && e.message ? e.message : e)) }
+      if (error) setMsg(authErrorText(error))
+      else if (kind === 'up') setOk('Account created. If email confirmation is on, confirm it then sign in.')
+    } catch (e) {
+      setMsg(authErrorText(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -1405,10 +1450,11 @@ function AuthScreen({ tenant, staff, onEnter, onBack }) {
             <input className="fc-input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
             <input className="fc-input" placeholder="Password" type="password" value={pw} onChange={(e) => setPw(e.target.value)} />
             <div className="fc-cta-row">
-              <button className="fc-btn fc-btn-gold" onClick={() => liveAuth('in')}>Sign in</button>
-              <button className="fc-btn fc-btn-ghost" onClick={() => liveAuth('up')}>Create account</button>
+              <button className="fc-btn fc-btn-gold" disabled={busy} onClick={() => liveAuth('in')}>{busy ? 'Working…' : 'Sign in'}</button>
+              <button className="fc-btn fc-btn-ghost" disabled={busy} onClick={() => liveAuth('up')}>Create account</button>
             </div>
-            {msg && <p className="fc-auth-msg">{msg}</p>}
+            {msg && <p className="fc-auth-msg" role="alert">{msg}</p>}
+            {ok && <p className="fc-auth-ok" role="status">{ok}</p>}
           </div>
         ) : (
           <>
@@ -1565,18 +1611,30 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   function requestLeave(req) { setData((d) => ({ ...d, leave: [...(d.leave || []), req] })) }
   function decideLeave(id, status) { setData((d) => ({ ...d, leave: (d.leave || []).map((l) => (l.id === id ? { ...l, status, decidedBy: me.id, decidedAt: new Date().toISOString().slice(0, 10) } : l)) })) }
   function setSalary(id, salary) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, salary } : s)) })) }
+  function setStaffEmail(id, email) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, email } : s)) })) }
   const today = () => new Date().toISOString().slice(0, 10)
-  function submitPayroll() { setData((d) => ({ ...d, payrollRun: { cycle: d.activeCycle, status: 'submitted', preparedBy: me.name, approvedBy: null, paidBy: null, submittedAt: today() } })) }
-  function approvePayroll() { setData((d) => ({ ...d, payrollRun: { ...(d.payrollRun || {}), cycle: d.activeCycle, status: 'approved', approvedBy: me.name, approvedAt: today() } })) }
-  function payPayroll() { setData((d) => ({ ...d, payrollRun: { ...(d.payrollRun || {}), cycle: d.activeCycle, status: 'paid', paidBy: me.name, paidAt: today() } })) }
+  // Payroll moves HR -> MD -> Chairman -> Accountant. Every move is stamped into an
+  // append-only trail so the run can always be audited after the fact.
+  function advancePayroll(next, note) {
+    setData((d) => {
+      const run = (d.payrollRun && d.payrollRun.cycle === d.activeCycle) ? d.payrollRun : { cycle: d.activeCycle, status: 'draft', trail: [] }
+      const entry = { at: today(), by: me.name, role: me.role, to: next, note: note || '' }
+      return { ...d, payrollRun: { ...run, cycle: d.activeCycle, status: next, trail: [...(run.trail || []), entry] } }
+    })
+  }
+  function returnPayroll(to, note) { advancePayroll(to, note) }
+  function recordPayslips(payslips) {
+    setData((d) => ({ ...d, payrollRun: { ...(d.payrollRun || {}), payslips } }))
+  }
 
   const tabs = me.role === 'chairman'
-    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['performance', 'Performance'], ['leave', 'Leave'], ['scorecards', 'Scorecards'], ['export', 'Export']]
+    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['performance', 'Performance'], ['payroll', 'Payroll'], ['leave', 'Leave'], ['scorecards', 'Scorecards'], ['export', 'Export']]
     : [
         ['dashboard', 'Dashboard'],
         ['objectives', 'My OKRs'],
         ['checkins', 'Check-ins'],
         ['reviews', 'Reviews'],
+        ['mypayslip', 'My payslip'],
         ['leave', 'Leave'],
         ['scorecards', 'Scorecards'],
         canReview && ['review', 'Review & approve'],
@@ -1656,7 +1714,8 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'reviews' && <Reviews data={data} me={me} cycle={activeCycle} onSaveReview={saveReview} onAckReview={ackReview} onGiveFeedback={giveFeedback} />}
           {tab === 'performance' && <Performance data={data} me={me} onRefer={referToHr} onResolve={resolveHrAction} />}
           {tab === 'leave' && <Leave data={data} me={me} onRequest={requestLeave} onDecide={decideLeave} />}
-          {tab === 'payroll' && <Payroll data={data} me={me} onSetSalary={setSalary} onSubmitRun={submitPayroll} onApproveRun={approvePayroll} onPayRun={payPayroll} />}
+          {tab === 'mypayslip' && <MyPayslip data={data} me={me} tenant={tenant} />}
+          {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={setSalary} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} />}
           {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} />}
           {tab === 'cycles' && <Cycles data={data} onActivate={activateCycle} onRoll={rollCycle} />}
           {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
@@ -2837,10 +2896,175 @@ function buildPayrollXlsx(XLSX, data, opts) {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Payroll')
   return wb
 }
-function Payroll({ data, me, onSetSalary, onSubmitRun, onApproveRun, onPayRun }) {
-  const canEdit = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+/* ------------------ Payslip document and delivery ----------------- */
+// Payroll approval chain. Each stage names the person who must act next, so the
+// run is never sitting with "someone" unspecified.
+const PAY_FLOW = ['draft', 'md_review', 'chair_review', 'approved', 'disbursed']
+const PAY_STEPS = {
+  draft: { label: 'Draft', who: 'HR is preparing the run' },
+  md_review: { label: 'With the Managing Director', who: 'Awaiting the MD' },
+  chair_review: { label: 'With the Chairman', who: 'Awaiting the Chairman' },
+  approved: { label: 'Approved', who: 'Ready for the Accountant to disburse' },
+  disbursed: { label: 'Disbursed', who: 'Paid, payslips issued' },
+}
+
+// Builds one payslip as a real PDF, so it can be downloaded, stored and emailed.
+async function buildPayslipPdf(s, opts, cycle, tenantName) {
+  const { jsPDF } = await import('jspdf')
+  const pr = payrollFor(s, opts)
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  const W = doc.internal.pageSize.getWidth()
+  const navy = [14, 34, 64]
+  const gold = [184, 146, 74]
+  const grey = [110, 120, 135]
+
+  doc.setFillColor(...navy); doc.rect(0, 0, W, 92, 'F')
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(16)
+  doc.text(tenantName || 'Imade Forte Holdings Limited', 40, 40)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...gold)
+  doc.text('PAYSLIP', 40, 60)
+  doc.setTextColor(220); doc.setFontSize(9)
+  doc.text(String(cycle), W - 40, 60, { align: 'right' })
+
+  let y = 128
+  doc.setTextColor(...navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(14)
+  doc.text(s.name, 40, y)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...grey)
+  y += 16; doc.text(`${roleLabel(s) || 'Staff'}  ·  ${s.sub || ''}`, 40, y)
+  if (s.email) { y += 14; doc.text(s.email, 40, y) }
+
+  const money = (n) => 'NGN ' + Math.round(n || 0).toLocaleString('en-NG')
+  function section(title, rows, startY) {
+    let yy = startY
+    doc.setFillColor(244, 240, 231); doc.rect(40, yy, W - 80, 24, 'F')
+    doc.setTextColor(...navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+    doc.text(title, 50, yy + 16); yy += 24
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
+    rows.forEach(([k, v, strong]) => {
+      doc.setDrawColor(232, 232, 232); doc.line(40, yy, W - 40, yy)
+      doc.setFont('helvetica', strong ? 'bold' : 'normal')
+      doc.setTextColor(...(strong ? navy : [60, 68, 80]))
+      doc.text(String(k), 50, yy + 16)
+      doc.text(money(v), W - 50, yy + 16, { align: 'right' })
+      yy += 22
+    })
+    doc.setDrawColor(232, 232, 232); doc.line(40, yy, W - 40, yy)
+    return yy + 18
+  }
+
+  y += 24
+  y = section('Earnings (monthly)', [
+    ['Basic', pr.basic / 12], ['Housing', pr.housing / 12], ['Transport', pr.transport / 12],
+    ['Other allowances', pr.other / 12], ['Gross pay', pr.grossM, true],
+  ], y)
+
+  const ded = [['Pension (8%)', pr.empPensionM]]
+  if (pr.nhfM > 0) ded.push(['NHF (2.5%)', pr.nhfM])
+  ded.push(['PAYE tax', pr.payeM])
+  if (pr.nhisEmpM > 0) ded.push(['NHIS (5%)', pr.nhisEmpM])
+  ded.push(['Development levy', pr.devLevyM])
+  ded.push(['Total deductions', pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM, true])
+  y = section('Deductions (monthly)', ded, y)
+
+  doc.setFillColor(...navy); doc.rect(40, y, W - 80, 40, 'F')
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12)
+  doc.text('NET PAY', 50, y + 25)
+  doc.setTextColor(226, 200, 136); doc.setFontSize(14)
+  doc.text(money(pr.netM), W - 50, y + 25, { align: 'right' })
+  y += 62
+
+  doc.setTextColor(...grey); doc.setFont('helvetica', 'normal'); doc.setFontSize(8)
+  const note = 'Computed under the Nigeria Tax Act 2025 and the Pension Reform Act. Structure: basic 50 percent, housing 25 percent, transport 15 percent, other 10 percent. This payslip is issued for your records. Queries should go to the Accounts department.'
+  doc.text(doc.splitTextToSize(note, W - 80), 40, y)
+
+  return { blob: doc.output('blob'), filename: `Payslip_${String(s.name).replace(/[^A-Za-z0-9]+/g, '_')}_${String(cycle).replace(/\s+/g, '_')}.pdf` }
+}
+
+// Uploads payslips and emails them. Storage and the send function are optional:
+// when they are absent the run still completes and the files stay downloadable,
+// rather than blocking disbursement.
+async function deliverPayslips(items, cycle, onProgress) {
+  const result = { uploaded: 0, emailed: 0, links: {}, errors: [] }
+  const canUpload = !!supabase
+  for (let i = 0; i < items.length; i++) {
+    const { s, blob, filename } = items[i]
+    if (onProgress) onProgress(i + 1, items.length, s.name)
+    if (!canUpload) continue
+    try {
+      const path = `${String(cycle).replace(/\s+/g, '_')}/${s.id}_${filename}`
+      const up = await supabase.storage.from('payslips').upload(path, blob, { contentType: 'application/pdf', upsert: true })
+      if (up.error) { result.errors.push(`${s.name}: ${up.error.message}`); continue }
+      result.uploaded++
+      const signed = await supabase.storage.from('payslips').createSignedUrl(path, 60 * 60 * 24 * 30)
+      if (signed.data && signed.data.signedUrl) result.links[s.id] = signed.data.signedUrl
+    } catch (e) {
+      result.errors.push(`${s.name}: ${e && e.message ? e.message : 'upload failed'}`)
+    }
+  }
+  const recipients = items
+    .filter(({ s }) => s.email && result.links[s.id])
+    .map(({ s }) => ({ name: s.name, email: s.email, url: result.links[s.id] }))
+  if (supabase && recipients.length) {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-payslips', { body: { cycle, recipients } })
+      if (error) result.errors.push(`Email: ${error.message || 'send function unavailable'}`)
+      else result.emailed = (data && data.sent) || recipients.length
+    } catch (e) {
+      result.errors.push(`Email: ${e && e.message ? e.message : 'send function unavailable'}`)
+    }
+  }
+  return result
+}
+
+
+
+// A person's own payslip. Visible once the Accountant has disbursed the run, so
+// nobody sees a figure that is still moving through approval.
+function MyPayslip({ data, me, tenant }) {
   const cycle = data.activeCycle || 'May 2026'
   const run = data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft' }
+  const s = data.staff.find((x) => x.id === me.id) || me
+  const issued = run.status === 'disbursed'
+  const record = (run.payslips || {})[s.id]
+  const [busy, setBusy] = useState(false)
+
+  async function download() {
+    setBusy(true)
+    try {
+      const { blob, filename } = await buildPayslipPdf(s, { nhf: true, nhis: true }, cycle, tenant && tenant.name)
+      downloadBlob(blob, filename)
+    } finally { setBusy(false) }
+  }
+
+  if (!(s.salary > 0)) {
+    return <div className="fc-panel"><h2>My payslip</h2><p className="fc-muted">No salary is recorded against your profile, so there is no payslip to show. HR can add one.</p></div>
+  }
+  if (!issued) {
+    return (
+      <div className="fc-panel">
+        <h2>My payslip</h2>
+        <p className="fc-muted">The {cycle} payroll is still going through approval. Your payslip appears here once the Accountant has disbursed it.</p>
+        <p className="fc-muted">Current stage: <b>{PAY_STEPS[run.status || 'draft'].label}</b>.</p>
+      </div>
+    )
+  }
+  return (
+    <div className="fc-panel">
+      <div className="fc-panel-head"><div><h2>My payslip</h2><p className="fc-muted">{cycle} · issued</p></div>
+        <span className="fc-ps-actions">
+          <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={busy} onClick={download}>{busy ? 'Preparing…' : 'Download PDF'}</button>
+          {record && record.url && <a className="fc-btn fc-btn-ghost fc-btn-sm" href={record.url} target="_blank" rel="noreferrer">Open secure link</a>}
+        </span>
+      </div>
+      <Payslip s={s} opts={{ nhf: true, nhis: true }} cycle={cycle} onBack={null} onDownload={download} />
+    </div>
+  )
+}
+
+function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onReturn, onRecordPayslips }) {
+  const canEdit = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const cycle = data.activeCycle || 'May 2026'
+  const run = data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft', trail: [] }
   const [nhf, setNhf] = useState(true)
   const [nhis, setNhis] = useState(true)
   const opts = { nhf, nhis }
@@ -2849,11 +3073,21 @@ function Payroll({ data, me, onSetSalary, onSubmitRun, onApproveRun, onPayRun })
   const [sel, setSel] = useState(null)
   const [edit, setEdit] = useState(null)
   const [val, setVal] = useState('')
+  const [mailEdit, setMailEdit] = useState(null)
+  const [mailVal, setMailVal] = useState('')
   const [dl, setDl] = useState(false)
+  const [busy, setBusy] = useState('')
+  const [notice, setNotice] = useState(null)
+  const [returning, setReturning] = useState(false)
+  const [note, setNote] = useState('')
+
   const isHR = me.role === 'hr' || me.role === 'admin'
-  const isMDr = me.role === 'md'
+  const isMD = me.role === 'md'
+  const isChair = me.role === 'chairman'
   const isAcct = me.role === 'accountant'
-  const STEPS = { draft: 'Draft — HR to prepare', submitted: 'Submitted to MD for approval', approved: 'Approved — ready for the accountant', paid: 'Paid on the banking platform' }
+  const status = run.status || 'draft'
+  const missingEmail = rows.filter(({ s }) => !s.email)
+
   async function downloadForBank() {
     setDl(true)
     const XLSX = await import('xlsx')
@@ -2862,7 +3096,46 @@ function Payroll({ data, me, onSetSalary, onSubmitRun, onApproveRun, onPayRun })
     setDl(false)
   }
 
-  if (sel) { const s = data.staff.find((x) => x.id === sel); return <Payslip s={s} opts={opts} onBack={() => setSel(null)} /> }
+  async function downloadOnePayslip(s) {
+    const { blob, filename } = await buildPayslipPdf(s, opts, cycle, tenant && tenant.name)
+    downloadBlob(blob, filename)
+  }
+
+  // Disbursement is the only step that produces documents: it builds every payslip,
+  // stores them, emails each person their own link, then closes the run.
+  async function disburseAndIssue() {
+    setNotice(null)
+    setBusy('Preparing payslips…')
+    try {
+      const items = []
+      for (let i = 0; i < rows.length; i++) {
+        const { s } = rows[i]
+        setBusy(`Preparing payslips… ${i + 1} of ${rows.length}`)
+        const { blob, filename } = await buildPayslipPdf(s, opts, cycle, tenant && tenant.name)
+        items.push({ s, blob, filename })
+      }
+      setBusy('Delivering payslips…')
+      const res = await deliverPayslips(items, cycle, (n, total, name) => setBusy(`Delivering ${n} of ${total} · ${name}`))
+      const record = {}
+      items.forEach(({ s, filename }) => { record[s.id] = { filename, url: res.links[s.id] || null } })
+      onRecordPayslips(record)
+      onAdvance('disbursed', `Disbursed. ${items.length} payslips generated, ${res.emailed} emailed.`)
+      setNotice({
+        kind: res.errors.length ? 'warn' : 'ok',
+        text: res.errors.length
+          ? `Payroll disbursed and ${items.length} payslips generated. Automatic email did not complete: ${res.errors[0]}. Payslips remain downloadable below.`
+          : `Payroll disbursed. ${items.length} payslips generated and ${res.emailed} emailed.`,
+      })
+    } catch (e) {
+      setNotice({ kind: 'warn', text: `Could not complete disbursement: ${e && e.message ? e.message : 'unexpected error'}` })
+    } finally {
+      setBusy('')
+    }
+  }
+
+  if (sel) { const s = data.staff.find((x) => x.id === sel); return <Payslip s={s} opts={opts} cycle={cycle} onBack={() => setSel(null)} onDownload={() => downloadOnePayslip(s)} /> }
+
+  const stageIndex = PAY_FLOW.indexOf(status)
 
   return (
     <div className="fc-payroll">
@@ -2873,19 +3146,66 @@ function Payroll({ data, me, onSetSalary, onSubmitRun, onApproveRun, onPayRun })
         </div>
       </div>
 
-      <div className={`fc-payrun fc-payrun-${run.status}`}>
-        <div className="fc-payrun-status"><span className="fc-payrun-dot" /><b>{cycle} payroll</b><span className="fc-muted"> · {STEPS[run.status]}</span>{run.preparedBy ? <span className="fc-muted"> · prepared by {run.preparedBy}</span> : ''}{run.approvedBy ? <span className="fc-muted"> · approved by {run.approvedBy}</span> : ''}{run.paidBy ? <span className="fc-muted"> · paid by {run.paidBy}</span> : ''}</div>
+      <div className="fc-payflow">
+        {PAY_FLOW.map((k, i) => (
+          <div key={k} className={`fc-payflow-step ${i < stageIndex ? 'is-done' : ''} ${i === stageIndex ? 'is-now' : ''}`}>
+            <span className="fc-payflow-dot">{i < stageIndex ? '✓' : i + 1}</span>
+            <span className="fc-payflow-label">{PAY_STEPS[k].label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className={`fc-payrun fc-payrun-${status}`}>
+        <div className="fc-payrun-status">
+          <b>{cycle} payroll</b>
+          <span className="fc-muted"> · {PAY_STEPS[status].who}</span>
+        </div>
         <div className="fc-payrun-actions">
-          {isHR && run.status === 'draft' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={onSubmitRun}>Submit to MD</button>}
-          {isHR && run.status !== 'draft' && <span className="fc-muted">Sent to MD</span>}
-          {isMDr && run.status === 'submitted' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={onApproveRun}>Approve payroll</button>}
-          {isMDr && run.status === 'approved' && <span className="fc-referred">Approved</span>}
-          {isAcct && run.status === 'approved' && <><button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadForBank}>{dl ? 'Preparing…' : 'Download for bank'}</button><button className="fc-btn fc-btn-gold fc-btn-sm" onClick={onPayRun}>Mark as paid</button></>}
-          {isAcct && run.status === 'submitted' && <span className="fc-muted">Awaiting MD approval</span>}
-          {isAcct && run.status === 'draft' && <span className="fc-muted">Awaiting HR</span>}
-          {run.status === 'paid' && <span className="fc-referred">Paid{run.paidAt ? ` · ${run.paidAt}` : ''}</span>}
+          {isHR && status === 'draft' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('md_review')}>Submit to MD</button>}
+          {isMD && status === 'md_review' && <>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setReturning(true)}>Return to HR</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('chair_review')}>Approve and send to Chairman</button>
+          </>}
+          {isChair && status === 'chair_review' && <>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setReturning(true)}>Return to MD</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('approved')}>Approve for disbursement</button>
+          </>}
+          {isAcct && status === 'approved' && <>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadForBank}>{dl ? 'Preparing…' : 'Download for bank'}</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!!busy} onClick={disburseAndIssue}>{busy || 'Disburse and issue payslips'}</button>
+          </>}
+          {status === 'disbursed' && <span className="fc-referred">Disbursed</span>}
+          {!isHR && !isMD && !isChair && !isAcct && <span className="fc-muted">View only</span>}
         </div>
       </div>
+
+      {returning && (
+        <div className="fc-payreturn">
+          <textarea className="fc-input" rows={2} placeholder="Reason for returning the run (the next person will see this)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <div className="fc-cta-row">
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setReturning(false); setNote('') }}>Cancel</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onReturn(isChair ? 'md_review' : 'draft', note || 'Returned for revision'); setReturning(false); setNote('') }}>Return run</button>
+          </div>
+        </div>
+      )}
+
+      {isAcct && status === 'approved' && missingEmail.length > 0 && (
+        <p className="fc-pay-warn">{missingEmail.length} {missingEmail.length === 1 ? 'person has' : 'people have'} no email address, so they will not receive a payslip automatically. HR can add addresses in the table below.</p>
+      )}
+      {notice && <p className={notice.kind === 'ok' ? 'fc-pay-ok' : 'fc-pay-warn'}>{notice.text}</p>}
+
+      {(run.trail || []).length > 0 && (
+        <div className="fc-paytrail">
+          <h3>Approval trail</h3>
+          {(run.trail || []).map((t, i) => (
+            <div key={i} className="fc-paytrail-row">
+              <span className="fc-paytrail-when">{t.at}</span>
+              <span><b>{t.by}</b> <span className="fc-muted">({ROLES[t.role] || t.role})</span> · {PAY_STEPS[t.to] ? PAY_STEPS[t.to].label : t.to}</span>
+              {t.note && <span className="fc-paytrail-note">{t.note}</span>}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={naira(tot.gross)} label="Gross monthly" />
@@ -2897,7 +3217,12 @@ function Payroll({ data, me, onSetSalary, onSubmitRun, onApproveRun, onPayRun })
         <div className="fc-pt-row fc-pt-head"><span>Name</span><span>Gross</span><span>PAYE</span><span>Deductions</span><span>Net</span><span></span></div>
         {rows.map(({ s, pr }) => (
           <div key={s.id} className="fc-pt-row">
-            <span className="fc-pt-name">{s.name}<span className="fc-muted"> · {s.sub}</span></span>
+            <span className="fc-pt-name">
+              {s.name}<span className="fc-muted"> · {s.sub}</span>
+              {mailEdit === s.id
+                ? <input className="fc-input fc-pt-input" autoFocus value={mailVal} placeholder="email address" onChange={(e) => setMailVal(e.target.value)} onBlur={() => { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) }} onKeyDown={(e) => { if (e.key === 'Enter') { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) } }} />
+                : <button className="fc-pt-mail" onClick={() => canEdit && (setMailVal(s.email || ''), setMailEdit(s.id))}>{s.email || (canEdit ? '+ add email' : 'no email')}</button>}
+            </span>
             {edit === s.id ? <span><input className="fc-input fc-pt-input" value={val} onChange={(e) => setVal(e.target.value)} /></span> : <span>{naira(pr.grossM)}</span>}
             <span>{naira(pr.payeM)}</span>
             <span>{naira(pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM)}</span>
@@ -2905,7 +3230,11 @@ function Payroll({ data, me, onSetSalary, onSubmitRun, onApproveRun, onPayRun })
             <span className="fc-pt-actions">
               {edit === s.id
                 ? <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSetSalary(s.id, Number(val) || 0); setEdit(null) }}>Save</button>
-                : <>{canEdit && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setVal(String(pr.grossM)); setEdit(s.id) }}>Edit</button>}<button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setSel(s.id)}>Payslip</button></>}
+                : <>
+                    {canEdit && status === 'draft' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setVal(String(pr.grossM)); setEdit(s.id) }}>Edit</button>}
+                    <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setSel(s.id)}>Payslip</button>
+                    {status === 'disbursed' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => downloadOnePayslip(s)}>PDF</button>}
+                  </>}
             </span>
           </div>
         ))}
@@ -2914,13 +3243,15 @@ function Payroll({ data, me, onSetSalary, onSubmitRun, onApproveRun, onPayRun })
     </div>
   )
 }
-function Payslip({ s, opts = {}, onBack }) {
+
+
+function Payslip({ s, opts = {}, cycle = 'May 2026', onBack, onDownload }) {
   const pr = payrollFor(s, opts)
   const Row = ({ k, v, strong }) => <div className={`fc-ps-row ${strong ? 'is-strong' : ''}`}><span>{k}</span><span>{v}</span></div>
   return (
     <div className="fc-payslip">
-      <div className="fc-ps-top"><button className="fc-back" onClick={onBack}>← Back to payroll</button><button className="fc-btn fc-btn-ghost fc-btn-sm fc-ps-print-btn" onClick={() => window.print()}>Print / save PDF</button></div>
-      <div className="fc-ps-head"><Avatar name={s.name} /><div><h2>{s.name}</h2><p className="fc-muted">{roleLabel(s)} · {s.sub} · monthly payslip · May 2026</p></div></div>
+      <div className="fc-ps-top">{onBack ? <button className="fc-back" onClick={onBack}>← Back to payroll</button> : <span />}<span className="fc-ps-actions">{onDownload && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={onDownload}>Download PDF</button>}<button className="fc-btn fc-btn-ghost fc-btn-sm fc-ps-print-btn" onClick={() => window.print()}>Print</button></span></div>
+      <div className="fc-ps-head"><Avatar name={s.name} /><div><h2>{s.name}</h2><p className="fc-muted">{roleLabel(s)} · {s.sub} · monthly payslip · {cycle}</p></div></div>
       <div className="fc-ps-grid">
         <section className="fc-panel"><h3>Earnings (monthly)</h3>
           <Row k="Basic" v={naira(pr.basic / 12)} /><Row k="Housing" v={naira(pr.housing / 12)} /><Row k="Transport" v={naira(pr.transport / 12)} /><Row k="Other allowances" v={naira(pr.other / 12)} /><Row k="Gross" v={naira(pr.grossM)} strong />
@@ -3411,7 +3742,27 @@ option{color:#111}
 .fc-demo-tag{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);border:1px solid var(--gold);border-radius:2px;padding:.1rem .45rem}
 .fc-auth-hint{color:var(--muted);font-size:.9rem;margin:0 0 1rem}
 .fc-auth-form{display:flex;flex-direction:column;gap:.7rem}
-.fc-auth-msg{color:var(--rag-a);font-size:.85rem}
+.fc-payflow{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
+.fc-payflow-step{display:flex;align-items:center;gap:.5rem;padding:.5rem .85rem;border:1px solid var(--hairline);border-radius:999px;font-size:.78rem;color:var(--muted);background:transparent}
+.fc-payflow-step.is-done{color:var(--rag-g);border-color:rgba(90,160,110,.45)}
+.fc-payflow-step.is-now{color:var(--parchment);border-color:var(--gold);background:rgba(184,146,74,.12);font-weight:600}
+.fc-payflow-dot{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.08);font-size:.7rem}
+.fc-payflow-step.is-now .fc-payflow-dot{background:var(--gold);color:#0E2240;font-weight:700}
+.fc-payreturn{display:flex;flex-direction:column;gap:.6rem;padding:1rem;border:1px solid var(--hairline);border-radius:8px;margin-bottom:1rem}
+.fc-pay-warn{color:var(--rag-a);font-size:.85rem;line-height:1.5;margin:.4rem 0 1rem}
+.fc-pay-ok{color:var(--rag-g);font-size:.85rem;line-height:1.5;margin:.4rem 0 1rem}
+.fc-paytrail{border:1px solid var(--hairline);border-radius:8px;padding:1rem 1.15rem;margin-bottom:1.2rem}
+.fc-paytrail h3{margin:0 0 .7rem;font-size:.95rem}
+.fc-paytrail-row{display:grid;grid-template-columns:110px 1fr;gap:.6rem;padding:.45rem 0;border-top:1px solid var(--hairline);font-size:.85rem;align-items:baseline}
+.fc-paytrail-row:first-of-type{border-top:none}
+.fc-paytrail-when{color:var(--muted);font-size:.78rem}
+.fc-paytrail-note{grid-column:2;color:var(--muted);font-style:italic;font-size:.8rem}
+.fc-pt-mail{display:block;background:none;border:none;padding:.1rem 0 0;color:var(--muted);font-family:inherit;font-size:.75rem;cursor:pointer;text-align:left}
+.fc-pt-mail:hover{color:var(--gold)}
+.fc-ps-actions{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.fc-auth-msg{color:var(--rag-a);font-size:.85rem;line-height:1.5;margin-top:.6rem}
+.fc-auth-ok{color:var(--rag-g);font-size:.85rem;line-height:1.5;margin-top:.6rem}
+.fc-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
 .fc-identity-list{display:flex;flex-direction:column;gap:.5rem;max-height:340px;overflow:auto}
 .fc-identity{display:flex;align-items:center;gap:.8rem;padding:.6rem .8rem;border:1px solid var(--hairline);border-radius:4px;background:transparent;color:var(--parchment);cursor:pointer;text-align:left;font-family:inherit}
 .fc-identity:hover{border-color:var(--gold)}

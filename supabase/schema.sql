@@ -41,7 +41,8 @@ alter table kv enable row level security;
 
 -- Helper: the tenant of the current user.
 create or replace function current_tenant() returns text
-language sql stable as $$
+language sql stable
+security definer set search_path = public as $$
   select tenant_id from profiles where id = auth.uid()
 $$;
 
@@ -89,13 +90,16 @@ on conflict (id) do nothing;
 alter table profiles add column if not exists manager_id uuid references profiles(id);
 
 -- Who is the caller?
-create or replace function my_role() returns text language sql stable as $$
+create or replace function my_role() returns text language sql stable
+  security definer set search_path = public as $$
   select role from profiles where id = auth.uid() $$;
-create or replace function my_sub() returns text language sql stable as $$
+create or replace function my_sub() returns text language sql stable
+  security definer set search_path = public as $$
   select subsidiary from profiles where id = auth.uid() $$;
 create or replace function is_oversight() returns boolean language sql stable as $$
   select coalesce(my_role() in ('chairman','md','hr','admin','superadmin'), false) $$;
-create or replace function manages(target uuid) returns boolean language sql stable as $$
+create or replace function manages(target uuid) returns boolean language sql stable
+  security definer set search_path = public as $$
   select exists (select 1 from profiles p where p.id = target and p.manager_id = auth.uid()) $$;
 
 -- Cycles: everyone in the tenant reads; oversight manages.
@@ -243,7 +247,7 @@ create policy doc_manage on documents for all
 -- their role and start immediately. Role/subsidiary come from signup metadata
 -- and default sensibly.
 create or replace function handle_new_user() returns trigger
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public as $$
 begin
   insert into profiles (id, tenant_id, name, role, subsidiary)
   values (

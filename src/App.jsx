@@ -559,16 +559,41 @@ function payrollFor(s, opts = {}) {
 
 /* ---------------------------- Onboarding -------------------------- */
 const ONBOARDING_TASKS = [
-  'Signed offer letter', 'Employment contract signed', 'ID and right-to-work documents',
-  'Bank and pension (PFA) details', 'Email and system accounts', 'Workspace and equipment',
+  'Signed offer letter returned', 'Employment contract signed', 'All required documents uploaded',
+  'Bank and pension (PFA) details recorded', 'Email and system accounts created', 'Workspace and equipment issued',
   'Orientation and policies acknowledged', 'First-week check-in with manager',
 ]
-const newChecklist = (allDone = false) => ONBOARDING_TASKS.map((label, i) => ({ id: 'ob' + i, label, done: allDone }))
-function seedOnboarding(id) {
-  const recent = { s_buchi: 5, s_kit: 3, s_emma: 2 } // recent hires: number of tasks completed
-  if (id in recent) return ONBOARDING_TASKS.map((label, i) => ({ id: 'ob' + i, label, done: i < recent[id] }))
-  return newChecklist(true)
+
+// Documents a Nigerian employer normally holds on file. Required items block
+// completion; the rest are collected where they apply.
+const REQUIRED_DOCS = [
+  { key: 'offer', label: 'Signed offer letter', req: true, note: 'The copy you signed and returned' },
+  { key: 'contract', label: 'Signed employment contract', req: true },
+  { key: 'cv', label: 'Curriculum vitae', req: true },
+  { key: 'photo', label: 'Passport photograph', req: true, note: 'Recent, plain background' },
+  { key: 'id', label: 'Government ID', req: true, note: 'NIN slip, international passport, driver\u2019s licence or voter\u2019s card' },
+  { key: 'ssce', label: 'SSCE result (WAEC or NECO)', req: true },
+  { key: 'degree', label: 'Degree or HND certificate', req: true, note: 'Statement of result accepted pending the certificate' },
+  { key: 'nysc', label: 'NYSC certificate or exemption', req: true, note: 'Discharge certificate, exemption or exclusion letter' },
+  { key: 'birth', label: 'Birth certificate or declaration of age', req: true },
+  { key: 'guarantor', label: 'Completed guarantor form', req: true, note: 'With the guarantor\u2019s ID attached' },
+  { key: 'reference', label: 'Reference letters', req: true, note: 'Two, from previous employers or referees' },
+  { key: 'bank', label: 'Bank account details', req: true, note: 'Account name, number and bank' },
+  { key: 'pension', label: 'Pension RSA PIN and PFA', req: true, note: 'We can open one for you if you have none' },
+  { key: 'tin', label: 'Tax Identification Number (TIN)', req: false },
+  { key: 'medical', label: 'Medical fitness report', req: false },
+  { key: 'prof', label: 'Professional certification', req: false, note: 'Where the role requires one' },
+]
+const docStatus = (s, key) => ((s.docs || {})[key] || {}).status || 'missing'
+function docProgress(s) {
+  const req = REQUIRED_DOCS.filter((d) => d.req)
+  const done = req.filter((d) => ['received', 'verified'].includes(docStatus(s, d.key))).length
+  return { done, total: req.length, pct: req.length ? Math.round((done / req.length) * 100) : 100, complete: done === req.length }
 }
+const newChecklist = (allDone = false) => ONBOARDING_TASKS.map((label, i) => ({ id: 'ob' + i, label, done: allDone }))
+// Everyone starts from zero: the roster was reset so each person completes
+// onboarding and uploads their documents properly.
+function seedOnboarding() { return newChecklist(false) }
 function onboardingProgress(s) {
   const t = s.onboarding || []
   const done = t.filter((x) => x.done).length
@@ -579,15 +604,8 @@ function onboardingProgress(s) {
 const DOC_CATEGORIES = ['Contract', 'ID', 'Certificate', 'Tax (TIN)', 'Pension', 'Other']
 // Uploaded file blobs are kept in memory for the session (not persisted to storage).
 const DOC_BLOBS = {}
-function seedDocuments(id) {
-  const D = (name, category, at) => ({ id: uid(), name, category, size: 0, uploadedAt: at, uploadedBy: 'Ijeoma Balogun' })
-  const map = {
-    s_jen: [D('Employment contract.pdf', 'Contract', '2025-11-01'), D('National ID card.pdf', 'ID', '2025-11-01')],
-    s_ebi: [D('Employment contract.pdf', 'Contract', '2025-12-01'), D('Degree certificate.pdf', 'Certificate', '2025-12-01')],
-    s_kit: [D('Internship letter.pdf', 'Contract', '2026-02-01')],
-  }
-  return map[id] || []
-}
+function seedDocuments() { return [] }
+
 const fileSize = (n) => (!n ? 'on file' : n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1) + ' MB')
 
 /* ----------------------------- Store ------------------------------ */
@@ -607,7 +625,7 @@ async function loadData(tenantId) {
   } catch { /* ignore */ }
   const forte = tenantId === 'imade-forte'
   const seeded = {
-    staff: STAFF.map((s) => ({ ...s, onboarding: seedOnboarding(s.id), documents: seedDocuments(s.id) })),
+    staff: STAFF.map((s) => ({ ...s, onboarding: seedOnboarding(), documents: seedDocuments(), docs: {} })),
     objectives: forte ? seedObjectives() : [],
     reviews: forte ? seedReviews() : [],
     feedback: forte ? seedFeedback() : [],
@@ -618,6 +636,8 @@ async function loadData(tenantId) {
     activeCycle: forte ? 'May 2026' : 'Current cycle',
     hrActions: [],
     payrollRun: { cycle: forte ? 'May 2026' : 'Current cycle', status: 'draft', trail: [], payslips: null },
+    salaryRequests: [],
+    salaryLog: [],
   }
   return seeded
 }
@@ -1529,7 +1549,16 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   const canDocs = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
   const canExport = me.role === 'chairman' || me.role === 'md' || me.role === 'hr' || me.role === 'admin'
 
-  function addStaff(s) { setData((d) => ({ ...d, staff: [...d.staff, { ...s, onboarding: newChecklist(false) }] })) }
+  function addStaff(s) { setData((d) => ({ ...d, staff: [...d.staff, { ...s, onboarding: newChecklist(false), documents: [], docs: {} }] })) }
+  async function uploadDoc(staffId, key, file) {
+    const rec = await uploadStaffDoc(staffId, key, file)
+    const entry = { ...rec, at: today(), by: me.name }
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docs: { ...(x.docs || {}), [key]: entry } } : x)) }))
+    return rec
+  }
+  function setDocStatus(staffId, key, status, note) {
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id !== staffId ? x : { ...x, docs: { ...(x.docs || {}), [key]: { ...((x.docs || {})[key] || {}), status, note: note || '', reviewedAt: today(), reviewedBy: me.name } } })) }))
+  }
   function updateStaff(id, patch) { setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === id ? { ...x, ...patch } : x)) })) }
   function removeStaff(id) { setData((d) => ({ ...d, staff: d.staff.filter((x) => x.id !== id), objectives: d.objectives.filter((o) => o.owner !== id) })) }
   function toggleOnboarding(staffId, taskId) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id !== staffId ? s : { ...s, onboarding: (s.onboarding || []).map((t) => (t.id === taskId ? { ...t, done: !t.done } : t)) })) })) }
@@ -1610,7 +1639,36 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   function giveFeedback(fb) { setData((d) => ({ ...d, feedback: [...(d.feedback || []), fb] })) }
   function requestLeave(req) { setData((d) => ({ ...d, leave: [...(d.leave || []), req] })) }
   function decideLeave(id, status) { setData((d) => ({ ...d, leave: (d.leave || []).map((l) => (l.id === id ? { ...l, status, decidedBy: me.id, decidedAt: new Date().toISOString().slice(0, 10) } : l)) })) }
-  function setSalary(id, salary) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, salary } : s)) })) }
+  // Salary is never changed silently. Anyone other than the Chairman raises a
+  // request; the Chairman's decision is what actually moves the number, and
+  // every applied change is written to an immutable log.
+  function requestSalaryChange(id, salary, reason) {
+    const person = data.staff.find((x) => x.id === id)
+    const from = (person && person.salary) || 0
+    if (Number(salary) === Number(from)) return
+    if (me.role === 'chairman') { applySalaryChange(id, Number(salary), me.name, reason || 'Set by the Chairman'); return }
+    setData((d) => ({
+      ...d,
+      salaryRequests: [...(d.salaryRequests || []), { id: uid(), staffId: id, name: person ? person.name : id, from, to: Number(salary), by: me.name, role: me.role, at: today(), reason: reason || '', status: 'pending' }],
+    }))
+  }
+  function applySalaryChange(id, salary, by, note) {
+    setData((d) => {
+      const person = d.staff.find((x) => x.id === id)
+      const from = (person && person.salary) || 0
+      return {
+        ...d,
+        staff: d.staff.map((s) => (s.id === id ? { ...s, salary: Number(salary) } : s)),
+        salaryLog: [...(d.salaryLog || []), { id: uid(), staffId: id, name: person ? person.name : id, from, to: Number(salary), by, at: today(), note: note || '' }],
+      }
+    })
+  }
+  function decideSalaryRequest(reqId, approve, note) {
+    const req = (data.salaryRequests || []).find((r) => r.id === reqId)
+    if (!req) return
+    if (approve) applySalaryChange(req.staffId, req.to, me.name, `Approved: requested by ${req.by}. ${req.reason || ''}`.trim())
+    setData((d) => ({ ...d, salaryRequests: (d.salaryRequests || []).map((r) => (r.id === reqId ? { ...r, status: approve ? 'approved' : 'declined', decidedBy: me.name, decidedAt: today(), decisionNote: note || '' } : r)) }))
+  }
   function setStaffEmail(id, email) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, email } : s)) })) }
   function setEmailConfig(cfg) { setData((d) => ({ ...d, emailConfig: cfg })) }
   const today = () => new Date().toISOString().slice(0, 10)
@@ -1635,6 +1693,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
         ['objectives', 'My OKRs'],
         ['checkins', 'Check-ins'],
         ['reviews', 'Reviews'],
+        ['myonboarding', 'My onboarding'],
         ['mypayslip', 'My payslip'],
         ['leave', 'Leave'],
         ['scorecards', 'Scorecards'],
@@ -1696,7 +1755,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
         )}
 
         <main className="fc-main">
-          {tab === 'dashboard' && <Dashboard tenant={tenant} me={me} data={data} onAuthor={() => { setTab('objectives') }} />}
+          {tab === 'dashboard' && <Dashboard tenant={tenant} me={me} data={data} onAuthor={() => { setTab('objectives') }} onGoOnboarding={() => setTab('myonboarding')} />}
           {tab === 'cockpit' && <Cockpit tenant={tenant} data={data} me={me} onSwitchWorkspace={onSwitchWorkspace} />}
           {tab === 'objectives' && !editing && (
             <Objectives me={me} objectives={myObjectives} tenant={tenant}
@@ -1715,9 +1774,10 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'reviews' && <Reviews data={data} me={me} cycle={activeCycle} onSaveReview={saveReview} onAckReview={ackReview} onGiveFeedback={giveFeedback} />}
           {tab === 'performance' && <Performance data={data} me={me} onRefer={referToHr} onResolve={resolveHrAction} />}
           {tab === 'leave' && <Leave data={data} me={me} onRequest={requestLeave} onDecide={decideLeave} />}
+          {tab === 'myonboarding' && <MyOnboardingPage data={data} me={me} onUploadDoc={uploadDoc} />}
           {tab === 'mypayslip' && <MyPayslip data={data} me={me} tenant={tenant} />}
-          {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={setSalary} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} onSetEmailConfig={setEmailConfig} />}
-          {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} />}
+          {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={requestSalaryChange} onDecideSalary={decideSalaryRequest} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} onSetEmailConfig={setEmailConfig} />}
+          {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} onUploadDoc={uploadDoc} onSetDocStatus={setDocStatus} />}
           {tab === 'cycles' && <Cycles data={data} onActivate={activateCycle} onRoll={rollCycle} />}
           {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
           {tab === 'export' && <Exports data={data} tenant={tenant} />}
@@ -1729,7 +1789,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
 }
 
 /* ----------------------------- Dashboard -------------------------- */
-function Dashboard({ tenant, me, data, onAuthor }) {
+function Dashboard({ tenant, me, data, onAuthor, onGoOnboarding }) {
   const scored = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...personScore(data, s.id) }))
   const green = scored.filter((x) => x.band === 'green').length
   const amber = scored.filter((x) => x.band === 'amber').length
@@ -1771,7 +1831,7 @@ function Dashboard({ tenant, me, data, onAuthor }) {
       </div>
       <MyStalls objectives={mine} />
       <CheckinNudge objectives={mine} />
-      <MyOnboarding meRec={data.staff.find((s) => s.id === me.id)} />
+      <MyOnboarding meRec={data.staff.find((s) => s.id === me.id)} onGo={onGoOnboarding} />
       <MyDocuments meRec={data.staff.find((s) => s.id === me.id)} />
     </div>
   )
@@ -3232,7 +3292,7 @@ function EmailSetup({ cfg, onSave, tenant }) {
   )
 }
 
-function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onReturn, onRecordPayslips, onSetEmailConfig }) {
+function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, onAdvance, onReturn, onRecordPayslips, onSetEmailConfig }) {
   const canEdit = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
   const cycle = data.activeCycle || 'May 2026'
   const run = data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft', trail: [] }
@@ -3251,6 +3311,9 @@ function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onRetur
   const [notice, setNotice] = useState(null)
   const [returning, setReturning] = useState(false)
   const [note, setNote] = useState('')
+  const [override, setOverride] = useState(false)
+  const [overrideNote, setOverrideNote] = useState('')
+  const [salReason, setSalReason] = useState('')
 
   const isHR = me.role === 'hr' || me.role === 'admin'
   const isMD = me.role === 'md'
@@ -3258,6 +3321,9 @@ function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onRetur
   const isAcct = me.role === 'accountant'
   const status = run.status || 'draft'
   const missingEmail = rows.filter(({ s }) => !s.email)
+  const unverified = rows.filter(({ s }) => !docProgress(s).complete)
+  const docGateOk = unverified.length === 0 || (override && overrideNote.trim().length > 3)
+  const pendingSalary = (data.salaryRequests || []).filter((r) => r.status === 'pending')
 
   async function downloadForBank() {
     setDl(true)
@@ -3290,7 +3356,8 @@ function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onRetur
       const record = {}
       items.forEach(({ s, filename }) => { record[s.id] = { filename, url: res.links[s.id] || null } })
       onRecordPayslips(record)
-      onAdvance('disbursed', `Disbursed. ${items.length} payslips generated, ${res.emailed} emailed.`)
+      const gateNote = unverified.length ? ` Document check overridden for ${unverified.length} of ${rows.length}: ${overrideNote.trim()}` : ' All staff document-verified.'
+      onAdvance('disbursed', `Disbursed. ${items.length} payslips generated, ${res.emailed} emailed.${gateNote}`)
       setNotice({
         kind: res.errors.length ? 'warn' : 'ok',
         text: res.errors.length
@@ -3345,7 +3412,7 @@ function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onRetur
           </>}
           {isAcct && status === 'approved' && <>
             <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadForBank}>{dl ? 'Preparing…' : 'Download for bank'}</button>
-            <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!!busy} onClick={disburseAndIssue}>{busy || 'Disburse and issue payslips'}</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!!busy || !docGateOk} onClick={disburseAndIssue}>{busy || 'Disburse and issue payslips'}</button>
           </>}
           {status === 'disbursed' && <span className="fc-referred">Disbursed</span>}
           {!isHR && !isMD && !isChair && !isAcct && <span className="fc-muted">View only</span>}
@@ -3362,11 +3429,36 @@ function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onRetur
         </div>
       )}
 
+      {isAcct && status === 'approved' && unverified.length > 0 && (
+        <div className="fc-gate">
+          <p className="fc-gate-head"><b>Payroll is held.</b> {unverified.length} of {rows.length} {unverified.length === 1 ? 'person has' : 'people have'} not had their documents verified.</p>
+          <p className="fc-muted fc-gate-names">{unverified.slice(0, 6).map(({ s }) => s.name).join(', ')}{unverified.length > 6 ? ` and ${unverified.length - 6} more` : ''}</p>
+          <label className="fc-toggle fc-gate-toggle"><input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} /> Release this run anyway</label>
+          {override && <textarea className="fc-input" rows={2} placeholder="Why is this run being released before documents are verified? This is recorded permanently." value={overrideNote} onChange={(e) => setOverrideNote(e.target.value)} />}
+          {override && overrideNote.trim().length <= 3 && <p className="fc-muted">Give a reason to unlock disbursement.</p>}
+        </div>
+      )}
       {isAcct && status === 'approved' && missingEmail.length > 0 && (
         <p className="fc-pay-warn">{missingEmail.length} {missingEmail.length === 1 ? 'person has' : 'people have'} no email address, so they will not receive a payslip automatically. HR can add addresses in the table below.</p>
       )}
       {notice && <p className={notice.kind === 'ok' ? 'fc-pay-ok' : 'fc-pay-warn'}>{notice.text}</p>}
 
+      {pendingSalary.length > 0 && (
+        <div className="fc-salreq">
+          <h3>Salary changes awaiting the Chairman</h3>
+          {pendingSalary.map((r) => (
+            <div key={r.id} className="fc-salreq-row">
+              <span><b>{r.name}</b> <span className="fc-muted">{naira(r.from)} to {naira(r.to)} · requested by {r.by} on {r.at}</span>{r.reason && <span className="fc-salreq-note">{r.reason}</span>}</span>
+              {isChair
+                ? <span className="fc-doc-acts">
+                    <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onDecideSalary(r.id, false)}>Decline</button>
+                    <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onDecideSalary(r.id, true)}>Approve</button>
+                  </span>
+                : <span className="fc-muted">Awaiting the Chairman</span>}
+            </div>
+          ))}
+        </div>
+      )}
       {(run.trail || []).length > 0 && (
         <div className="fc-paytrail">
           <h3>Approval trail</h3>
@@ -3402,7 +3494,7 @@ function Payroll({ data, me, tenant, onSetSalary, onSetEmail, onAdvance, onRetur
             <span><b>{naira(pr.netM)}</b></span>
             <span className="fc-pt-actions">
               {edit === s.id
-                ? <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSetSalary(s.id, Number(val) || 0); setEdit(null) }}>Save</button>
+                ? <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSetSalary(s.id, Number(val) || 0, salReason); setEdit(null); setSalReason('') }}>{me.role === 'chairman' ? 'Save' : 'Request'}</button>
                 : <>
                     {canEdit && status === 'draft' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setVal(String(pr.grossM)); setEdit(s.id) }}>Edit</button>}
                     <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setSel(s.id)}>Payslip</button>
@@ -3442,7 +3534,101 @@ function Payslip({ s, opts = {}, cycle = 'May 2026', onBack, onDownload }) {
 }
 
 /* ---------------------------- Onboarding -------------------------- */
-function Onboarding({ data, tenant, onToggle, onAdd }) {
+// Stores a staff document. Where Supabase is configured the file is uploaded to
+// a private bucket and a signed link kept; otherwise the record is marked
+// received so onboarding can still be tracked without a file store.
+async function uploadStaffDoc(staffId, key, file) {
+  if (!supabase) return { status: 'received', filename: file.name, url: null, local: true }
+  const safe = String(file.name).replace(/[^A-Za-z0-9._-]+/g, '_')
+  const path = `${staffId}/${key}_${Date.now()}_${safe}`
+  const up = await supabase.storage.from('staff-docs').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: true })
+  if (up.error) throw new Error(up.error.message)
+  let url = null
+  try {
+    const signed = await supabase.storage.from('staff-docs').createSignedUrl(path, 60 * 60 * 24 * 365)
+    if (signed.data) url = signed.data.signedUrl
+  } catch { /* link is a convenience, not a requirement */ }
+  return { status: 'received', filename: file.name, url, path }
+}
+
+// The person's own onboarding: what is outstanding, and somewhere to upload it.
+function MyOnboardingPage({ data, me, onUploadDoc }) {
+  const s = data.staff.find((x) => x.id === me.id) || me
+  const dp = docProgress(s)
+  const tasks = s.onboarding || []
+  const tasksDone = tasks.filter((t) => t.done).length
+  const [busy, setBusy] = useState('')
+  const [msg, setMsg] = useState(null)
+
+  async function pick(docKey) {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx'
+    input.onchange = async () => {
+      const file = input.files && input.files[0]
+      if (!file) return
+      if (file.size > 10 * 1024 * 1024) { setMsg({ ok: false, t: 'That file is larger than 10MB. Please upload a smaller copy.' }); return }
+      setBusy(docKey); setMsg(null)
+      try {
+        const rec = await onUploadDoc(s.id, docKey, file)
+        setMsg({ ok: true, t: rec && rec.local ? `${file.name} recorded. Hand the original to HR.` : `${file.name} uploaded.` })
+      } catch (e) {
+        setMsg({ ok: false, t: 'Could not upload: ' + (e && e.message ? e.message : 'error') })
+      } finally { setBusy('') }
+    }
+    input.click()
+  }
+
+  return (
+    <div className="fc-panel">
+      <div className="fc-panel-head">
+        <div><h2>My onboarding</h2><p className="fc-muted">Upload each document below. HR checks them off once received.</p></div>
+        <span className={`fc-ob-pill ${dp.complete ? 'is-done' : ''}`}>{dp.done} of {dp.total} documents</span>
+      </div>
+
+      <div className="fc-ob-bars">
+        <div className="fc-ob-bar"><span>Documents</span><div className="fc-bar"><i style={{ width: dp.pct + '%' }} /></div><b>{dp.pct}%</b></div>
+        <div className="fc-ob-bar"><span>Checklist</span><div className="fc-bar"><i style={{ width: (tasks.length ? Math.round(tasksDone / tasks.length * 100) : 0) + '%' }} /></div><b>{tasks.length ? Math.round(tasksDone / tasks.length * 100) : 0}%</b></div>
+      </div>
+
+      {!dp.complete && <p className="fc-pay-warn">You still have {dp.total - dp.done} required {dp.total - dp.done === 1 ? 'document' : 'documents'} outstanding.</p>}
+      {msg && <p className={msg.ok ? 'fc-pay-ok' : 'fc-pay-warn'}>{msg.t}</p>}
+
+      <div className="fc-doclist">
+        {REQUIRED_DOCS.map((d) => {
+          const rec = (s.docs || {})[d.key] || {}
+          const st = rec.status || 'missing'
+          return (
+            <div key={d.key} className={`fc-docrow is-${st}`}>
+              <div className="fc-doc-main">
+                <b>{d.label}{d.req ? '' : <span className="fc-doc-opt"> optional</span>}</b>
+                {d.note && <span className="fc-doc-note">{d.note}</span>}
+                {rec.filename && <span className="fc-doc-file">{rec.filename}</span>}
+              </div>
+              <span className={`fc-doc-status fc-doc-${st}`}>{st === 'verified' ? 'Verified' : st === 'received' ? 'Received' : st === 'rejected' ? 'Rejected' : 'Not uploaded'}</span>
+              <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={busy === d.key || st === 'verified'} onClick={() => pick(d.key)}>
+                {busy === d.key ? 'Uploading…' : st === 'missing' ? 'Upload' : 'Replace'}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      <h3 className="fc-doc-h3">Checklist</h3>
+      <div className="fc-obtasks">
+        {tasks.map((t) => (
+          <div key={t.id} className={`fc-obtask ${t.done ? 'is-done' : ''}`}>
+            <span className="fc-obtask-tick">{t.done ? '✓' : ''}</span>
+            <span>{t.label}</span>
+          </div>
+        ))}
+      </div>
+      <p className="fc-muted fc-doc-foot">HR completes the checklist as each step is finished. If something looks wrong, speak to HR.</p>
+    </div>
+  )
+}
+
+function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus }) {
   const people = data.staff.map((s) => ({ s, ...onboardingProgress(s) }))
   const inProg = people.filter((p) => !p.complete)
   const doneCount = people.filter((p) => p.complete).length
@@ -3519,27 +3705,53 @@ function Onboarding({ data, tenant, onToggle, onAdd }) {
         <section key={s.id} className="fc-panel fc-ob-card">
           <div className="fc-ob-head" onClick={() => setOpen(open === s.id ? null : s.id)}>
             <div className="fc-ob-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)} · {s.sub}</span></span></div>
-            <div className="fc-ob-prog"><div className="fc-progress"><div className="fc-progress-fill mid" style={{ width: pct + '%' }} /><span className="fc-progress-pct">{done}/{total}</span></div></div>
+            <div className="fc-ob-prog"><span className={`fc-ob-docs ${docProgress(s).complete ? 'is-done' : ''}`}>{docProgress(s).done}/{docProgress(s).total} docs</span><div className="fc-progress"><div className="fc-progress-fill mid" style={{ width: pct + '%' }} /><span className="fc-progress-pct">{done}/{total}</span></div></div>
           </div>
           {open === s.id && (
-            <div className="fc-ob-tasks">
-              {(s.onboarding || []).map((t) => (
-                <label key={t.id} className="fc-ob-task"><input type="checkbox" checked={t.done} onChange={() => onToggle(s.id, t.id)} /><span className={t.done ? 'is-done' : ''}>{t.label}</span></label>
-              ))}
-            </div>
+            <>
+              <div className="fc-ob-tasks">
+                {(s.onboarding || []).map((t) => (
+                  <label key={t.id} className="fc-ob-task"><input type="checkbox" checked={t.done} onChange={() => onToggle(s.id, t.id)} /><span className={t.done ? 'is-done' : ''}>{t.label}</span></label>
+                ))}
+              </div>
+              <h4 className="fc-doc-h4">Documents on file</h4>
+              <div className="fc-doclist">
+                {REQUIRED_DOCS.map((dref) => {
+                  const rec = (s.docs || {})[dref.key] || {}
+                  const st = rec.status || 'missing'
+                  return (
+                    <div key={dref.key} className={`fc-docrow is-${st}`}>
+                      <div className="fc-doc-main">
+                        <b>{dref.label}{dref.req ? '' : <span className="fc-doc-opt"> optional</span>}</b>
+                        {rec.filename && <span className="fc-doc-file">{rec.filename}{rec.at ? ' · ' + rec.at : ''}</span>}
+                      </div>
+                      <span className={`fc-doc-status fc-doc-${st}`}>{st === 'verified' ? 'Verified' : st === 'received' ? 'Received' : st === 'rejected' ? 'Rejected' : 'Not uploaded'}</span>
+                      <span className="fc-doc-acts">
+                        {rec.url && <a className="fc-btn fc-btn-ghost fc-btn-sm" href={rec.url} target="_blank" rel="noreferrer">View</a>}
+                        {onSetDocStatus && st !== 'missing' && st !== 'verified' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onSetDocStatus(s.id, dref.key, 'verified')}>Verify</button>}
+                        {onSetDocStatus && st === 'received' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onSetDocStatus(s.id, dref.key, 'rejected')}>Reject</button>}
+                        {onSetDocStatus && st === 'missing' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onSetDocStatus(s.id, dref.key, 'received')}>Mark received</button>}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           )}
         </section>
       ))}
     </div>
   )
 }
-function MyOnboarding({ meRec }) {
+function MyOnboarding({ meRec, onGo }) {
   if (!meRec) return null
   const pr = onboardingProgress(meRec)
-  if (pr.complete) return null
+  const dp = docProgress(meRec)
+  if (pr.complete && dp.complete) return null
   return (
     <section className="fc-panel fc-stallpanel">
-      <div className="fc-panel-head"><h3>Your onboarding</h3><span className="fc-muted">{pr.done}/{pr.total} done</span></div>
+      <div className="fc-panel-head"><h3>Your onboarding is not finished</h3><span className="fc-muted">{pr.done}/{pr.total} steps · {dp.done}/{dp.total} documents</span></div>
+      {!dp.complete && <p className="fc-pay-warn">{dp.total - dp.done} required {dp.total - dp.done === 1 ? 'document is' : 'documents are'} still outstanding.{onGo && <> <button className="fc-link" onClick={onGo}>Upload them now</button></>}</p>}
       <div className="fc-ob-tasks">
         {(meRec.onboarding || []).map((t) => (
           <div key={t.id} className="fc-ob-task"><span className={t.done ? 'is-done' : ''}>{t.done ? '✓' : '○'} {t.label}</span></div>
@@ -3954,6 +4166,37 @@ option{color:#111}
 .fc-demo-tag{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);border:1px solid var(--gold);border-radius:2px;padding:.1rem .45rem}
 .fc-auth-hint{color:var(--muted);font-size:.9rem;margin:0 0 1rem}
 .fc-auth-form{display:flex;flex-direction:column;gap:.7rem}
+.fc-ob-pill{font-family:var(--sans);font-size:.75rem;border:1px solid var(--hairline);border-radius:20px;padding:.3rem .8rem;color:var(--muted);white-space:nowrap}
+.fc-ob-pill.is-done{border-color:var(--rag-g);color:var(--rag-g)}
+.fc-ob-bars{display:flex;gap:1.6rem;flex-wrap:wrap;margin:.9rem 0 1rem}
+.fc-ob-bar{display:flex;align-items:center;gap:.6rem;flex:1;min-width:220px;font-size:.82rem;color:var(--muted)}
+.fc-ob-bar span{white-space:nowrap}
+.fc-bar{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.09);overflow:hidden}
+.fc-bar i{display:block;height:100%;background:var(--gold);border-radius:4px;transition:width .4s ease}
+.fc-doclist{display:flex;flex-direction:column;margin:.5rem 0 1rem}
+.fc-docrow{display:grid;grid-template-columns:1fr auto auto;gap:1rem;align-items:center;padding:.75rem .2rem;border-bottom:1px solid var(--hairline)}
+.fc-docrow.is-verified{opacity:.75}
+.fc-doc-main{display:flex;flex-direction:column;gap:.15rem;min-width:0}
+.fc-doc-main b{font-size:.92rem}
+.fc-doc-opt{font-weight:400;color:var(--muted);font-size:.78rem}
+.fc-doc-note{font-size:.76rem;color:var(--muted)}
+.fc-doc-file{font-size:.76rem;color:var(--gold)}
+.fc-doc-status{font-family:var(--sans);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.fc-doc-missing{color:var(--muted)}
+.fc-doc-received{color:var(--rag-a)}
+.fc-doc-verified{color:var(--rag-g)}
+.fc-doc-rejected{color:var(--rag-r)}
+.fc-doc-acts{display:flex;gap:.4rem;flex-wrap:wrap}
+.fc-doc-h3,.fc-doc-h4{margin:1.4rem 0 .5rem;font-size:1rem}
+.fc-doc-foot{font-size:.8rem;margin-top:.8rem}
+.fc-obtasks{display:flex;flex-direction:column;gap:.1rem}
+.fc-obtask{display:flex;align-items:center;gap:.7rem;padding:.5rem 0;border-bottom:1px solid var(--hairline);font-size:.9rem;color:var(--muted)}
+.fc-obtask.is-done{color:var(--parchment)}
+.fc-obtask-tick{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--hairline);font-size:.7rem;color:var(--rag-g);flex:none}
+.fc-obtask.is-done .fc-obtask-tick{border-color:var(--rag-g)}
+.fc-ob-docs{font-family:var(--sans);font-size:.72rem;color:var(--muted);margin-right:.9rem;white-space:nowrap}
+.fc-ob-docs.is-done{color:var(--rag-g)}
+@media(max-width:700px){.fc-docrow{grid-template-columns:1fr;gap:.4rem}}
 .fc-offer-preview{border:1px solid var(--hairline);border-radius:8px;padding:1rem 1.1rem;margin:.9rem 0}
 .fc-offer-figs{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:.6rem}
 .fc-offer-figs div{display:flex;flex-direction:column;gap:.2rem}
@@ -3971,6 +4214,15 @@ option{color:#111}
 .fc-emailsetup-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
 .fc-emailsetup-grid label{display:flex;flex-direction:column;gap:.3rem;font-size:.75rem;color:var(--muted)}
 @media(max-width:760px){.fc-emailsetup-grid{grid-template-columns:1fr}}
+.fc-gate{border:1px solid var(--rag-a);border-radius:8px;padding:1rem 1.15rem;margin-bottom:1rem;display:flex;flex-direction:column;gap:.6rem}
+.fc-gate-head{margin:0;font-size:.92rem}
+.fc-gate-names{font-size:.82rem;margin:0}
+.fc-gate-toggle{font-size:.88rem}
+.fc-salreq{border:1px solid var(--hairline);border-radius:8px;padding:1rem 1.15rem;margin-bottom:1.2rem}
+.fc-salreq h3{margin:0 0 .7rem;font-size:.95rem}
+.fc-salreq-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.6rem 0;border-top:1px solid var(--hairline);font-size:.88rem}
+.fc-salreq-row:first-of-type{border-top:none}
+.fc-salreq-note{display:block;font-size:.8rem;color:var(--muted);font-style:italic}
 .fc-payflow{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
 .fc-payflow-step{display:flex;align-items:center;gap:.5rem;padding:.5rem .85rem;border:1px solid var(--hairline);border-radius:999px;font-size:.78rem;color:var(--muted);background:transparent}
 .fc-payflow-step.is-done{color:var(--rag-g);border-color:rgba(90,160,110,.45)}

@@ -1340,6 +1340,86 @@ function Gateway({ tenant, onSignIn, onBackToSite }) {
   )
 }
 
+
+/* ------------------ Setting or changing a password ---------------- */
+// Used in two places: after a reset link, and from the workspace when someone
+// wants to change a password they already know.
+function SetPassword({ tenant, mode = 'change', onDone, onCancel }) {
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [show, setShow] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [ok, setOk] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  // Weak passwords are the commonest way an account is lost, so say plainly
+  // how strong this one is rather than only rejecting it at the end.
+  const strength = (() => {
+    let n = 0
+    if (pw.length >= 8) n++
+    if (pw.length >= 12) n++
+    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) n++
+    if (/\d/.test(pw)) n++
+    if (/[^A-Za-z0-9]/.test(pw)) n++
+    return Math.min(n, 4)
+  })()
+  const strengthLabel = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong'][strength]
+
+  async function save() {
+    setMsg(''); setOk('')
+    if (pw.length < 8) { setMsg('Please choose a password of at least 8 characters.'); return }
+    if (pw !== pw2) { setMsg('The two passwords do not match.'); return }
+    setBusy(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pw })
+      if (error) { setMsg(authErrorText(error)); return }
+      setOk('Password changed. Use it the next time you sign in.')
+      setPw(''); setPw2('')
+      if (mode === 'reset') setTimeout(() => onDone && onDone(), 1600)
+    } catch (e) { setMsg(authErrorText(e)) } finally { setBusy(false) }
+  }
+
+  const body = (
+    <>
+      <div className="fc-auth-form">
+        <div className="fc-pwwrap">
+          <input className="fc-input" type={show ? 'text' : 'password'} placeholder="New password" value={pw} onChange={(e) => setPw(e.target.value)} />
+          <button type="button" className="fc-pweye" onClick={() => setShow(!show)}>{show ? 'Hide' : 'Show'}</button>
+        </div>
+        {pw && (
+          <div className="fc-strength">
+            <div className={`fc-strength-bar is-${strength}`}><i style={{ width: `${(strength / 4) * 100}%` }} /></div>
+            <span>{strengthLabel}</span>
+          </div>
+        )}
+        <div className="fc-pwwrap">
+          <input className="fc-input" type={show ? 'text' : 'password'} placeholder="Confirm new password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+        </div>
+        <div className="fc-cta-row">
+          {onCancel && <button className="fc-btn fc-btn-ghost" onClick={onCancel}>{mode === 'reset' ? 'Sign out' : 'Cancel'}</button>}
+          <button className="fc-btn fc-btn-gold" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save new password'}</button>
+        </div>
+        {msg && <p className="fc-auth-msg" role="alert">{msg}</p>}
+        {ok && <p className="fc-auth-ok" role="status">{ok}</p>}
+      </div>
+      <p className="fc-muted fc-pw-note">Use at least 8 characters. A short phrase you will remember beats a short jumble you will not.</p>
+    </>
+  )
+
+  if (mode === 'panel') return <div className="fc-panel"><div className="fc-panel-head"><div><h2>Change password</h2><p className="fc-muted">Applies to the account you are signed in with.</p></div></div>{body}</div>
+
+  return (
+    <div className="fc-auth">
+      <div className="fc-auth-card">
+        {tenant && tenant.logo && <img className="fc-auth-logo" src={tenant.logo} alt={tenant.name} />}
+        <h2 className="fc-auth-title">Choose a new password</h2>
+        <p className="fc-auth-sub">{tenant ? tenant.name : ''}</p>
+        {body}
+      </div>
+    </div>
+  )
+}
+
 /* --------------------------- Staff biodata ------------------------ */
 // What every new account must supply before HR, the MD or the Chairman can
 // approve it. Grouped so the form reads as a form, not a wall.
@@ -1445,6 +1525,23 @@ function AuthScreen({ tenant, staff, onEnter, onBack, onRegister, pending }) {
   }
 
   function beginCreate() { setMsg(''); setStep('role') }
+
+  // Sends a reset link to the address given. Deliberately says the same thing
+  // whether or not the address exists, so the form cannot be used to discover
+  // who has an account.
+  async function sendReset() {
+    const addr = email.trim()
+    setMsg(''); setToast('')
+    if (!addr.includes('@')) { setMsg('Enter your email address first, then choose Forgot password.'); return }
+    setBusy(true)
+    try {
+      const redirectTo = `${window.location.origin}${window.location.pathname}#reset`
+      const { error } = await supabase.auth.resetPasswordForEmail(addr, { redirectTo })
+      if (error && !/user not found/i.test(error.message || '')) { setMsg(authErrorText(error)); return }
+      setToast(`If ${addr} has an account, a reset link is on its way. Check the inbox, including spam.`)
+      setTimeout(() => setToast(''), 9000)
+    } catch (e) { setMsg(authErrorText(e)) } finally { setBusy(false) }
+  }
 
   async function submitRegistration() {
     setTouched(true)
@@ -1594,6 +1691,7 @@ function AuthScreen({ tenant, staff, onEnter, onBack, onRegister, pending }) {
             <button className="fc-btn fc-btn-gold" disabled={busy} onClick={signIn}>{busy ? 'Working…' : 'Sign in'}</button>
             <button className="fc-btn fc-btn-ghost" disabled={busy} onClick={beginCreate}>Create account</button>
           </div>
+          <button className="fc-link fc-forgot" disabled={busy} onClick={sendReset}>Forgot password?</button>
           {msg && <p className="fc-auth-msg" role="alert">{msg}</p>}
         </div>
       ) : (
@@ -1654,6 +1752,13 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   const [tab, setTab] = useState(me.role === 'chairman' ? 'cockpit' : 'dashboard')
   const [editing, setEditing] = useState(null) // objective being authored
   const [navOpen, setNavOpen] = useState(false)
+  const [acctOpen, setAcctOpen] = useState(false)
+  useEffect(() => {
+    if (!acctOpen) return
+    const close = (e) => { if (!e.target.closest || !e.target.closest('.fc-acct')) setAcctOpen(false) }
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [acctOpen])
 
   const myObjectives = data.objectives.filter((o) => o.owner === me.id)
   const canReview = me.role === 'lead' || me.role === 'md' || me.role === 'hr'
@@ -1928,8 +2033,18 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
             <span className="fc-topbar-title">{currentLabel}</span>
           </div>
           <div className="fc-topbar-right">
-            <span className="fc-me"><Avatar name={me.name} /><span className="fc-me-body"><b>{me.name}</b><i>{roleLabel(me)}</i></span></span>
-            <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={onSignOut}>Sign out</button>
+            <div className="fc-acct">
+              <button className="fc-acct-btn" onClick={() => setAcctOpen((o) => !o)} aria-haspopup="menu" aria-expanded={acctOpen}>
+                <span className="fc-me"><Avatar name={me.name} /><span className="fc-me-body"><b>{me.name}</b><i>{roleLabel(me)}</i></span></span>
+                <span className="fc-acct-caret">▾</span>
+              </button>
+              {acctOpen && (
+                <div className="fc-acct-menu" role="menu">
+                  <button role="menuitem" onClick={() => { setAcctOpen(false); setTab('account') }}>Change password</button>
+                  <button role="menuitem" onClick={() => { setAcctOpen(false); onSignOut() }}>Sign out</button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -1963,6 +2078,9 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'myonboarding' && <MyOnboardingPage data={data} me={me} onUploadDoc={uploadDoc} />}
           {tab === 'mypayslip' && <MyPayslip data={data} me={me} tenant={tenant} />}
           {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={requestSalaryChange} onDecideSalary={decideSalaryRequest} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} onSetEmailConfig={setEmailConfig} onSetAbsence={setAbsence} />}
+          {tab === 'account' && (LIVE
+            ? <SetPassword mode="panel" />
+            : <div className="fc-panel"><h2>Change password</h2><p className="fc-muted">Passwords apply to live accounts. This workspace is running in demo mode, where you pick a person to enter rather than signing in.</p></div>)}
           {tab === 'approvals' && <AccountApprovals onRefresh={refreshPending} data={data} me={me} tenant={tenant} onApprove={approveAccount} onDecline={declineAccount} />}
           {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} onUploadDoc={uploadDoc} onSetDocStatus={setDocStatus} />}
           {tab === 'cycles' && <Cycles data={data} onActivate={activateCycle} onRoll={rollCycle} />}
@@ -4359,9 +4477,17 @@ function Exports({ data, tenant }) {
 }
 
 /* ------------------------------- Root ----------------------------- */
+// A password reset link comes back as a URL hash. Recognised in one place so
+// the initial screen and the auth listener cannot disagree about it.
+function isRecoveryLink() {
+  try { return typeof window !== 'undefined' && /(^|[#&?])type=recovery/.test(window.location.hash || '') } catch { return false }
+}
+
 export default function App() {
   const [tenantId, setTenantId] = useState('imade-forte')
-  const [screen, setScreen] = useState('gateway') // gateway | auth | profile | app
+  // A reset link arrives as a hash. Read it at the first render, before the
+  // public site's own hash routing gets a chance to treat it as a page.
+  const [screen, setScreen] = useState(() => (isRecoveryLink() ? 'reset' : 'gateway')) // gateway | auth | profile | reset | pending | app
   const [me, setMe] = useState(null)
   const [authUser, setAuthUser] = useState(null)
   const [chairmanReturn, setChairmanReturn] = useState(null)
@@ -4414,11 +4540,22 @@ export default function App() {
   useEffect(() => {
     if (!LIVE) return
     supabase.auth.getSession().then(({ data }) => setAuthUser((data && data.session && data.session.user) || null))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((evt, session) => {
       const u = (session && session.user) || null
       setAuthUser(u)
-      if (!u) { setMe(null); setScreen('gateway') }
+      // Arriving from a reset email: Supabase signs the person in with a
+      // recovery session. Send them straight to setting a new password rather
+      // than into the workspace on a link from their inbox.
+      if (evt === 'PASSWORD_RECOVERY') { setScreen('reset'); return }
+      // Signing out returns to the site, but not while a reset is in progress:
+      // the listener fires with no session before the recovery token is read,
+      // and sending the person home there would strand the link.
+      if (!u) {
+        setMe(null)
+        setScreen((cur) => (cur === 'reset' || isRecoveryLink() ? cur : 'gateway'))
+      }
     })
+    if (typeof window !== 'undefined' && /type=recovery/.test(window.location.hash || '')) setScreen('reset')
     return () => { try { sub.subscription.unsubscribe() } catch { /* ignore */ } }
   }, [])
 
@@ -4495,6 +4632,7 @@ export default function App() {
       {screen === 'gateway' && <LandingPage onCompass={() => setScreen('compass')} />}
       {screen === 'compass' && <Gateway tenant={tenant} onSignIn={() => setScreen('auth')} onBackToSite={() => setScreen('gateway')} />}
       {screen === 'auth' && <AuthScreen tenant={tenant} staff={data.staff.length ? data.staff : STAFF} onEnter={enter} onBack={() => setScreen('compass')} onRegister={registerAccount} pending={data.pendingAccounts || []} />}
+      {screen === 'reset' && <SetPassword tenant={tenant} mode="reset" onDone={() => { try { window.history.replaceState(null, '', window.location.pathname) } catch { /* ignore */ } setScreen('compass') }} onCancel={signOut} />}
       {screen === 'pending' && (
         <div className="fc-auth"><div className="fc-auth-card">
           {tenant.logo && <img className="fc-auth-logo" src={tenant.logo} alt={tenant.name} />}
@@ -4654,6 +4792,20 @@ option{color:#111}
 .fc-salreq-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.6rem 0;border-top:1px solid var(--hairline);font-size:.88rem}
 .fc-salreq-row:first-of-type{border-top:none}
 .fc-salreq-note{display:block;font-size:.8rem;color:var(--muted);font-style:italic}
+.fc-acct{position:relative}
+.fc-acct-btn{display:flex;align-items:center;gap:.5rem;background:none;border:1px solid transparent;border-radius:8px;padding:.25rem .5rem;cursor:pointer;font-family:inherit;color:inherit}
+.fc-acct-btn:hover{border-color:var(--hairline);background:rgba(255,255,255,.04)}
+.fc-acct-caret{color:var(--muted);font-size:.7rem}
+.fc-acct-menu{position:absolute;top:calc(100% + .45rem);right:0;min-width:12rem;background:#12304f;border:1px solid var(--hairline);border-radius:10px;padding:.35rem;z-index:40;box-shadow:0 14px 32px rgba(0,0,0,.4);display:flex;flex-direction:column}
+.fc-acct-menu button{background:none;border:none;color:var(--parchment);font-family:inherit;font-size:.86rem;text-align:left;padding:.6rem .8rem;border-radius:7px;cursor:pointer}
+.fc-acct-menu button:hover{background:rgba(184,146,74,.16);color:var(--gold)}
+.fc-strength{display:flex;align-items:center;gap:.7rem;font-size:.75rem;color:var(--muted)}
+.fc-strength-bar{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}
+.fc-strength-bar i{display:block;height:100%;border-radius:3px;transition:width .25s ease;background:var(--rag-r)}
+.fc-strength-bar.is-2 i{background:var(--rag-a)}
+.fc-strength-bar.is-3 i,.fc-strength-bar.is-4 i{background:var(--rag-g)}
+.fc-pw-note{font-size:.8rem;margin-top:.9rem}
+.fc-forgot{display:inline-block;margin-top:.2rem;font-size:.82rem}
 .fc-toast{position:fixed;top:1.6rem;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:.6rem;background:#12304f;border:1px solid var(--gold);border-radius:10px;padding:.85rem 1.3rem;color:var(--parchment);font-size:.9rem;box-shadow:0 12px 34px rgba(0,0,0,.42);animation:fcToastIn .3s ease}
 .fc-toast-tick{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--gold);color:#0E2240;font-size:.72rem;font-weight:700;flex:none}
 @keyframes fcToastIn{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}

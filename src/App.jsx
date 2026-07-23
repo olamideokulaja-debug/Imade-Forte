@@ -3115,6 +3115,7 @@ function Performance({ data, me, onRefer, onResolve }) {
   const name = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Someone'
   const openFor = (id, level) => actions.find((a) => a.staffId === id && a.level === level && a.status === 'open')
   const canRefer = me.role === 'chairman' || me.role === 'md'
+  const isHR = me.role === 'hr' || me.role === 'admin'
   return (
     <div className="fc-performance">
       <div className="fc-panel-head"><div><h2>Performance and intervention</h2><p className="fc-muted">Recommendations based on the frequency and severity of low performance. Refer a case and HR picks it up.</p></div></div>

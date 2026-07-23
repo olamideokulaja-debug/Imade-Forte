@@ -1419,6 +1419,8 @@ function AuthScreen({ tenant, staff, onEnter, onBack, onRegister, pending }) {
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
   const [showPw, setShowPw] = useState(false)
+  const [pw2, setPw2] = useState('')
+  const [toast, setToast] = useState('')
   const [role, setRole] = useState('')
   const [sub, setSub] = useState((tenant.subsidiaries && tenant.subsidiaries[0]) || 'Imade Forte')
   const [bio, setBio] = useState({})
@@ -1442,16 +1444,13 @@ function AuthScreen({ tenant, staff, onEnter, onBack, onRegister, pending }) {
     } catch (e) { setMsg(authErrorText(e)) } finally { setBusy(false) }
   }
 
-  function beginCreate() {
-    setMsg('')
-    const addr = email.trim()
-    if (!addr.includes('@')) { setMsg('Enter the email address you want to sign in with, then choose Create account.'); return }
-    if (pw.length < 6) { setMsg('Please choose a password of at least 6 characters first.'); return }
-    setStep('role')
-  }
+  function beginCreate() { setMsg(''); setStep('role') }
 
   async function submitRegistration() {
     setTouched(true)
+    if (!email.trim().includes('@')) { setMsg('Please enter the email address you will sign in with.'); return }
+    if (pw.length < 6) { setMsg('Please choose a password of at least 6 characters.'); return }
+    if (pw !== pw2) { setMsg('The two passwords do not match.'); return }
     if (!bioComplete) { setMsg('Every field is required. Please complete the ones highlighted.'); return }
     setMsg(''); setBusy(true)
     try {
@@ -1468,12 +1467,15 @@ function AuthScreen({ tenant, staff, onEnter, onBack, onRegister, pending }) {
         if (error) { setMsg(authErrorText(error)); setBusy(false); return }
       }
       onRegister(record)
+      setToast('Account created. It is now with HR for approval.')
       setStep('done')
+      setTimeout(() => setToast(''), 6000)
     } catch (e) { setMsg(authErrorText(e)) } finally { setBusy(false) }
   }
 
   const card = (inner) => (
     <div className="fc-auth">
+      {toast && <div className="fc-toast" role="status"><span className="fc-toast-tick">✓</span>{toast}</div>}
       <div className={`fc-auth-card ${step === 'bio' ? 'is-wide' : ''}`}>
         <button className="fc-back" onClick={step === 'signin' ? onBack : () => { setStep(step === 'bio' ? 'role' : 'signin'); setMsg('') }}>← Back</button>
         {tenant.logo && <img className="fc-auth-logo" src={tenant.logo} alt={tenant.name} />}
@@ -1522,6 +1524,30 @@ function AuthScreen({ tenant, staff, onEnter, onBack, onRegister, pending }) {
       <h2 className="fc-auth-title">Your details</h2>
       <p className="fc-auth-sub">Every field is required. These become your staff record.</p>
       <div className="fc-bioform">
+        <div className="fc-biogroup">
+          <h3>Account access</h3>
+          <div className="fc-biogrid">
+            <label className={`fc-field ${touched && !email.trim().includes('@') ? 'is-bad' : ''}`}>
+              <span>Work email</span>
+              <input className="fc-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <em>You will sign in with this</em>
+            </label>
+            <label className={`fc-field ${touched && pw.length < 6 ? 'is-bad' : ''}`}>
+              <span>Password</span>
+              <div className="fc-pwwrap">
+                <input className="fc-input" type={showPw ? 'text' : 'password'} value={pw} onChange={(e) => setPw(e.target.value)} />
+                <button type="button" className="fc-pweye" onClick={() => setShowPw(!showPw)}>{showPw ? 'Hide' : 'Show'}</button>
+              </div>
+              <em>At least 6 characters</em>
+            </label>
+            <label className={`fc-field ${touched && pw !== pw2 ? 'is-bad' : ''}`}>
+              <span>Confirm password</span>
+              <div className="fc-pwwrap">
+                <input className="fc-input" type={showPw ? 'text' : 'password'} value={pw2} onChange={(e) => setPw2(e.target.value)} />
+              </div>
+            </label>
+          </div>
+        </div>
         {BIODATA.map((g) => (
           <div key={g.group} className="fc-biogroup">
             <h3>{g.group}</h3>
@@ -4628,6 +4654,9 @@ option{color:#111}
 .fc-salreq-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.6rem 0;border-top:1px solid var(--hairline);font-size:.88rem}
 .fc-salreq-row:first-of-type{border-top:none}
 .fc-salreq-note{display:block;font-size:.8rem;color:var(--muted);font-style:italic}
+.fc-toast{position:fixed;top:1.6rem;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:.6rem;background:#12304f;border:1px solid var(--gold);border-radius:10px;padding:.85rem 1.3rem;color:var(--parchment);font-size:.9rem;box-shadow:0 12px 34px rgba(0,0,0,.42);animation:fcToastIn .3s ease}
+.fc-toast-tick{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--gold);color:#0E2240;font-size:.72rem;font-weight:700;flex:none}
+@keyframes fcToastIn{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
 .fc-auth-card.is-wide{max-width:900px}
 .fc-pwwrap{position:relative;display:flex;align-items:center}
 .fc-pwwrap .fc-input{width:100%;padding-right:4.2rem}

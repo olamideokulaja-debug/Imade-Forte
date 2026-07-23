@@ -26,7 +26,15 @@
 -- The profile is the record. A separate pending table would mean the same
 -- person existing twice, and the two drifting apart.
 -- ---------------------------------------------------------------------
-alter table profiles add column if not exists status      text not null default 'pending';
+-- Added in two steps on purpose. A column created with a default applies
+-- that default to every existing row, which would mark the whole company
+-- as waiting for approval and leave nobody able to approve anyone. So the
+-- column is added empty, existing people are set active, and only then
+-- does 'pending' become the default for accounts created afterwards.
+alter table profiles add column if not exists status text;
+update profiles set status = 'active' where status is null;
+alter table profiles alter column status set default 'pending';
+alter table profiles alter column status set not null;
 alter table profiles add column if not exists biodata     jsonb;
 alter table profiles add column if not exists approved_by uuid references auth.users on delete set null;
 alter table profiles add column if not exists approved_at timestamptz;

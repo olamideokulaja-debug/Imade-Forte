@@ -33,7 +33,7 @@ const TENANTS = {
     name: 'Imade Forte Holdings Ltd.',
     logo: '/imade-forte-logo.png',
     brand: { navy: '#0E2240', gold: '#B8924A' },
-    subsidiaries: ['Genesys', 'Girard', 'Yostrat', 'Realms'],
+    subsidiaries: ['Imade Forte', 'Genesys', 'Girard', 'Realms', 'Yostrat'],
     priorities: [
       { rank: 'P1', name: 'Girard' },
       { rank: 'P2', name: 'Genesys' },
@@ -71,117 +71,55 @@ const roleLabel = (x) => (x && x.title) || ROLES[x && x.role] || ''
 /* ------------------------ Seeded cohort --------------------------- */
 // Real May 2026 cohort. Bands seed the group board; a subset carries full OKRs.
 const STAFF = [
-  { id: 's_jen', name: 'Jennifer Kaja', role: 'md', title: 'Managing Director', sub: 'Corporate', also: ['Girard', 'Yostrat'], tier: 'leadership', band: 'green', score: 8.4 },
-  { id: 's_ebi', name: 'Ebime Abari', role: 'lead', sub: 'Genesys', tier: 'leadership', band: 'green', score: 8.1 },
-  { id: 's_sol', name: 'Solomon C. Nweke', role: 'lead', sub: 'Realms', tier: 'leadership', band: 'green', score: 7.6 },
-  { id: 's_tha', name: 'Thaddeus U. Oparaocha', role: 'staff', sub: 'Realms', tier: 'ops', band: 'green', score: 7.2 },
-  { id: 's_ojo', name: 'Ojuma Joy Ndidi', role: 'staff', sub: 'Realms', tier: 'ops', band: 'green', score: 7.3 },
-  { id: 's_gud', name: 'Goodness Udoka', role: 'staff', sub: 'Girard', tier: 'leadership', band: 'green', score: 7.6 },
-  { id: 's_chi', name: 'Chinomso Isdone Ordor', role: 'staff', sub: 'Genesys', also: ['Girard'], tier: 'ops', band: 'green', score: 8.0 },
-  { id: 's_ade', name: 'Adebayo Okediji', role: 'accountant', title: 'Accountant', sub: 'Corporate', tier: 'leadership', band: 'green', score: 7.6 },
-  { id: 's_sun', name: 'Sunday Orimoyegun', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'amber', score: 6.2 },
-  { id: 's_kit', name: 'Kitunde Abayomi', role: 'staff', sub: 'Genesys', tier: 'ops', band: 'amber', score: 5.8 },
-  { id: 's_goo', name: 'Goodnews Anele', role: 'staff', sub: 'Realms', tier: 'ops', band: 'amber', score: 6.5 },
-  { id: 's_god', name: 'Godwin Idiong', role: 'lead', title: 'Head of Products', sub: 'Corporate', also: ['Genesys'], tier: 'leadership', band: 'amber', score: 6.5 },
-  { id: 's_emma', name: 'Emmanuella', role: 'staff', title: 'Customer Service', sub: 'Corporate', tier: 'ops', band: 'green', score: 0 },
+  { id: 's_olamide', name: 'Dr. Okulaja Olamide', role: 'chairman', sub: 'Imade Forte', dept: 'Management', title: 'Chairman', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 371241.6, rent: 0 }], salary: 371241.6, rent: 0, bank: 'GT Bank', account: '0028842186', rsa: 'PEN200243923626', note: 'Salary 300,000. Fuel allowance and vehicle maintenance are booked separately.', tier: 'leadership', band: 'grey', score: 0, email: '' },
+  { id: 's_jennifer', name: 'Jennifer Kaja', role: 'md', sub: 'Imade Forte', dept: 'Management', title: 'Managing Director', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 889009.0, rent: 2000000 }, { org: 'Genesys', gross: 630125.1, rent: 1000000 }], salary: 1519134.1, rent: 3000000, bank: 'Fidelity Bank', account: '6974598513', rsa: 'PEN200782675923', pfa: 'Stanbic IBTC', startDate: '2025', tier: 'leadership', band: 'grey', score: 0, email: '' },
+  { id: 's_godwin', name: 'Godwin Idiong', role: 'lead', sub: 'Imade Forte', dept: 'ICT', title: 'Product Manager', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 303485.1, rent: 520000 }, { org: 'Genesys', gross: 958657.5, rent: 1000000 }], salary: 1262142.6, rent: 1520000, bank: 'Stanbic IBTC', account: '0026369052', rsa: 'PEN100419064014', pfa: 'Stanbic IBTC', tin: 'N-9743430', startDate: '2026-04-20', tier: 'leadership', band: 'grey', score: 0, email: '' },
+  { id: 's_adebayo', name: 'Adebayo Okediji', role: 'accountant', sub: 'Imade Forte', dept: 'Finance', title: 'Senior Accountant', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 632096.3, rent: 500000 }], salary: 632096.3, rent: 500000, bank: 'Stanbic IBTC', account: '0035318115', rsa: 'PEN110038525941', pfa: 'Stanbic IBTC', tin: 'N-7692365', startDate: '2026-03-25', tier: 'leadership', band: 'grey', score: 0, email: '' },
+  { id: 's_goodness', name: 'Goodness Onyeneke', role: 'staff', sub: 'Imade Forte', dept: 'Administration', title: 'EA to the Chairman', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 357502.99, rent: 0 }], salary: 357502.99, rent: 0, bank: 'Access Bank', account: '0104361895', rsa: 'PEN210123195595', pfa: 'Access ARM', tin: '2512496755127', startDate: '2025-10-27', note: 'July paid on 18 days worked.', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_chinonso', name: 'Chinonso Erugo', role: 'hr', sub: 'Imade Forte', dept: 'Administration', title: 'Acting HR and Admin', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 305535.5, rent: 0 }, { org: 'Girard', gross: 53879.3, rent: 0 }], salary: 359414.8, rent: 0, bank: 'Zenith Bank', account: '2175607820', rsa: 'PEN100633158510', pfa: 'Access ARM', tin: 'N-6282414', startDate: '2026-02-09', tier: 'leadership', band: 'grey', score: 0, email: '' },
+  { id: 's_emmanuella', name: 'Emmanuella Ezeakor', role: 'staff', sub: 'Imade Forte', dept: 'Administration', title: 'Front Desk and Customer Service', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 200000.0, rent: 750000 }], salary: 200000.0, rent: 750000, bank: 'Fidelity Bank', account: '6151210135', rsa: 'PEN210222135811', pfa: 'Stanbic IBTC', tin: 'N-16730937', startDate: '2026-06-08', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_blessing', name: 'Blessing Shima', role: 'staff', sub: 'Imade Forte', dept: 'Administration', title: 'Office Assistant and Janitor', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 118350.0, rent: 0 }], salary: 118350.0, rent: 0, bank: 'First Bank', account: '3045664363', startDate: '2026-02-13', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_chinomso', name: 'Chinomso Ordor', role: 'staff', sub: 'Genesys', dept: 'ICT', title: 'ICT and Implementation Officer', employment: 'fixed', placements: [{ org: 'Genesys', gross: 305535.5, rent: 0 }, { org: 'Girard', gross: 53879.3, rent: 0 }], salary: 359414.8, rent: 0, bank: 'GT Bank', account: '0611304471', startDate: '2026-02-02', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_chidiebere', name: 'Chidiebere Nweke', role: 'staff', sub: 'Realms', dept: 'Monitoring, Inspection and Clinical', title: 'Doctor', employment: 'fixed', placements: [{ org: 'Realms', gross: 0, rent: 0 }], salary: 0, rent: 0, bank: 'First Bank', account: '3047991926', rsa: 'PEN110199314356', pfa: 'Stanbic IBTC', tin: 'N-16882471', startDate: '2026-01-21', note: 'No payment processed in the July schedule.', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_uchenna', name: 'Uchenna Oparaocha', role: 'staff', sub: 'Realms', dept: 'Monitoring and Inspection', title: 'Nurse', employment: 'fixed', placements: [{ org: 'Realms', gross: 279252.6, rent: 0 }], salary: 279252.6, rent: 0, bank: 'UBA', account: '2120658206', startDate: '2026-01-21', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_joy', name: 'Joy Ojuma', role: 'staff', sub: 'Realms', dept: 'Monitoring and Inspection', title: 'Nurse', employment: 'fixed', placements: [{ org: 'Realms', gross: 279252.6, rent: 0 }], salary: 279252.6, rent: 0, bank: 'FCMB', account: '4678599014', tin: 'N-37700492', startDate: '2026-01-21', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_goodnews', name: 'Goodnews Anele', role: 'staff', sub: 'Realms', dept: 'Monitoring and Inspection', title: 'Medical Laboratory Scientist', employment: 'fixed', placements: [{ org: 'Realms', gross: 279252.6, rent: 0 }], salary: 279252.6, rent: 0, bank: 'Access Bank', account: '0693903529', tin: 'N-16823130', startDate: '2026-01-21', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_bolaji', name: 'Bolaji Olaonipekun', role: 'staff', sub: 'Realms', dept: 'Monitoring and Inspection', title: 'Driver', employment: 'fixed', placements: [{ org: 'Realms', gross: 139452.32, rent: 0 }], salary: 139452.32, rent: 0, bank: 'Eco Bank', account: '2741257706', startDate: '2026-03-13', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_kitunde', name: 'Kitunde Abayomi', role: 'staff', sub: 'Genesys', dept: 'ICT', title: 'Intern', employment: 'intern', placements: [{ org: 'Genesys', gross: 150000.0, rent: 0 }, { org: 'Girard', gross: 100000.0, rent: 0 }], salary: 250000.0, rent: 0, bank: 'Providus Bank', account: '6506223523', startDate: '2026-02-18', note: 'Stipend. No statutory deductions.', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_ebimie', name: 'Ebimie Abari', role: 'lead', sub: 'Genesys', dept: 'Technical', title: 'Software Developer', employment: 'contract', placements: [{ org: 'Genesys', gross: 421052.63, rent: 0 }], salary: 421052.63, rent: 0, bank: 'Access Bank', account: '0016827940', startDate: '2021-09-14', note: 'Contract. 5% withholding tax.', tier: 'leadership', band: 'grey', score: 0, email: '' },
+  { id: 's_sunday', name: 'Sunday Orimoyegun', role: 'staff', sub: 'Genesys', dept: 'Technical', title: 'Software Developer', employment: 'contract', placements: [{ org: 'Genesys', gross: 442105.26, rent: 0 }], salary: 442105.26, rent: 0, bank: 'Access Bank', account: '0018131774', startDate: '2021-09-14', note: 'Contract. 5% withholding tax.', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_prosuprime', name: 'Prosuprime (Isaac and Umar)', role: 'staff', sub: 'Imade Forte', dept: 'Security', title: 'Safety and Protection', employment: 'contract', placements: [{ org: 'Imade Forte', gross: 189473.7, rent: 0 }], salary: 189473.7, rent: 0, bank: 'First Bank', account: '2023486030', note: 'Vendor. 5% withholding tax.', tier: 'ops', band: 'grey', score: 0, email: '' },
+  { id: 's_moses', name: 'Moses Comrade Madanja', role: 'staff', sub: 'Imade Forte', dept: 'Security', title: 'Safety and Protection', employment: 'contract', placements: [{ org: 'Imade Forte', gross: 63158.0, rent: 0 }], salary: 63158.0, rent: 0, bank: 'Opay', account: '8101176878', note: 'Vendor. 5% withholding tax.', tier: 'ops', band: 'grey', score: 0, email: '' },
 ]
-// A Chairman and an HR seat, for role coverage.
-STAFF.push({ id: 's_chair', name: 'Office of the Chairman', role: 'chairman', sub: 'Corporate', tier: 'leadership', band: 'green', score: 0 })
-STAFF.push({ id: 's_hr', name: 'Ijeoma Balogun', role: 'hr', sub: 'Corporate', tier: 'leadership', band: 'green', score: 0 })
-STAFF.push({ id: 's_buchi', name: 'Buchi', role: 'lead', sub: 'Corporate', also: ['Girard'], tier: 'leadership', band: 'green', score: 7.0 })
-// Prior-cycle standing (April 2026), used to show movement.
-const PREV = { s_jen: 8.1, s_ebi: 7.5, s_sol: 7.4, s_tha: 7.0, s_ojo: 7.3, s_gud: 7.8, s_chi: 7.7, s_ade: 7.6, s_sun: 6.6, s_kit: 5.5, s_goo: 6.2, s_god: 6.3, s_buchi: 6.8, s_emma: 0 }
-// Reporting lines. Chairman at the top; each subsidiary head reports to the MD.
+
+// Reporting lines.
 const MGR = {
-  s_jen: 's_chair', s_gud: 's_buchi', s_hr: 's_jen', s_ade: 's_jen', s_buchi: 's_jen',
-  s_ebi: 's_god', s_god: 's_jen', s_sun: 's_ebi', s_kit: 's_ebi', s_chi: 's_ebi', s_emma: 's_jen',
-  s_sol: 's_jen', s_tha: 's_sol', s_ojo: 's_sol', s_goo: 's_sol',
+  s_jennifer: 's_olamide', s_adebayo: 's_jennifer', s_chinonso: 's_jennifer', s_godwin: 's_jennifer',
+  s_goodness: 's_olamide', s_emmanuella: 's_chinonso', s_blessing: 's_chinonso',
+  s_chinomso: 's_godwin', s_ebimie: 's_godwin', s_sunday: 's_ebimie', s_kitunde: 's_ebimie',
+  s_uchenna: 's_chidiebere', s_joy: 's_chidiebere', s_goodnews: 's_chidiebere', s_bolaji: 's_chidiebere',
+  s_chidiebere: 's_jennifer', s_prosuprime: 's_chinonso', s_moses: 's_chinonso',
 }
-STAFF.forEach((s) => { s.prev = PREV[s.id] ?? s.score; s.managerId = MGR[s.id] ?? null })
-// Monthly gross salary (NGN) and optional annual rent (for rent relief).
-const SALARY = { s_jen: 2500000, s_ebi: 1500000, s_god: 1400000, s_ade: 1300000, s_buchi: 1300000, s_sol: 1200000, s_hr: 1100000, s_gud: 700000, s_chi: 550000, s_sun: 500000, s_ojo: 450000, s_tha: 450000, s_goo: 450000, s_kit: 300000, s_emma: 380000 }
-const RENT = { s_jen: 6000000, s_ebi: 3000000, s_emma: 900000 }
-const EMAILS = {}
-STAFF.forEach((s) => { s.salary = SALARY[s.id] ?? 0; s.rent = RENT[s.id] ?? 0; s.email = EMAILS[s.id] || '' })
+STAFF.forEach((s) => { s.prev = s.score; s.managerId = MGR[s.id] ?? null })
+// How each person is engaged. Drives which deductions apply.
+const EMPLOYMENT = {
+  fixed: 'Fixed term', contract: 'Contract', intern: 'Intern',
+}
+const ORG_LIST = ['Imade Forte', 'Genesys', 'Girard', 'Realms', 'Yostrat']
+// A person's placements in one company, for a per-company payroll run.
+function placementsIn(s, org) { return (s.placements || []).filter((p) => p.org === org) }
+function grossIn(s, org) { return placementsIn(s, org).reduce((a, p) => a + (p.gross || 0), 0) }
+function rentIn(s, org) { return placementsIn(s, org).reduce((a, p) => a + (p.rent || 0), 0) }
 
 const KR = (statement, kr_type, measure, baseline, target, unit, opts = {}) => ({
   id: uid(), statement, kr_type, measure, baseline, target, unit,
   current: opts.current ?? '', confidence: opts.confidence ?? 60,
-  due: opts.due ?? '2026-05-31', override_reason: opts.override_reason ?? null,
+  due: opts.due ?? '2026-07-31', override_reason: opts.override_reason ?? null,
   checkins: opts.checkins ?? [],
 })
 
-function seedObjectives() {
-  return [
-    {
-      id: uid(), owner: 's_jen', sub: 'Girard', priority: 'P1', cycle: 'May 2026',
-      status: 'approved',
-      title: 'Execute and close priority real estate transactions',
-      description: 'Move the priority developments from intent to signed, funded delivery.',
-      krs: [
-        KR('Execute the Bourdillon JV or MOU on agreed commercial and legal terms', 'output', 'Agreement executed', 'MOU drafted', 'JV or MOU signed', 'milestone'),
-        KR('Execute the Maiyegun Beach development agreement with a delivery timeline', 'output', 'Agreement executed', 'Terms sheet', 'Signed with timeline', 'milestone'),
-        KR('Commence LASMIIZO with defined milestones by Iron Capital', 'output', 'Project commenced', 'Not started', 'Milestones agreed and begun', 'milestone'),
-        KR('Complete the valuation of all Girard properties', 'output', 'Valuations complete', '0%', '100%', '%', { current: '60' }),
-      ],
-    },
-    {
-      id: uid(), owner: 's_ebi', sub: 'Genesys', priority: 'P2', cycle: 'May 2026',
-      status: 'approved',
-      title: 'Platform migration and modernisation',
-      description: 'Consolidate every client on the unified Version 2 platform.',
-      krs: [
-        KR('Migrate all remaining Version 1 clients to Version 2 with a signed data-validation report per client', 'outcome', 'Clients migrated', '0 of remaining', 'All remaining', 'clients', { current: '40', confidence: 70 }),
-        KR('Cut client-specific bug-fix effort by 25 to 30 percent', 'outcome', 'Support hours on forked patches', 'Baseline hours', '25 to 30% lower', '%', { confidence: 55 }),
-        KR('Hold every Version 2 deployment within a 99.9 percent stability benchmark', 'outcome', 'Monthly uptime', '99.4%', '99.9%', '%', { current: '99.7', checkins: [{ at: '2026-05-08', value: 99.5, confidence: 60 }, { at: '2026-05-15', value: 99.6, confidence: 65 }, { at: '2026-05-22', value: 99.7, confidence: 70 }] }),
-      ],
-    },
-    {
-      id: uid(), owner: 's_tha', sub: 'Realms', priority: 'P3', cycle: 'May 2026',
-      status: 'approved',
-      title: 'Expand facility monitoring coverage',
-      description: 'Systematic monitoring of all assigned HEFAMAA facilities.',
-      krs: [
-        KR('Achieve 95 percent completion of the HEFAMAA monitoring checklist on each visit', 'outcome', 'Checklist completion', '88%', '95%', '%', { current: '92', checkins: [{ at: '2026-05-07', value: 89, confidence: 55 }, { at: '2026-05-14', value: 91, confidence: 60 }, { at: '2026-05-21', value: 92, confidence: 65 }] }),
-        KR('Reduce average interval between facility re-visits to 45 days', 'outcome', 'Re-visit interval', '68 days', '45 days', 'days', { current: '58', checkins: [{ at: '2026-05-07', value: 64, confidence: 50 }, { at: '2026-05-14', value: 60, confidence: 55 }, { at: '2026-05-21', value: 58, confidence: 60 }] }),
-        KR('Complete physical inspections of all assigned facilities this cycle', 'output', 'Inspections done', '0%', '100%', '%', { current: '70' }),
-      ],
-    },
-    {
-      id: uid(), owner: 's_goo', sub: 'Realms', priority: 'P3', cycle: 'May 2026',
-      status: 'approved',
-      title: 'Improve facility regulatory compliance',
-      description: 'Educate, correct and follow up so compliance holds.',
-      krs: [
-        KR('Reduce repeat non-compliance cases by 20 percent over 2 months', 'outcome', 'Repeat non-compliance', 'Baseline count', '20% lower', '%', { confidence: 50 }),
-        KR('Ensure 90 percent of flagged facilities receive follow-up within 2 to 4 weeks', 'outcome', 'Follow-up rate', '65%', '90%', '%', { current: '74', checkins: [{ at: '2026-05-07', value: 68, confidence: 45 }, { at: '2026-05-14', value: 71, confidence: 50 }, { at: '2026-05-21', value: 74, confidence: 55 }] }),
-        KR('Submit monitoring reports weekly to HEFAMAA', 'output', 'Reports submitted', 'Irregular', '100% weekly', '%', { current: '80' }),
-      ],
-    },
-    {
-      id: uid(), owner: 's_emma', sub: 'Corporate', priority: 'P2', cycle: 'May 2026',
-      status: 'approved',
-      title: 'Schedule appointments for Genesys clients',
-      description: 'Turn client contact into booked, attended appointments.',
-      krs: [
-        KR('Contact assigned Genesys clients weekly', 'activity', 'Clients contacted', 'Ad hoc', 'Weekly, all assigned', 'cadence'),
-        KR('Book appointments with contacted clients', 'output', 'Appointments booked', 'Untracked', '40 to 60% of contacted', '%'),
-        KR('Record all bookings and client responses within 24 hours', 'output', 'Records logged', 'Same week', 'Within 24 hours', 'hours'),
-      ],
-    },
-    {
-      id: uid(), owner: 's_gud', sub: 'Girard', priority: 'P1', cycle: 'May 2026',
-      status: 'draft',
-      title: 'Executive calendar optimisation and time efficiency',
-      description: 'Protect the Chairman’s time and remove scheduling friction.',
-      krs: [
-        KR('Deliver the daily meeting schedule before 7:00 AM', 'activity', 'On-time delivery', 'Varies', 'Before 7:00 AM daily', 'cadence'),
-        KR('Maintain zero scheduling conflicts', 'outcome', 'Conflicts per week', '2 to 3', '0', 'count'),
-        KR('Confirm all meetings at least 24 hours in advance', 'activity', 'Confirmed ahead', 'Same day', '24 hours ahead', 'hours'),
-      ],
-    },
-  ]
-}
+function seedObjectives() { return [] }
+
 
 /* --------------------- Outcome engine (heuristic) ------------------ */
 const OUT = /(reduce|cut|increase|decrease|improve|raise|lower|shorten|grow|convert|retain|achieve|reach|maintain zero|from .* to )/i
@@ -259,7 +197,7 @@ const outcomeRatio = (objectives) => {
 }
 // Corporate rolls up every subsidiary: its outcome ratio spans the whole group.
 const outcomeRatioForOrg = (data, org) => {
-  if (org === 'Corporate') return outcomeRatio(data.objectives)
+  if (org === 'Imade Forte') return outcomeRatio(data.objectives)
   return outcomeRatio(data.objectives.filter((o) => o.sub === org))
 }
 
@@ -422,24 +360,10 @@ const RATING = {
 }
 const RATING_ORDER = ['exceeds', 'meets', 'below', 'unsatisfactory']
 
-function seedReviews() {
-  const r = (subjectId, reviewerId, cycle, rating, summary, strengths, improvements, at, ack = false, response = '') =>
-    ({ id: uid(), subjectId, reviewerId, cycle, rating, summary, strengths, improvements, createdAt: at, ack, response })
-  return [
-    r('s_ebi', 's_god', 'April 2026', 'exceeds', 'Led Version 2 to production and held stability high.', 'Ownership, technical depth, calm under load.', 'Delegate more so the bus factor improves.', '2026-04-30'),
-    r('s_tha', 's_sol', 'April 2026', 'meets', 'Consistent monitoring coverage and clean reporting.', 'Reliability, field discipline.', 'Push checklist completion above 95 percent.', '2026-04-30'),
-    r('s_sun', 's_ebi', 'April 2026', 'below', 'Steady on legacy support; slow on the migration queue.', 'Patient with legacy clients.', 'Clear the high-priority migration tickets within SLA.', '2026-04-30'),
-    r('s_kit', 's_ebi', 'March 2026', 'below', 'Learning fast but output below the module targets.', 'Eager, coachable.', 'Ship the assigned modules on schedule.', '2026-03-31'),
-    r('s_kit', 's_ebi', 'April 2026', 'below', 'Repeat gap on module delivery; needs closer support.', 'Good attitude.', 'Meet the next two module deadlines without slippage.', '2026-04-30'),
-  ]
-}
-function seedFeedback() {
-  const f = (toId, fromId, text, at) => ({ id: uid(), toId, fromId, text, createdAt: at })
-  return [
-    f('s_ebi', 's_jen', 'The migration validation report was excellent, thank you.', '2026-05-18'),
-    f('s_goo', 's_chair', 'Calendar ran flawlessly through the board week.', '2026-05-16'),
-  ]
-}
+function seedReviews() { return [] }
+
+function seedFeedback() { return [] }
+
 
 const reviewsFor = (data, id) => (data.reviews || []).filter((r) => r.subjectId === id).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 const lastReview = (data, id) => reviewsFor(data, id)[0] || null
@@ -487,15 +411,8 @@ const daysBetween = (a, b) => {
   if (isNaN(d1) || isNaN(d2) || d2 < d1) return 0
   return Math.round((d2 - d1) / 86400000) + 1
 }
-function seedLeave() {
-  const L = (staffId, type, start, end, reason, status, decidedBy = null, decidedAt = null) =>
-    ({ id: uid(), staffId, type, start, end, days: daysBetween(start, end), reason, status, decidedBy, decidedAt, note: '' })
-  return [
-    L('s_tha', 'annual', '2026-07-14', '2026-07-18', 'Personal time', 'pending'),
-    L('s_sun', 'sick', '2026-05-22', '2026-05-23', 'Malaria', 'approved', 's_jen', '2026-05-21'),
-    L('s_goo', 'compassionate', '2026-05-05', '2026-05-07', 'Family bereavement', 'approved', 's_jen', '2026-05-04'),
-  ]
-}
+function seedLeave() { return [] }
+
 function leaveBalance(data, id) {
   const mine = (data.leave || []).filter((l) => l.staffId === id && l.status === 'approved')
   const out = {}
@@ -516,7 +433,8 @@ const PAYE_BANDS = [
   { upTo: 50000000, rate: 0.23 },
   { upTo: Infinity, rate: 0.25 },
 ]
-const PAY_STRUCTURE = { basic: 0.5, housing: 0.25, transport: 0.15, other: 0.1 }
+// Structure taken from the July 2026 payroll computation schedule.
+const PAY_STRUCTURE = { basic: 0.45, housing: 0.25, transport: 0.20, other: 0.10 }
 const EMP_PENSION = 0.08
 const ER_PENSION = 0.1
 const naira = (n) => '₦' + Math.round(n || 0).toLocaleString('en-NG')
@@ -530,11 +448,35 @@ function payeAnnual(chargeable) {
 const NHF_RATE = 0.025        // 2.5% of basic, tax-deductible
 const NHIS_EMP = 0.05         // employee 5% of basic, not tax-deductible
 const NHIS_ER = 0.10          // employer 10% of basic
-const DEV_LEVY = 4000         // flat NGN per year (NTA 2025)
+const DEV_LEVY = 4000         // flat NGN per year (NTA 2025). Not applied in the July 2026 schedule.
+const WHT_RATE = 0.05         // withholding tax on contract and vendor payments
+// Mirrors the July 2026 payroll computation schedule exactly. NHF, NHIS and the
+// development levy are switches rather than assumptions, because the live
+// schedule applies none of them; turning one on changes the figures.
 function payrollFor(s, opts = {}) {
-  const { nhf = true, nhis = true } = opts
+  const { nhf = false, nhis = false, levy = false } = opts
   const grossM = s.salary || 0
   if (!grossM) return null
+  // Contracts and vendors are not on PAYE or pension: 5% withholding tax only.
+  if (s.employment === 'contract') {
+    const whtA = grossM * 12 * WHT_RATE
+    return {
+      grossM, grossA: grossM * 12, basic: 0, housing: 0, transport: 0, other: 0, pensionable: 0,
+      empPensionA: 0, erPensionA: 0, nhfA: 0, nhisEmpA: 0, nhisErA: 0, devLevyA: 0, rentRelief: 0,
+      chargeable: 0, payeA: whtA, whtA, netA: grossM * 12 - whtA, isContract: true,
+      empPensionM: 0, erPensionM: 0, nhfM: 0, nhisEmpM: 0, devLevyM: 0,
+      payeM: whtA / 12, whtM: whtA / 12, netM: grossM - whtA / 12,
+    }
+  }
+  // Interns receive a stipend with no statutory deductions.
+  if (s.employment === 'intern') {
+    return {
+      grossM, grossA: grossM * 12, basic: 0, housing: 0, transport: 0, other: 0, pensionable: 0,
+      empPensionA: 0, erPensionA: 0, nhfA: 0, nhisEmpA: 0, nhisErA: 0, devLevyA: 0, rentRelief: 0,
+      chargeable: 0, payeA: 0, netA: grossM * 12, isStipend: true,
+      empPensionM: 0, erPensionM: 0, nhfM: 0, nhisEmpM: 0, devLevyM: 0, payeM: 0, netM: grossM,
+    }
+  }
   const grossA = grossM * 12
   const basic = grossA * PAY_STRUCTURE.basic
   const housing = grossA * PAY_STRUCTURE.housing
@@ -546,14 +488,15 @@ function payrollFor(s, opts = {}) {
   const nhfA = nhf ? basic * NHF_RATE : 0
   const nhisEmpA = nhis ? basic * NHIS_EMP : 0
   const nhisErA = nhis ? basic * NHIS_ER : 0
+  const levyA = levy ? DEV_LEVY : 0
   const rentRelief = Math.min((s.rent || 0) * 0.2, 500000)
   const chargeable = Math.max(0, grossA - empPensionA - nhfA - rentRelief)
   const payeA = payeAnnual(chargeable)
-  const netA = grossA - empPensionA - nhfA - payeA - nhisEmpA - DEV_LEVY
+  const netA = grossA - empPensionA - nhfA - payeA - nhisEmpA - levyA
   return {
     grossM, grossA, basic, housing, transport, other, pensionable,
-    empPensionA, erPensionA, nhfA, nhisEmpA, nhisErA, devLevyA: DEV_LEVY, rentRelief, chargeable, payeA, netA,
-    empPensionM: empPensionA / 12, erPensionM: erPensionA / 12, nhfM: nhfA / 12, nhisEmpM: nhisEmpA / 12, devLevyM: DEV_LEVY / 12, payeM: payeA / 12, netM: netA / 12,
+    empPensionA, erPensionA, nhfA, nhisEmpA, nhisErA, devLevyA: levyA, rentRelief, chargeable, payeA, netA,
+    empPensionM: empPensionA / 12, erPensionM: erPensionA / 12, nhfM: nhfA / 12, nhisEmpM: nhisEmpA / 12, devLevyM: levyA / 12, payeM: payeA / 12, netM: netA / 12,
   }
 }
 
@@ -626,16 +569,16 @@ async function loadData(tenantId) {
   const forte = tenantId === 'imade-forte'
   const seeded = {
     staff: STAFF.map((s) => ({ ...s, onboarding: seedOnboarding(), documents: seedDocuments(), docs: {} })),
-    objectives: forte ? seedObjectives() : [],
-    reviews: forte ? seedReviews() : [],
-    feedback: forte ? seedFeedback() : [],
-    leave: forte ? seedLeave() : [],
+    objectives: [],
+    reviews: [],
+    feedback: [],
+    leave: [],
     cycles: forte
-      ? [{ id: 'c_mar', name: 'March 2026', status: 'closed' }, { id: 'c_apr', name: 'April 2026', status: 'closed' }, { id: 'c_may', name: 'May 2026', status: 'active' }]
+      ? [{ id: 'c_may', name: 'May 2026', status: 'closed' }, { id: 'c_jun', name: 'June 2026', status: 'closed' }, { id: 'c_jul', name: 'July 2026', status: 'active' }]
       : [{ id: 'c1', name: 'Current cycle', status: 'active' }],
-    activeCycle: forte ? 'May 2026' : 'Current cycle',
+    activeCycle: forte ? 'July 2026' : 'Current cycle',
     hrActions: [],
-    payrollRun: { cycle: forte ? 'May 2026' : 'Current cycle', status: 'draft', trail: [], payslips: null },
+    payrollRun: { cycle: forte ? 'July 2026' : 'Current cycle', status: 'draft', trail: [], payslips: null },
     salaryRequests: [],
     salaryLog: [],
   }
@@ -1506,7 +1449,7 @@ function RolePicker({ tenant, onCreate }) {
   const [sub, setSub] = useState(tenant.subsidiaries[0])
   const cards = [['staff', 'Staff'], ['lead', 'Subsidiary Lead'], ['md', 'Managing Director'], ['accountant', 'Accountant'], ['hr', 'HR Manager'], ['chairman', 'Chairman'], ['admin', 'Tenant Admin']]
   const corporate = role === 'chairman' || role === 'md' || role === 'admin' || role === 'accountant' || role === 'hr'
-  const orgSub = corporate ? 'Corporate' : sub
+  const orgSub = corporate ? 'Imade Forte' : sub
   return (
     <div className="fc-rolepick">
       <p className="fc-rp-q">Which best describes you?</p>
@@ -1580,7 +1523,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   function removeDocument(staffId, docId) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === staffId ? { ...s, documents: (s.documents || []).filter((x) => x.id !== docId) } : s)) })) }
   function referToHr(staffId, level) { setData((d) => ({ ...d, hrActions: [...(d.hrActions || []), { id: uid(), staffId, level, raisedBy: me.name, at: new Date().toISOString().slice(0, 10), status: 'open' }] })) }
   function resolveHrAction(id) { setData((d) => ({ ...d, hrActions: (d.hrActions || []).map((a) => (a.id === id ? { ...a, status: 'done' } : a)) })) }
-  const activeCycle = data.activeCycle || 'May 2026'
+  const activeCycle = data.activeCycle || 'July 2026'
 
   function upsertObjective(obj) {
     setData((d) => {
@@ -2265,7 +2208,7 @@ function ScorecardCard({ obj, me, owner, onAdjust }) {
 function Organisations({ tenant, data, me }) {
   // A subsidiary lead sees only their own organisation; oversight roles see the holding
   // company overview plus head office and every subsidiary.
-  const orgs = me.role === 'lead' ? [me.sub] : ['Group', 'Corporate', ...tenant.subsidiaries]
+  const orgs = me.role === 'lead' ? [me.sub] : ['Group', ...tenant.subsidiaries]
   const [org, setOrg] = useState(orgs[0])
   const active = orgs.includes(org) ? org : orgs[0]
 
@@ -2285,7 +2228,7 @@ function Organisations({ tenant, data, me }) {
 }
 
 function GroupOverview({ tenant, data }) {
-  const rows = ['Corporate', ...tenant.subsidiaries].map((sub) => {
+  const rows = [...tenant.subsidiaries].map((sub) => {
     const staff = data.staff.filter((s) => inOrg(s, sub) && s.role !== 'chairman')
     const objs = data.objectives.filter((o) => o.sub === sub)
     const avg = orgScore(data, sub) ?? '—'
@@ -2378,10 +2321,10 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   const [selOrg, setSelOrg] = useState(null)
   const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
   const WORKSPACES = [
-    { id: 's_jen', label: 'Managing Director' },
-    { id: 's_god', label: 'Subsidiary Lead' },
-    { id: 's_hr', label: 'HR Manager' },
-    { id: 's_sun', label: 'Staff member' },
+    { id: 's_jennifer', label: 'Managing Director' },
+    { id: 's_godwin', label: 'Product Manager' },
+    { id: 's_chinonso', label: 'HR and Admin' },
+    { id: 's_adebayo', label: 'Accountant' },
   ]
 
   const people = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) }))
@@ -2391,7 +2334,7 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   const avg = people.length ? r1(people.reduce((a, p) => a + p.total, 0) / people.length) : 0
   const ratio = outcomeRatio(data.objectives)
 
-  const orgs = ['Corporate', ...tenant.subsidiaries].map((org) => {
+  const orgs = [...tenant.subsidiaries].map((org) => {
     const st = people.filter((p) => inOrg(p.s, org))
     const objs = data.objectives.filter((o) => o.sub === org)
     const oavg = orgScore(data, org)
@@ -2958,6 +2901,46 @@ function buildPayrollXlsx(XLSX, data, opts) {
   return wb
 }
 /* ------------------ Payslip document and delivery ----------------- */
+
+// The letterhead mark, fetched once and cached, so payslips and offer letters
+// carry the company logo rather than typed text alone.
+let LOGO_CACHE = null
+async function loadLogoDataUrl(src = '/imade-forte-logo-hires.png') {
+  if (LOGO_CACHE !== null) return LOGO_CACHE
+  try {
+    const res = await fetch(src)
+    if (!res.ok) throw new Error('logo missing')
+    const blob = await res.blob()
+    LOGO_CACHE = await new Promise((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => resolve(r.result)
+      r.onerror = () => reject(new Error('logo unreadable'))
+      r.readAsDataURL(blob)
+    })
+  } catch {
+    LOGO_CACHE = ''   // fall back to the text letterhead, never block the document
+  }
+  return LOGO_CACHE
+}
+
+// Draws the navy band with the logo on it. Returns the band height.
+function drawLetterhead(doc, W, logo, tenantName, docLabel, rightText) {
+  const navy = [14, 34, 64], gold = [184, 146, 74]
+  doc.setFillColor(...navy); doc.rect(0, 0, W, 104, 'F')
+  let textX = 40
+  if (logo) {
+    // logo is 1108x408, so ~2.72:1
+    const h = 34, w = h * 2.716
+    try { doc.addImage(logo, 'PNG', 40, 26, w, h); textX = 40 + w + 18 } catch { /* text only */ }
+  }
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(logo ? 12 : 15)
+  doc.text(tenantName || 'Imade Forte Holdings Limited', textX, logo ? 45 : 42)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...gold)
+  doc.text(docLabel, textX, logo ? 62 : 62)
+  if (rightText) { doc.setTextColor(220); doc.setFontSize(9); doc.text(String(rightText), W - 40, 62, { align: 'right' }) }
+  return 104
+}
+
 // Payroll approval chain. Each stage names the person who must act next, so the
 // run is never sitting with "someone" unspecified.
 const PAY_FLOW = ['draft', 'md_review', 'chair_review', 'approved', 'disbursed']
@@ -2979,19 +2962,14 @@ async function buildPayslipPdf(s, opts, cycle, tenantName) {
   const gold = [184, 146, 74]
   const grey = [110, 120, 135]
 
-  doc.setFillColor(...navy); doc.rect(0, 0, W, 92, 'F')
-  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(16)
-  doc.text(tenantName || 'Imade Forte Holdings Limited', 40, 40)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...gold)
-  doc.text('PAYSLIP', 40, 60)
-  doc.setTextColor(220); doc.setFontSize(9)
-  doc.text(String(cycle), W - 40, 60, { align: 'right' })
+  const logo = await loadLogoDataUrl()
+  drawLetterhead(doc, W, logo, tenantName, 'PAYSLIP', cycle)
 
-  let y = 128
+  let y = 140
   doc.setTextColor(...navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(14)
   doc.text(s.name, 40, y)
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...grey)
-  y += 16; doc.text(`${roleLabel(s) || 'Staff'}  ·  ${s.sub || ''}`, 40, y)
+  y += 16; doc.text(`${s.title || roleLabel(s) || 'Staff'}  ·  ${s.sub || ''}${s.employment && s.employment !== 'fixed' ? '  ·  ' + (EMPLOYMENT[s.employment] || s.employment) : ''}`, 40, y)
   if (s.email) { y += 14; doc.text(s.email, 40, y) }
 
   const money = (n) => 'NGN ' + Math.round(n || 0).toLocaleString('en-NG')
@@ -3014,18 +2992,24 @@ async function buildPayslipPdf(s, opts, cycle, tenantName) {
   }
 
   y += 24
-  y = section('Earnings (monthly)', [
-    ['Basic', pr.basic / 12], ['Housing', pr.housing / 12], ['Transport', pr.transport / 12],
-    ['Other allowances', pr.other / 12], ['Gross pay', pr.grossM, true],
-  ], y)
-
-  const ded = [['Pension (8%)', pr.empPensionM]]
-  if (pr.nhfM > 0) ded.push(['NHF (2.5%)', pr.nhfM])
-  ded.push(['PAYE tax', pr.payeM])
-  if (pr.nhisEmpM > 0) ded.push(['NHIS (5%)', pr.nhisEmpM])
-  ded.push(['Development levy', pr.devLevyM])
-  ded.push(['Total deductions', pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM, true])
-  y = section('Deductions (monthly)', ded, y)
+  if (pr.isStipend) {
+    y = section('Stipend (monthly)', [['Stipend', pr.grossM, true]], y)
+  } else if (pr.isContract) {
+    y = section('Contract fee (monthly)', [['Contract fee', pr.grossM, true]], y)
+    y = section('Deductions (monthly)', [['Withholding tax (5%)', pr.whtM], ['Total deductions', pr.whtM, true]], y)
+  } else {
+    y = section('Earnings (monthly)', [
+      ['Basic (45%)', pr.basic / 12], ['Housing (25%)', pr.housing / 12], ['Transport (20%)', pr.transport / 12],
+      ['Other allowances (10%)', pr.other / 12], ['Gross pay', pr.grossM, true],
+    ], y)
+    const ded = [['Pension (8%)', pr.empPensionM]]
+    if (pr.nhfM > 0) ded.push(['NHF (2.5%)', pr.nhfM])
+    ded.push(['PAYE tax', pr.payeM])
+    if (pr.nhisEmpM > 0) ded.push(['NHIS (5%)', pr.nhisEmpM])
+    if (pr.devLevyM > 0) ded.push(['Development levy', pr.devLevyM])
+    ded.push(['Total deductions', pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM, true])
+    y = section('Deductions (monthly)', ded, y)
+  }
 
   doc.setFillColor(...navy); doc.rect(40, y, W - 80, 40, 'F')
   doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12)
@@ -3035,10 +3019,14 @@ async function buildPayslipPdf(s, opts, cycle, tenantName) {
   y += 62
 
   doc.setTextColor(...grey); doc.setFont('helvetica', 'normal'); doc.setFontSize(8)
-  const note = 'Computed under the Nigeria Tax Act 2025 and the Pension Reform Act. Structure: basic 50 percent, housing 25 percent, transport 15 percent, other 10 percent. This payslip is issued for your records. Queries should go to the Accounts department.'
+  const note = pr.isStipend
+    ? 'A stipend is paid without statutory deductions. This document is issued for your records. Queries should go to the Accounts department.'
+    : pr.isContract
+      ? 'Contract and vendor payments carry withholding tax at 5 percent and no pension or PAYE deduction. This document is issued for your records. Queries should go to the Accounts department.'
+      : 'Computed under the Nigeria Tax Act 2025 and the Pension Reform Act. Structure: basic 45 percent, housing 25 percent, transport 20 percent, other 10 percent. Pension is 8 percent of basic, housing and transport. This payslip is issued for your records. Queries should go to the Accounts department.'
   doc.text(doc.splitTextToSize(note, W - 80), 40, y)
 
-  return { blob: doc.output('blob'), filename: `Payslip_${String(s.name).replace(/[^A-Za-z0-9]+/g, '_')}_${String(cycle).replace(/\s+/g, '_')}.pdf` }
+  return { blob: doc.output('blob'), filename: `Payslip_${String(s.name).replace(/[^A-Za-z0-9]+/g, '_')}_${String(s.sub || '').replace(/[^A-Za-z0-9]+/g, '_')}_${String(cycle).replace(/\s+/g, '_')}.pdf` }
 }
 
 // Offer letter. Uses the same payroll engine as payslips, so the figures quoted
@@ -3053,15 +3041,10 @@ async function buildOfferLetterPdf(s, opts, tenantName, startDate) {
   const grey = [110, 120, 135]
   const money = (n) => 'NGN ' + Math.round(n || 0).toLocaleString('en-NG')
 
-  doc.setFillColor(...navy); doc.rect(0, 0, W, 92, 'F')
-  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(16)
-  doc.text(tenantName || 'Imade Forte Holdings Limited', 40, 40)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...gold)
-  doc.text('LETTER OF OFFER', 40, 60)
-  doc.setTextColor(220); doc.setFontSize(9)
-  doc.text(new Date().toISOString().slice(0, 10), W - 40, 60, { align: 'right' })
+  const logo = await loadLogoDataUrl()
+  drawLetterhead(doc, W, logo, tenantName, 'LETTER OF OFFER', new Date().toISOString().slice(0, 10))
 
-  let y = 130
+  let y = 142
   doc.setTextColor(...navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
   doc.text(s.name, 40, y)
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...grey)
@@ -3204,7 +3187,7 @@ async function sendViaEmailJs(cfg, params) {
 // A person's own payslip. Visible once the Accountant has disbursed the run, so
 // nobody sees a figure that is still moving through approval.
 function MyPayslip({ data, me, tenant }) {
-  const cycle = data.activeCycle || 'May 2026'
+  const cycle = data.activeCycle || 'July 2026'
   const run = data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft' }
   const s = data.staff.find((x) => x.id === me.id) || me
   const issued = run.status === 'disbursed'
@@ -3214,7 +3197,7 @@ function MyPayslip({ data, me, tenant }) {
   async function download() {
     setBusy(true)
     try {
-      const { blob, filename } = await buildPayslipPdf(s, { nhf: true, nhis: true }, cycle, tenant && tenant.name)
+      const { blob, filename } = await buildPayslipPdf(s, { nhf: false, nhis: false, levy: false }, cycle, tenant && tenant.name)
       downloadBlob(blob, filename)
     } finally { setBusy(false) }
   }
@@ -3239,7 +3222,7 @@ function MyPayslip({ data, me, tenant }) {
           {record && record.url && <a className="fc-btn fc-btn-ghost fc-btn-sm" href={record.url} target="_blank" rel="noreferrer">Open secure link</a>}
         </span>
       </div>
-      <Payslip s={s} opts={{ nhf: true, nhis: true }} cycle={cycle} onBack={null} onDownload={download} />
+      <Payslip s={s} opts={{ nhf: false, nhis: false, levy: false }} cycle={cycle} onBack={null} onDownload={download} />
     </div>
   )
 }
@@ -3294,12 +3277,37 @@ function EmailSetup({ cfg, onSave, tenant }) {
 
 function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, onAdvance, onReturn, onRecordPayslips, onSetEmailConfig }) {
   const canEdit = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
-  const cycle = data.activeCycle || 'May 2026'
+  const cycle = data.activeCycle || 'July 2026'
   const run = data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft', trail: [] }
-  const [nhf, setNhf] = useState(true)
-  const [nhis, setNhis] = useState(true)
-  const opts = { nhf, nhis }
-  const rows = data.staff.filter((s) => s.role !== 'chairman' && (s.salary || 0) > 0).map((s) => ({ s, pr: payrollFor(s, opts) })).filter((x) => x.pr).sort((a, b) => b.pr.grossM - a.pr.grossM)
+  // The live schedule applies neither NHF nor NHIS, so both start off. Turning
+  // one on changes every figure below, which is why they are switches.
+  const [nhf, setNhf] = useState(false)
+  const [nhis, setNhis] = useState(false)
+  const opts = { nhf, nhis, levy: false }
+  // One row per placement, because the schedule computes PAYE separately for each
+  // company a person is paid by.
+  const rows = []
+  data.staff.forEach((s) => {
+    const places = (s.placements && s.placements.length) ? s.placements : [{ org: s.sub, gross: s.salary || 0, rent: s.rent || 0 }]
+    places.forEach((p) => {
+      if (!(p.gross > 0)) return
+      const pr = payrollFor({ ...s, salary: p.gross, rent: p.rent || 0 }, opts)
+      if (pr) rows.push({ s, org: p.org, gross: p.gross, rent: p.rent || 0, pr, key: s.id + '|' + p.org })
+    })
+  })
+  rows.sort((a, b) => b.pr.grossM - a.pr.grossM)
+  // Group by company, then by how each person is engaged.
+  const orgOrder = (tenant && tenant.subsidiaries) || ORG_LIST
+  const grouped = orgOrder.map((org) => {
+    const inOrg = rows.filter((r) => r.org === org)
+    const byType = ['fixed', 'contract', 'intern'].map((t) => ({ type: t, items: inOrg.filter((r) => (r.s.employment || 'fixed') === t) })).filter((g) => g.items.length)
+    const tot = inOrg.reduce((a, { pr }) => ({
+      gross: a.gross + pr.grossM, paye: a.paye + pr.payeM,
+      ded: a.ded + pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM,
+      net: a.net + pr.netM, erPen: a.erPen + pr.erPensionM,
+    }), { gross: 0, paye: 0, ded: 0, net: 0, erPen: 0 })
+    return { org, byType, count: inOrg.length, tot }
+  }).filter((g) => g.count > 0)
   const tot = rows.reduce((a, { pr }) => ({ gross: a.gross + pr.grossM, paye: a.paye + pr.payeM, ded: a.ded + pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM, net: a.net + pr.netM }), { gross: 0, paye: 0, ded: 0, net: 0 })
   const [sel, setSel] = useState(null)
   const [edit, setEdit] = useState(null)
@@ -3346,10 +3354,11 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
     try {
       const items = []
       for (let i = 0; i < rows.length; i++) {
-        const { s } = rows[i]
+        const { s: person, org, gross, rent } = rows[i]
         setBusy(`Preparing payslips… ${i + 1} of ${rows.length}`)
-        const { blob, filename } = await buildPayslipPdf(s, opts, cycle, tenant && tenant.name)
-        items.push({ s, blob, filename })
+        const one = { ...person, salary: gross, rent, sub: org }
+        const { blob, filename } = await buildPayslipPdf(one, opts, cycle, tenant && tenant.name)
+        items.push({ s: { ...one, id: person.id + '|' + org, name: person.name, email: person.email }, blob, filename })
       }
       setBusy('Delivering payslips…')
       const res = await deliverPayslips(items, cycle, data.emailConfig, (n, total, name) => setBusy(`Delivering ${n} of ${total} · ${name}`))
@@ -3371,7 +3380,14 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
     }
   }
 
-  if (sel) { const s = data.staff.find((x) => x.id === sel); return <Payslip s={s} opts={opts} cycle={cycle} onBack={() => setSel(null)} onDownload={() => downloadOnePayslip(s)} /> }
+  if (sel) {
+    const row = rows.find((r) => r.key === sel)
+    if (row) {
+      const one = { ...row.s, salary: row.gross, rent: row.rent, sub: row.org }
+      return <Payslip s={one} opts={opts} cycle={cycle} onBack={() => setSel(null)} onDownload={() => downloadOnePayslip(one)} />
+    }
+    setSel(null)
+  }
 
   const stageIndex = PAY_FLOW.indexOf(status)
 
@@ -3478,39 +3494,52 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
         <Metric value={naira(tot.ded)} label="Total deductions" />
         <Metric value={naira(tot.net)} label="Net monthly" />
       </div>
-      <div className="fc-paytable">
-        <div className="fc-pt-row fc-pt-head"><span>Name</span><span>Gross</span><span>PAYE</span><span>Deductions</span><span>Net</span><span></span></div>
-        {rows.map(({ s, pr }) => (
-          <div key={s.id} className="fc-pt-row">
-            <span className="fc-pt-name">
-              {s.name}<span className="fc-muted"> · {s.sub}</span>
-              {mailEdit === s.id
-                ? <input className="fc-input fc-pt-input" autoFocus value={mailVal} placeholder="email address" onChange={(e) => setMailVal(e.target.value)} onBlur={() => { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) }} onKeyDown={(e) => { if (e.key === 'Enter') { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) } }} />
-                : <button className="fc-pt-mail" onClick={() => canEdit && (setMailVal(s.email || ''), setMailEdit(s.id))}>{s.email || (canEdit ? '+ add email' : 'no email')}</button>}
-            </span>
-            {edit === s.id ? <span><input className="fc-input fc-pt-input" value={val} onChange={(e) => setVal(e.target.value)} /></span> : <span>{naira(pr.grossM)}</span>}
-            <span>{naira(pr.payeM)}</span>
-            <span>{naira(pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM)}</span>
-            <span><b>{naira(pr.netM)}</b></span>
-            <span className="fc-pt-actions">
-              {edit === s.id
-                ? <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSetSalary(s.id, Number(val) || 0, salReason); setEdit(null); setSalReason('') }}>{me.role === 'chairman' ? 'Save' : 'Request'}</button>
-                : <>
-                    {canEdit && status === 'draft' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setVal(String(pr.grossM)); setEdit(s.id) }}>Edit</button>}
-                    <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setSel(s.id)}>Payslip</button>
-                    {status === 'disbursed' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => downloadOnePayslip(s)}>PDF</button>}
-                  </>}
-            </span>
+      {grouped.map((g) => (
+        <div key={g.org} className="fc-payorg">
+          <div className="fc-payorg-head">
+            <h3>{g.org}</h3>
+            <span className="fc-muted">{g.count} {g.count === 1 ? 'placement' : 'placements'} · net {naira(g.tot.net)}</span>
           </div>
-        ))}
-      </div>
+          {g.byType.map((grp) => (
+            <div key={grp.type} className="fc-paytype">
+              <div className="fc-paytype-label">{EMPLOYMENT[grp.type] || grp.type}<span className="fc-muted"> · {grp.items.length}</span></div>
+              <div className="fc-paytable">
+                <div className="fc-pt-row fc-pt-head"><span>Name</span><span>Gross</span><span>{grp.type === 'contract' ? 'WHT' : 'PAYE'}</span><span>Deductions</span><span>Net</span><span></span></div>
+                {grp.items.map(({ s, org, pr, key }) => (
+                  <div key={key} className="fc-pt-row">
+                    <span className="fc-pt-name">
+                      {s.name}<span className="fc-muted"> · {s.title || s.dept || ''}</span>
+                      {mailEdit === key
+                        ? <input className="fc-input fc-pt-input" autoFocus value={mailVal} placeholder="email address" onChange={(e) => setMailVal(e.target.value)} onBlur={() => { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) }} onKeyDown={(e) => { if (e.key === 'Enter') { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) } }} />
+                        : <button className="fc-pt-mail" onClick={() => canEdit && (setMailVal(s.email || ''), setMailEdit(key))}>{s.email || (canEdit ? '+ add email' : 'no email')}</button>}
+                    </span>
+                    {edit === key ? <span><input className="fc-input fc-pt-input" value={val} onChange={(e) => setVal(e.target.value)} /></span> : <span>{naira(pr.grossM)}</span>}
+                    <span>{naira(pr.payeM)}</span>
+                    <span>{naira(pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM)}</span>
+                    <span><b>{naira(pr.netM)}</b></span>
+                    <span className="fc-pt-actions">
+                      {edit === key
+                        ? <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSetSalary(s.id, Number(val) || 0, salReason, org); setEdit(null); setSalReason('') }}>{me.role === 'chairman' ? 'Save' : 'Request'}</button>
+                        : <>
+                            {canEdit && status === 'draft' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setVal(String(Math.round(pr.grossM))); setEdit(key) }}>Edit</button>}
+                            <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setSel(key)}>Payslip</button>
+                            {status === 'disbursed' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => downloadOnePayslip({ ...s, salary: pr.grossM, rent: 0, sub: org })}>PDF</button>}
+                          </>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
       <p className="fc-muted fc-pay-note">Structure: basic 50%, housing 25%, transport 15%, other 10%. Pension and NHF reduce taxable income; NHIS (employee 5%) and the ₦4,000 annual development levy are deducted after tax. Estimates: confirm with your accountant and the Nigeria Revenue Service.</p>
     </div>
   )
 }
 
 
-function Payslip({ s, opts = {}, cycle = 'May 2026', onBack, onDownload }) {
+function Payslip({ s, opts = {}, cycle = 'July 2026', onBack, onDownload }) {
   const pr = payrollFor(s, opts)
   const Row = ({ k, v, strong }) => <div className={`fc-ps-row ${strong ? 'is-strong' : ''}`}><span>{k}</span><span>{v}</span></div>
   return (
@@ -3640,7 +3669,7 @@ function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus
   const orgs = ['Corporate', ...tenant.subsidiaries]
   // Preview the offer on the same engine payroll uses, so what HR quotes is what gets paid.
   const draft = { ...f, name: f.name.trim() || 'New hire', salary: Number(f.salary) || 0, rent: Number(f.rent) || 0 }
-  const preview = draft.salary > 0 ? payrollFor(draft, { nhf: true, nhis: true }) : null
+  const preview = draft.salary > 0 ? payrollFor(draft, { nhf: false, nhis: false, levy: false }) : null
   const emailOk = !f.email.trim() || f.email.includes('@')
   function add() {
     if (!f.name.trim() || !emailOk) return
@@ -3655,7 +3684,7 @@ function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus
     if (!f.name.trim() || !(Number(f.salary) > 0)) { setLetter('Enter a name and a monthly gross salary first.'); return }
     setLetter('Preparing…')
     try {
-      const { blob, filename } = await buildOfferLetterPdf(draft, { nhf: true, nhis: true }, tenant && tenant.name, f.start)
+      const { blob, filename } = await buildOfferLetterPdf(draft, { nhf: false, nhis: false, levy: false }, tenant && tenant.name, f.start)
       downloadBlob(blob, filename)
       setLetter('Offer letter downloaded.')
     } catch (e) { setLetter('Could not build the letter: ' + (e && e.message ? e.message : 'error')) }
@@ -3885,7 +3914,7 @@ async function tryLogoDataUrl(src) {
 }
 function reviewPackHTML(data, tenant, logo) {
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
-  const cycle = data.activeCycle || 'May 2026'
+  const cycle = data.activeCycle || 'July 2026'
   const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
   const people = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) })).sort((a, b) => b.total - a.total)
   const g = people.filter((p) => p.band === 'green').length, a = people.filter((p) => p.band === 'amber').length, r = people.filter((p) => p.band === 'red').length
@@ -4223,6 +4252,11 @@ option{color:#111}
 .fc-salreq-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.6rem 0;border-top:1px solid var(--hairline);font-size:.88rem}
 .fc-salreq-row:first-of-type{border-top:none}
 .fc-salreq-note{display:block;font-size:.8rem;color:var(--muted);font-style:italic}
+.fc-payorg{margin-bottom:1.8rem}
+.fc-payorg-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding-bottom:.5rem;border-bottom:2px solid var(--gold);margin-bottom:.7rem}
+.fc-payorg-head h3{margin:0;font-size:1.1rem;color:var(--gold)}
+.fc-paytype{margin-bottom:1rem}
+.fc-paytype-label{font-family:var(--sans);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:.6rem 0 .3rem}
 .fc-payflow{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
 .fc-payflow-step{display:flex;align-items:center;gap:.5rem;padding:.5rem .85rem;border:1px solid var(--hairline);border-radius:999px;font-size:.78rem;color:var(--muted);background:transparent}
 .fc-payflow-step.is-done{color:var(--rag-g);border-color:rgba(90,160,110,.45)}

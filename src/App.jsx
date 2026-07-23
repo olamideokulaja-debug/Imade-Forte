@@ -579,6 +579,9 @@ async function loadData(tenantId) {
     activeCycle: forte ? 'July 2026' : 'Current cycle',
     hrActions: [],
     payrollRun: { cycle: forte ? 'July 2026' : 'Current cycle', status: 'draft', trail: [], payslips: null },
+    payrollRuns: {},
+    absence: {},
+    pendingAccounts: [],
     salaryRequests: [],
     salaryLog: [],
   }
@@ -1337,108 +1340,254 @@ function Gateway({ tenant, onSignIn, onBackToSite }) {
   )
 }
 
+/* --------------------------- Staff biodata ------------------------ */
+// What every new account must supply before HR, the MD or the Chairman can
+// approve it. Grouped so the form reads as a form, not a wall.
+const BIODATA = [
+  { group: 'Personal details', fields: [
+    { k: 'firstName', label: 'First name' },
+    { k: 'lastName', label: 'Surname' },
+    { k: 'middleName', label: 'Middle name', note: 'Type None if you have none' },
+    { k: 'dob', label: 'Date of birth', type: 'date' },
+    { k: 'gender', label: 'Gender', type: 'select', options: ['Female', 'Male'] },
+    { k: 'marital', label: 'Marital status', type: 'select', options: ['Single', 'Married', 'Divorced', 'Widowed'] },
+    { k: 'nationality', label: 'Nationality' },
+    { k: 'stateOfOrigin', label: 'State of origin' },
+    { k: 'lga', label: 'Local government area' },
+  ] },
+  { group: 'Contact', fields: [
+    { k: 'phone', label: 'Phone number', type: 'tel' },
+    { k: 'personalEmail', label: 'Personal email', type: 'email' },
+    { k: 'address', label: 'Residential address', type: 'textarea' },
+  ] },
+  { group: 'Role', fields: [
+    { k: 'title', label: 'Your position', note: 'For example, Investment Analyst' },
+    { k: 'dept', label: 'Department' },
+    { k: 'startDate', label: 'Date you started, or will start', type: 'date' },
+  ] },
+  { group: 'Next of kin', fields: [
+    { k: 'kinName', label: 'Full name' },
+    { k: 'kinRelationship', label: 'Relationship to you' },
+    { k: 'kinPhone', label: 'Phone number', type: 'tel' },
+    { k: 'kinAddress', label: 'Address', type: 'textarea' },
+  ] },
+  { group: 'Identification and bank', fields: [
+    { k: 'nin', label: 'National Identification Number (NIN)' },
+    { k: 'bank', label: 'Bank name' },
+    { k: 'accountNumber', label: 'Account number' },
+    { k: 'accountName', label: 'Account name' },
+    { k: 'rsa', label: 'Pension RSA number', note: 'Type None if you do not have one yet' },
+    { k: 'pfa', label: 'Pension administrator (PFA)', note: 'Type None if you do not have one yet' },
+    { k: 'tin', label: 'Tax Identification Number (TIN)', note: 'Type None if you do not have one yet' },
+  ] },
+]
+const BIO_FIELDS = BIODATA.flatMap((g) => g.fields)
+// Which roles a person may pick for themselves. Chairman, MD and Accountant are
+// assigned by the approver rather than self-selected.
+const SELF_ROLES = [
+  { id: 'staff', label: 'Staff member', note: 'I do the work of a role in a team' },
+  { id: 'lead', label: 'Team or subsidiary lead', note: 'I lead a team or a company in the group' },
+  { id: 'hr', label: 'HR and administration', note: 'I look after people, records and the office' },
+  { id: 'accountant', label: 'Finance', note: 'I work on accounts, payroll or reporting' },
+]
+
 /* --------------------------- Auth screen -------------------------- */
 // Turns anything an auth call can fail with into a sentence a person can act on.
-// Supabase errors arrive in several shapes, and an unrecognised one used to be
-// stringified into "{}" or "[object Object]", which told the user nothing.
 function authErrorText(e) {
   if (!e) return 'Something went wrong. Please try again.'
-  const raw = String(
-    (typeof e === 'string' ? e : e.message || e.msg || e.error_description || e.error || e.details || '')
-  ).trim()
+  const raw = String((typeof e === 'string' ? e : e.message || e.msg || e.error_description || e.error || e.details || '')).trim()
   const status = e.status || e.statusCode || e.code
-
   if (!raw || raw === '{}' || raw === '[object Object]' || raw === 'undefined' || raw === 'null') {
     return status
       ? `The server rejected the request (code ${status}). Please try again, and tell your administrator if it continues.`
       : 'Could not reach the server. Check your connection and try again.'
   }
-  if (/database error saving new user/i.test(raw)) {
-    return 'The account could not be created because of a server setup issue, not anything you did. Please tell your administrator.'
-  }
-  if (/already registered|already been registered|user already exists/i.test(raw)) {
-    return 'That email already has an account. Try signing in instead, or reset the password.'
-  }
+  if (/database error saving new user/i.test(raw)) return 'The account could not be created because of a server setup issue, not anything you did. Please tell your administrator.'
+  if (/already registered|already been registered|user already exists/i.test(raw)) return 'That email already has an account. Try signing in instead, or reset the password.'
   if (/invalid login credentials/i.test(raw)) return 'That email and password do not match an account.'
   if (/email not confirmed/i.test(raw)) return 'Please confirm your email address first, then sign in.'
-  if (/password should be at least (\d+)/i.test(raw)) {
-    const n = raw.match(/at least (\d+)/i)[1]
-    return `Please choose a password of at least ${n} characters.`
-  }
+  if (/password should be at least (\d+)/i.test(raw)) return `Please choose a password of at least ${raw.match(/at least (\d+)/i)[1]} characters.`
   if (/unable to validate email address|invalid format/i.test(raw)) return 'Please check the email address and try again.'
   if (/rate limit|too many requests/i.test(raw)) return 'Too many attempts. Please wait a minute and try again.'
   if (/failed to fetch|networkerror|load failed/i.test(raw)) return 'Could not reach the server. Check your connection and try again.'
   return raw
 }
 
-function AuthScreen({ tenant, staff, onEnter, onBack }) {
-  const [mode, setMode] = useState('pick')
+function AuthScreen({ tenant, staff, onEnter, onBack, onRegister, pending }) {
+  // signin -> role -> bio -> done
+  const [step, setStep] = useState('signin')
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [role, setRole] = useState('')
+  const [sub, setSub] = useState((tenant.subsidiaries && tenant.subsidiaries[0]) || 'Imade Forte')
+  const [bio, setBio] = useState({})
+  const [touched, setTouched] = useState(false)
   const [msg, setMsg] = useState('')
-  const [ok, setOk] = useState('')
   const [busy, setBusy] = useState(false)
+  const [mode, setMode] = useState('pick')
 
-  async function liveAuth(kind) {
-    setMsg(''); setOk('')
+  const missing = BIO_FIELDS.filter((f) => !String(bio[f.k] || '').trim()).map((f) => f.k)
+  const bioComplete = missing.length === 0
+
+  async function signIn() {
+    setMsg('')
     const addr = email.trim()
-    if (!addr || !addr.includes('@')) { setMsg('Please enter your email address.'); return }
+    if (!addr.includes('@')) { setMsg('Please enter your email address.'); return }
     if (!pw) { setMsg('Please enter a password.'); return }
-    if (kind === 'up' && pw.length < 6) { setMsg('Please choose a password of at least 6 characters.'); return }
     setBusy(true)
     try {
-      const creds = { email: addr, password: pw }
-      const { error } = kind === 'up'
-        ? await supabase.auth.signUp(creds)
-        : await supabase.auth.signInWithPassword(creds)
+      const { error } = await supabase.auth.signInWithPassword({ email: addr, password: pw })
       if (error) setMsg(authErrorText(error))
-      else if (kind === 'up') setOk('Account created. If email confirmation is on, confirm it then sign in.')
-    } catch (e) {
-      setMsg(authErrorText(e))
-    } finally {
-      setBusy(false)
-    }
+    } catch (e) { setMsg(authErrorText(e)) } finally { setBusy(false) }
   }
 
-  return (
-    <div className="fc-auth">
-      <div className="fc-auth-card">
-        <button className="fc-back" onClick={onBack}>← Back</button>
-        {tenant.logo && <img className="fc-auth-logo" src={tenant.logo} alt={tenant.name} />}
-        <h2 className="fc-auth-title">Sign in to Forte Compass</h2>
-        <p className="fc-auth-sub">{tenant.name}{!LIVE && <span className="fc-demo-tag">Demo mode</span>}</p>
+  function beginCreate() {
+    setMsg('')
+    const addr = email.trim()
+    if (!addr.includes('@')) { setMsg('Enter the email address you want to sign in with, then choose Create account.'); return }
+    if (pw.length < 6) { setMsg('Please choose a password of at least 6 characters first.'); return }
+    setStep('role')
+  }
 
-        {LIVE ? (
-          <div className="fc-auth-form">
-            <input className="fc-input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <input className="fc-input" placeholder="Password" type="password" value={pw} onChange={(e) => setPw(e.target.value)} />
-            <div className="fc-cta-row">
-              <button className="fc-btn fc-btn-gold" disabled={busy} onClick={() => liveAuth('in')}>{busy ? 'Working…' : 'Sign in'}</button>
-              <button className="fc-btn fc-btn-ghost" disabled={busy} onClick={() => liveAuth('up')}>Create account</button>
-            </div>
-            {msg && <p className="fc-auth-msg" role="alert">{msg}</p>}
-            {ok && <p className="fc-auth-ok" role="status">{ok}</p>}
-          </div>
-        ) : (
-          <>
-            <p className="fc-auth-hint">Pick who you are to enter. Every role sees its own view.</p>
-            <div className="fc-identity-list">
-              {staff.filter((s) => s.role !== undefined).map((s) => (
-                <button key={s.id} className="fc-identity" onClick={() => onEnter(s)}>
-                  <Avatar name={s.name} />
-                  <span className="fc-identity-body">
-                    <span className="fc-identity-name">{s.name}</span>
-                    <span className="fc-identity-role">{roleLabel(s)} · {s.sub}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-            <button className="fc-link fc-add-new" onClick={() => setMode('new')}>+ Create a new person</button>
-            {mode === 'new' && <RolePicker tenant={tenant} onCreate={(p) => onEnter(p)} />}
-          </>
-        )}
+  async function submitRegistration() {
+    setTouched(true)
+    if (!bioComplete) { setMsg('Every field is required. Please complete the ones highlighted.'); return }
+    setMsg(''); setBusy(true)
+    try {
+      const record = {
+        email: email.trim(), role, sub,
+        name: `${bio.firstName} ${bio.lastName}`.trim(),
+        ...bio,
+      }
+      if (LIVE) {
+        const { error } = await supabase.auth.signUp({
+          email: email.trim(), password: pw,
+          options: { data: { name: record.name, role, subsidiary: sub, title: bio.title || '', biodata: bio } },
+        })
+        if (error) { setMsg(authErrorText(error)); setBusy(false); return }
+      }
+      onRegister(record)
+      setStep('done')
+    } catch (e) { setMsg(authErrorText(e)) } finally { setBusy(false) }
+  }
+
+  const card = (inner) => (
+    <div className="fc-auth">
+      <div className={`fc-auth-card ${step === 'bio' ? 'is-wide' : ''}`}>
+        <button className="fc-back" onClick={step === 'signin' ? onBack : () => { setStep(step === 'bio' ? 'role' : 'signin'); setMsg('') }}>← Back</button>
+        {tenant.logo && <img className="fc-auth-logo" src={tenant.logo} alt={tenant.name} />}
+        {inner}
       </div>
     </div>
+  )
+
+  if (step === 'done') return card(
+    <>
+      <h2 className="fc-auth-title">Pending approval</h2>
+      <p className="fc-auth-sub">{tenant.name}</p>
+      <div className="fc-pending">
+        <div className="fc-pending-mark">⏳</div>
+        <p>Thank you. Your details have been sent to HR for approval.</p>
+        <p className="fc-muted">An account is activated once HR, the Managing Director or the Chairman approves it. You will be able to sign in after that. If it is urgent, speak to HR directly.</p>
+      </div>
+      <button className="fc-btn fc-btn-ghost" onClick={onBack}>Close</button>
+    </>
+  )
+
+  if (step === 'role') return card(
+    <>
+      <h2 className="fc-auth-title">What best describes you?</h2>
+      <p className="fc-auth-sub">This sets what you see. HR can change it when approving.</p>
+      <div className="fc-rolecards">
+        {SELF_ROLES.map((r) => (
+          <button key={r.id} className={`fc-rolecard ${role === r.id ? 'is-on' : ''}`} onClick={() => setRole(r.id)}>
+            <b>{r.label}</b><span>{r.note}</span>
+          </button>
+        ))}
+      </div>
+      <label className="fc-field">
+        <span>Which company do you work for?</span>
+        <select className="fc-input" value={sub} onChange={(e) => setSub(e.target.value)}>
+          {(tenant.subsidiaries || []).map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </label>
+      {msg && <p className="fc-auth-msg">{msg}</p>}
+      <button className="fc-btn fc-btn-gold" disabled={!role} onClick={() => { setMsg(''); setStep('bio') }}>Continue</button>
+    </>
+  )
+
+  if (step === 'bio') return card(
+    <>
+      <h2 className="fc-auth-title">Your details</h2>
+      <p className="fc-auth-sub">Every field is required. These become your staff record.</p>
+      <div className="fc-bioform">
+        {BIODATA.map((g) => (
+          <div key={g.group} className="fc-biogroup">
+            <h3>{g.group}</h3>
+            <div className="fc-biogrid">
+              {g.fields.map((f) => {
+                const bad = touched && !String(bio[f.k] || '').trim()
+                return (
+                  <label key={f.k} className={`fc-field ${f.type === 'textarea' ? 'is-wide' : ''} ${bad ? 'is-bad' : ''}`}>
+                    <span>{f.label}</span>
+                    {f.type === 'select'
+                      ? <select className="fc-input" value={bio[f.k] || ''} onChange={(e) => setBio({ ...bio, [f.k]: e.target.value })}>
+                          <option value="">Choose…</option>
+                          {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      : f.type === 'textarea'
+                        ? <textarea className="fc-input" rows={2} value={bio[f.k] || ''} onChange={(e) => setBio({ ...bio, [f.k]: e.target.value })} />
+                        : <input className="fc-input" type={f.type || 'text'} value={bio[f.k] || ''} onChange={(e) => setBio({ ...bio, [f.k]: e.target.value })} />}
+                    {f.note && <em>{f.note}</em>}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {touched && !bioComplete && <p className="fc-auth-msg">{missing.length} {missing.length === 1 ? 'field is' : 'fields are'} still empty.</p>}
+      {msg && <p className="fc-auth-msg">{msg}</p>}
+      <button className="fc-btn fc-btn-gold" disabled={busy} onClick={submitRegistration}>{busy ? 'Submitting…' : 'Create account'}</button>
+    </>
+  )
+
+  return card(
+    <>
+      <h2 className="fc-auth-title">Sign in to Forte Compass</h2>
+      <p className="fc-auth-sub">{tenant.name}{!LIVE && <span className="fc-demo-tag">Demo mode</span>}</p>
+      {LIVE ? (
+        <div className="fc-auth-form">
+          <input className="fc-input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <div className="fc-pwwrap">
+            <input className="fc-input" placeholder="Password" type={showPw ? 'text' : 'password'} value={pw} onChange={(e) => setPw(e.target.value)} />
+            <button type="button" className="fc-pweye" onClick={() => setShowPw(!showPw)} aria-label={showPw ? 'Hide password' : 'Show password'}>{showPw ? 'Hide' : 'Show'}</button>
+          </div>
+          <div className="fc-cta-row">
+            <button className="fc-btn fc-btn-gold" disabled={busy} onClick={signIn}>{busy ? 'Working…' : 'Sign in'}</button>
+            <button className="fc-btn fc-btn-ghost" disabled={busy} onClick={beginCreate}>Create account</button>
+          </div>
+          {msg && <p className="fc-auth-msg" role="alert">{msg}</p>}
+        </div>
+      ) : (
+        <>
+          <p className="fc-auth-hint">Pick who you are to enter. Every role sees its own view.</p>
+          <div className="fc-identity-list">
+            {staff.filter((s) => s.role !== undefined).map((s) => (
+              <button key={s.id} className="fc-identity" onClick={() => onEnter(s)}>
+                <Avatar name={s.name} />
+                <span className="fc-identity-body">
+                  <span className="fc-identity-name">{s.name}</span>
+                  <span className="fc-identity-role">{roleLabel(s)} · {s.sub}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <button className="fc-link fc-add-new" onClick={() => { setEmail('new.person@imadeforteholdings.com'); setPw('temporary'); setStep('role') }}>+ Register a new person</button>
+        </>
+      )}
+    </>
   )
 }
 
@@ -1614,23 +1763,90 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   }
   function setStaffEmail(id, email) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, email } : s)) })) }
   function setEmailConfig(cfg) { setData((d) => ({ ...d, emailConfig: cfg })) }
+  async function refreshPending() {
+    if (!LIVE) return
+    try {
+      const { data } = await supabase.from('profiles').select('*').in('status', ['pending', 'declined']).order('created_at', { ascending: true })
+      if (data) setData((d) => ({ ...d, pendingAccounts: data.map((p) => ({ id: p.id, email: p.email, name: p.name, role: p.role, sub: p.subsidiary, createdAt: (p.created_at || '').slice(0, 10), status: p.status, ...(p.biodata || {}) })) }))
+    } catch { /* the approval SQL may not be applied yet */ }
+  }
+
+  // A new account is a request, not an entitlement. HR, the MD or the Chairman
+  // decides, and only then does the person become staff.
+  async function approveAccount(id, roleOverride) {
+    if (LIVE) {
+      try {
+        const { error } = await supabase.rpc('approve_account', { target: id, new_role: roleOverride || null })
+        if (error) { window.alert(error.message || 'Could not approve the account.'); return }
+        await refreshPending()
+        return
+      } catch (e) { window.alert((e && e.message) || 'Could not approve the account.'); return }
+    }
+    approveAccountLocal(id, roleOverride)
+  }
+  async function declineAccountLive(id, reason) {
+    try {
+      const { error } = await supabase.rpc('decline_account', { target: id, reason: reason || null })
+      if (error) { window.alert(error.message || 'Could not decline the account.'); return }
+      await refreshPending()
+    } catch (e) { window.alert((e && e.message) || 'Could not decline the account.') }
+  }
+  function approveAccountLocal(id, roleOverride) {
+    setData((d) => {
+      const req = (d.pendingAccounts || []).find((r) => r.id === id)
+      if (!req) return d
+      const person = {
+        id: 'u_' + req.id.slice(0, 6), name: req.name, email: req.email,
+        role: roleOverride || req.role, sub: req.sub, dept: req.dept || '', title: req.title || '',
+        employment: 'fixed', placements: [], salary: 0, rent: 0,
+        bank: req.bank || '', account: req.accountNumber || '', rsa: req.rsa || '', pfa: req.pfa || '', tin: req.tin || '',
+        startDate: req.startDate || '', bio: req, tier: 'ops', band: 'grey', score: 0,
+        onboarding: newChecklist(false), documents: [], docs: {},
+      }
+      return {
+        ...d,
+        staff: [...d.staff, person],
+        pendingAccounts: (d.pendingAccounts || []).map((r) => (r.id === id ? { ...r, status: 'approved', decidedBy: me.name, decidedAt: today() } : r)),
+      }
+    })
+  }
+  function declineAccount(id, reason) {
+    if (LIVE) { declineAccountLive(id, reason); return }
+    setData((d) => ({ ...d, pendingAccounts: (d.pendingAccounts || []).map((r) => (r.id === id ? { ...r, status: 'declined', decidedBy: me.name, decidedAt: today(), reason: reason || '' } : r)) }))
+  }
   const today = () => new Date().toISOString().slice(0, 10)
   // Payroll moves HR -> MD -> Chairman -> Accountant. Every move is stamped into an
   // append-only trail so the run can always be audited after the fact.
-  function advancePayroll(next, note) {
+  // Every run is filed under its own cycle, so closing a month archives it rather
+  // than overwriting it. Past months stay readable and comparable.
+  function advancePayroll(next, note, cycleName) {
     setData((d) => {
-      const run = (d.payrollRun && d.payrollRun.cycle === d.activeCycle) ? d.payrollRun : { cycle: d.activeCycle, status: 'draft', trail: [] }
+      const cyc = cycleName || d.activeCycle
+      const runs = d.payrollRuns || {}
+      const run = runs[cyc] || (d.payrollRun && d.payrollRun.cycle === cyc ? d.payrollRun : { cycle: cyc, status: 'draft', trail: [] })
       const entry = { at: today(), by: me.name, role: me.role, to: next, note: note || '' }
-      return { ...d, payrollRun: { ...run, cycle: d.activeCycle, status: next, trail: [...(run.trail || []), entry] } }
+      const updated = { ...run, cycle: cyc, status: next, trail: [...(run.trail || []), entry] }
+      return { ...d, payrollRuns: { ...runs, [cyc]: updated }, payrollRun: cyc === d.activeCycle ? updated : d.payrollRun }
     })
   }
   function returnPayroll(to, note) { advancePayroll(to, note) }
-  function recordPayslips(payslips) {
-    setData((d) => ({ ...d, payrollRun: { ...(d.payrollRun || {}), payslips } }))
+  function recordPayslips(payslips, cycleName) {
+    setData((d) => {
+      const cyc = cycleName || d.activeCycle
+      const runs = d.payrollRuns || {}
+      const run = { ...(runs[cyc] || d.payrollRun || {}), payslips }
+      return { ...d, payrollRuns: { ...runs, [cyc]: run }, payrollRun: cyc === d.activeCycle ? run : d.payrollRun }
+    })
+  }
+  // Days absent, recorded per cycle and per placement, deducted pro rata.
+  function setAbsence(cycle, key, days) {
+    setData((d) => ({ ...d, absence: { ...(d.absence || {}), [cycle]: { ...((d.absence || {})[cycle] || {}), [key]: Math.max(0, Number(days) || 0) } } }))
   }
 
+  const canApproveAccounts = ['hr', 'md', 'chairman', 'admin'].includes(me.role)
+  const pendingCount = (data.pendingAccounts || []).filter((r) => r.status === 'pending').length
   const tabs = me.role === 'chairman'
-    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['performance', 'Performance'], ['payroll', 'Payroll'], ['leave', 'Leave'], ['scorecards', 'Scorecards'], ['export', 'Export']]
+    ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['performance', 'Performance'], ['payroll', 'Payroll'], ['approvals', pendingCount ? `Approvals (${pendingCount})` : 'Approvals'], ['leave', 'Leave'], ['scorecards', 'Scorecards'], ['export', 'Export']]
     : [
         ['dashboard', 'Dashboard'],
         ['objectives', 'My OKRs'],
@@ -1643,6 +1859,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
         canReview && ['review', 'Review & approve'],
         canPerf && ['performance', 'Performance'],
         canPay && ['payroll', 'Payroll'],
+        canApproveAccounts && ['approvals', pendingCount ? `Approvals (${pendingCount})` : 'Approvals'],
         canOnboard && ['onboarding', 'Onboarding'],
         canDocs && ['documents', 'Documents'],
         canCycle && ['cycles', 'Cycles'],
@@ -1719,7 +1936,8 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'leave' && <Leave data={data} me={me} onRequest={requestLeave} onDecide={decideLeave} />}
           {tab === 'myonboarding' && <MyOnboardingPage data={data} me={me} onUploadDoc={uploadDoc} />}
           {tab === 'mypayslip' && <MyPayslip data={data} me={me} tenant={tenant} />}
-          {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={requestSalaryChange} onDecideSalary={decideSalaryRequest} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} onSetEmailConfig={setEmailConfig} />}
+          {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={requestSalaryChange} onDecideSalary={decideSalaryRequest} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} onSetEmailConfig={setEmailConfig} onSetAbsence={setAbsence} />}
+          {tab === 'approvals' && <AccountApprovals onRefresh={refreshPending} data={data} me={me} tenant={tenant} onApprove={approveAccount} onDecline={declineAccount} />}
           {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} onUploadDoc={uploadDoc} onSetDocStatus={setDocStatus} />}
           {tab === 'cycles' && <Cycles data={data} onActivate={activateCycle} onRoll={rollCycle} />}
           {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
@@ -2753,7 +2971,6 @@ function Performance({ data, me, onRefer, onResolve }) {
   const name = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Someone'
   const openFor = (id, level) => actions.find((a) => a.staffId === id && a.level === level && a.status === 'open')
   const canRefer = me.role === 'chairman' || me.role === 'md'
-  const isHR = me.role === 'hr' || me.role === 'admin'
   return (
     <div className="fc-performance">
       <div className="fc-panel-head"><div><h2>Performance and intervention</h2><p className="fc-muted">Recommendations based on the frequency and severity of low performance. Refer a case and HR picks it up.</p></div></div>
@@ -3275,10 +3492,17 @@ function EmailSetup({ cfg, onSave, tenant }) {
   )
 }
 
-function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, onAdvance, onReturn, onRecordPayslips, onSetEmailConfig }) {
+function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, onAdvance, onReturn, onRecordPayslips, onSetEmailConfig, onSetAbsence }) {
   const canEdit = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
-  const cycle = data.activeCycle || 'July 2026'
-  const run = data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft', trail: [] }
+  // Any cycle that has a run stays selectable, so July can be read beside June.
+  const activeCycle = data.activeCycle || 'July 2026'
+  const runsByCycle = data.payrollRuns || {}
+  const cycleNames = Array.from(new Set([...(data.cycles || []).map((c) => c.name), ...Object.keys(runsByCycle), activeCycle]))
+  const [cycle, setCycle] = useState(activeCycle)
+  const viewing = cycle !== activeCycle
+  const run = runsByCycle[cycle] || (data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft', trail: [] })
+  const WORKING_DAYS = 22
+  const absenceFor = (data.absence || {})[cycle] || {}
   // The live schedule applies neither NHF nor NHIS, so both start off. Turning
   // one on changes every figure below, which is why they are switches.
   const [nhf, setNhf] = useState(false)
@@ -3291,8 +3515,13 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
     const places = (s.placements && s.placements.length) ? s.placements : [{ org: s.sub, gross: s.salary || 0, rent: s.rent || 0 }]
     places.forEach((p) => {
       if (!(p.gross > 0)) return
-      const pr = payrollFor({ ...s, salary: p.gross, rent: p.rent || 0 }, opts)
-      if (pr) rows.push({ s, org: p.org, gross: p.gross, rent: p.rent || 0, pr, key: s.id + '|' + p.org })
+      const key = s.id + '|' + p.org
+      const daysOut = absenceFor[key] || 0
+      // Absence is deducted from gross before tax, so PAYE and pension follow the
+      // amount actually earned rather than the full-month figure.
+      const adjusted = daysOut > 0 ? p.gross * Math.max(0, (WORKING_DAYS - daysOut)) / WORKING_DAYS : p.gross
+      const pr = payrollFor({ ...s, salary: adjusted, rent: p.rent || 0 }, opts)
+      if (pr) rows.push({ s, org: p.org, gross: adjusted, fullGross: p.gross, daysOut, rent: p.rent || 0, pr, key })
     })
   })
   rows.sort((a, b) => b.pr.grossM - a.pr.grossM)
@@ -3322,11 +3551,15 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
   const [override, setOverride] = useState(false)
   const [overrideNote, setOverrideNote] = useState('')
   const [salReason, setSalReason] = useState('')
+  const [absEdit, setAbsEdit] = useState(null)
+  const [absVal, setAbsVal] = useState('')
 
   const isHR = me.role === 'hr' || me.role === 'admin'
   const isMD = me.role === 'md'
   const isChair = me.role === 'chairman'
   const isAcct = me.role === 'accountant'
+  const canAbsence = isHR || isAcct
+  const editable = !viewing
   const status = run.status || 'draft'
   const missingEmail = rows.filter(({ s }) => !s.email)
   const unverified = rows.filter(({ s }) => !docProgress(s).complete)
@@ -3364,9 +3597,9 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
       const res = await deliverPayslips(items, cycle, data.emailConfig, (n, total, name) => setBusy(`Delivering ${n} of ${total} · ${name}`))
       const record = {}
       items.forEach(({ s, filename }) => { record[s.id] = { filename, url: res.links[s.id] || null } })
-      onRecordPayslips(record)
+      onRecordPayslips(record, cycle)
       const gateNote = unverified.length ? ` Document check overridden for ${unverified.length} of ${rows.length}: ${overrideNote.trim()}` : ' All staff document-verified.'
-      onAdvance('disbursed', `Disbursed. ${items.length} payslips generated, ${res.emailed} emailed.${gateNote}`)
+      onAdvance('disbursed', `Disbursed. ${items.length} payslips generated, ${res.emailed} emailed.${gateNote}`, cycle)
       setNotice({
         kind: res.errors.length ? 'warn' : 'ok',
         text: res.errors.length
@@ -3409,6 +3642,20 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
         ))}
       </div>
 
+      <div className="fc-cycletabs">
+        {cycleNames.map((c) => {
+          const st = (runsByCycle[c] || {}).status
+          return (
+            <button key={c} className={`fc-cycletab ${c === cycle ? 'is-on' : ''}`} onClick={() => setCycle(c)}>
+              {c}
+              {c === activeCycle && <span className="fc-cycletab-now">current</span>}
+              {st && <span className={`fc-cycletab-st fc-payrun-${st}`}>{PAY_STEPS[st] ? PAY_STEPS[st].label : st}</span>}
+            </button>
+          )
+        })}
+      </div>
+      {viewing && <p className="fc-muted fc-cycle-note">Viewing {cycle} for reference. Only the current cycle, {activeCycle}, can be edited or disbursed.</p>}
+
       {(isAcct || isHR) && <EmailSetup cfg={data.emailConfig} onSave={onSetEmailConfig} tenant={tenant} />}
 
       <div className={`fc-payrun fc-payrun-${status}`}>
@@ -3417,16 +3664,16 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
           <span className="fc-muted"> · {PAY_STEPS[status].who}</span>
         </div>
         <div className="fc-payrun-actions">
-          {isHR && status === 'draft' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('md_review')}>Submit to MD</button>}
-          {isMD && status === 'md_review' && <>
+          {isHR && editable && status === 'draft' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('md_review', '', cycle)}>Submit to MD</button>}
+          {isMD && editable && status === 'md_review' && <>
             <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setReturning(true)}>Return to HR</button>
-            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('chair_review')}>Approve and send to Chairman</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('chair_review', '', cycle)}>Approve and send to Chairman</button>
           </>}
-          {isChair && status === 'chair_review' && <>
+          {isChair && editable && status === 'chair_review' && <>
             <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setReturning(true)}>Return to MD</button>
-            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('approved')}>Approve for disbursement</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('approved', '', cycle)}>Approve for disbursement</button>
           </>}
-          {isAcct && status === 'approved' && <>
+          {isAcct && editable && status === 'approved' && <>
             <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadForBank}>{dl ? 'Preparing…' : 'Download for bank'}</button>
             <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!!busy || !docGateOk} onClick={disburseAndIssue}>{busy || 'Disburse and issue payslips'}</button>
           </>}
@@ -3445,7 +3692,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
         </div>
       )}
 
-      {isAcct && status === 'approved' && unverified.length > 0 && (
+      {isAcct && editable && status === 'approved' && unverified.length > 0 && (
         <div className="fc-gate">
           <p className="fc-gate-head"><b>Payroll is held.</b> {unverified.length} of {rows.length} {unverified.length === 1 ? 'person has' : 'people have'} not had their documents verified.</p>
           <p className="fc-muted fc-gate-names">{unverified.slice(0, 6).map(({ s }) => s.name).join(', ')}{unverified.length > 6 ? ` and ${unverified.length - 6} more` : ''}</p>
@@ -3454,7 +3701,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
           {override && overrideNote.trim().length <= 3 && <p className="fc-muted">Give a reason to unlock disbursement.</p>}
         </div>
       )}
-      {isAcct && status === 'approved' && missingEmail.length > 0 && (
+      {isAcct && editable && status === 'approved' && missingEmail.length > 0 && (
         <p className="fc-pay-warn">{missingEmail.length} {missingEmail.length === 1 ? 'person has' : 'people have'} no email address, so they will not receive a payslip automatically. HR can add addresses in the table below.</p>
       )}
       {notice && <p className={notice.kind === 'ok' ? 'fc-pay-ok' : 'fc-pay-warn'}>{notice.text}</p>}
@@ -3505,10 +3752,11 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
               <div className="fc-paytype-label">{EMPLOYMENT[grp.type] || grp.type}<span className="fc-muted"> · {grp.items.length}</span></div>
               <div className="fc-paytable">
                 <div className="fc-pt-row fc-pt-head"><span>Name</span><span>Gross</span><span>{grp.type === 'contract' ? 'WHT' : 'PAYE'}</span><span>Deductions</span><span>Net</span><span></span></div>
-                {grp.items.map(({ s, org, pr, key }) => (
+                {grp.items.map(({ s, org, pr, key, daysOut, fullGross }) => (
                   <div key={key} className="fc-pt-row">
                     <span className="fc-pt-name">
                       {s.name}<span className="fc-muted"> · {s.title || s.dept || ''}</span>
+                      {daysOut > 0 && <span className="fc-prorata">{daysOut} {daysOut === 1 ? 'day' : 'days'} absent · full {naira(fullGross)}</span>}
                       {mailEdit === key
                         ? <input className="fc-input fc-pt-input" autoFocus value={mailVal} placeholder="email address" onChange={(e) => setMailVal(e.target.value)} onBlur={() => { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) }} onKeyDown={(e) => { if (e.key === 'Enter') { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) } }} />
                         : <button className="fc-pt-mail" onClick={() => canEdit && (setMailVal(s.email || ''), setMailEdit(key))}>{s.email || (canEdit ? '+ add email' : 'no email')}</button>}
@@ -3521,7 +3769,13 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
                       {edit === key
                         ? <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSetSalary(s.id, Number(val) || 0, salReason, org); setEdit(null); setSalReason('') }}>{me.role === 'chairman' ? 'Save' : 'Request'}</button>
                         : <>
-                            {canEdit && status === 'draft' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setVal(String(Math.round(pr.grossM))); setEdit(key) }}>Edit</button>}
+                            {canEdit && editable && status === 'draft' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setVal(String(Math.round(pr.grossM))); setEdit(key) }}>Edit</button>}
+                            {canAbsence && editable && status !== 'disbursed' && (absEdit === key
+                              ? <input className="fc-input fc-abs-input" autoFocus type="number" min="0" max="31" value={absVal} placeholder="days"
+                                  onChange={(e) => setAbsVal(e.target.value)}
+                                  onBlur={() => { onSetAbsence(cycle, key, absVal); setAbsEdit(null) }}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { onSetAbsence(cycle, key, absVal); setAbsEdit(null) } }} />
+                              : <button className="fc-btn fc-btn-ghost fc-btn-sm" title="Days absent, deducted pro rata" onClick={() => { setAbsVal(String(daysOut || '')); setAbsEdit(key) }}>{daysOut > 0 ? `${daysOut}d absent` : 'Absence'}</button>)}
                             <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setSel(key)}>Payslip</button>
                             {status === 'disbursed' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => downloadOnePayslip({ ...s, salary: pr.grossM, rent: 0, sub: org })}>PDF</button>}
                           </>}
@@ -3533,7 +3787,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
           ))}
         </div>
       ))}
-      <p className="fc-muted fc-pay-note">Structure: basic 50%, housing 25%, transport 15%, other 10%. Pension and NHF reduce taxable income; NHIS (employee 5%) and the ₦4,000 annual development levy are deducted after tax. Estimates: confirm with your accountant and the Nigeria Revenue Service.</p>
+      <p className="fc-muted fc-pay-note">Absence is deducted pro rata on a {WORKING_DAYS} working day month, before tax, so PAYE and pension follow what was actually earned. Structure: basic 50%, housing 25%, transport 15%, other 10%. Pension and NHF reduce taxable income; NHIS (employee 5%) and the ₦4,000 annual development levy are deducted after tax. Estimates: confirm with your accountant and the Nigeria Revenue Service.</p>
     </div>
   )
 }
@@ -3653,6 +3907,91 @@ function MyOnboardingPage({ data, me, onUploadDoc }) {
         ))}
       </div>
       <p className="fc-muted fc-doc-foot">HR completes the checklist as each step is finished. If something looks wrong, speak to HR.</p>
+    </div>
+  )
+}
+
+// New accounts wait here until HR, the MD or the Chairman decides. The full
+// biodata is shown, because approving is also the moment it gets checked.
+function AccountApprovals({ data, me, tenant, onApprove, onDecline, onRefresh }) {
+  useEffect(() => { if (onRefresh) onRefresh() }, [])
+  const all = data.pendingAccounts || []
+  const waiting = all.filter((r) => r.status === 'pending')
+  const settled = all.filter((r) => r.status !== 'pending')
+  const [open, setOpen] = useState(null)
+  const [roleFor, setRoleFor] = useState({})
+  const [why, setWhy] = useState('')
+  const [declining, setDeclining] = useState(null)
+
+  return (
+    <div className="fc-panel">
+      <div className="fc-panel-head">
+        <div><h2>Account approvals</h2><p className="fc-muted">Nobody can sign in until their account is approved here.</p></div>
+        <span className={`fc-ob-pill ${waiting.length ? '' : 'is-done'}`}>{waiting.length} waiting</span>
+      </div>
+
+      {waiting.length === 0 && <p className="fc-muted">No accounts are waiting for approval.</p>}
+
+      {waiting.map((r) => (
+        <div key={r.id} className="fc-appr">
+          <button className="fc-appr-head" onClick={() => setOpen(open === r.id ? null : r.id)}>
+            <span>
+              <b>{r.name}</b>
+              <span className="fc-muted"> · {r.title || 'no position given'} · {r.sub}</span>
+              <span className="fc-appr-meta">{r.email} · requested {r.createdAt}</span>
+            </span>
+            <span className="fc-muted">{open === r.id ? '−' : 'View details'}</span>
+          </button>
+
+          {open === r.id && (
+            <div className="fc-appr-body">
+              {BIODATA.map((g) => (
+                <div key={g.group} className="fc-appr-group">
+                  <h4>{g.group}</h4>
+                  <div className="fc-appr-grid">
+                    {g.fields.map((f) => (
+                      <div key={f.k} className="fc-appr-item"><span>{f.label}</span><b>{r[f.k] || '—'}</b></div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="fc-appr-actions">
+            <label className="fc-field fc-appr-role">
+              <span>Approve as</span>
+              <select className="fc-input" value={roleFor[r.id] || r.role} onChange={(e) => setRoleFor({ ...roleFor, [r.id]: e.target.value })}>
+                {Object.keys(ROLES).map((k) => <option key={k} value={k}>{ROLES[k]}</option>)}
+              </select>
+            </label>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setDeclining(declining === r.id ? null : r.id)}>Decline</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onApprove(r.id, roleFor[r.id] || r.role)}>Approve account</button>
+          </div>
+
+          {declining === r.id && (
+            <div className="fc-payreturn">
+              <textarea className="fc-input" rows={2} placeholder="Why is this being declined? The person is told." value={why} onChange={(e) => setWhy(e.target.value)} />
+              <div className="fc-cta-row">
+                <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setDeclining(null); setWhy('') }}>Cancel</button>
+                <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onDecline(r.id, why); setDeclining(null); setWhy('') }}>Confirm decline</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {settled.length > 0 && (
+        <>
+          <h3 className="fc-doc-h3">Decided</h3>
+          {settled.map((r) => (
+            <div key={r.id} className="fc-appr-done">
+              <span><b>{r.name}</b> <span className="fc-muted">· {r.email}</span></span>
+              <span className={r.status === 'approved' ? 'fc-doc-verified' : 'fc-doc-rejected'}>{r.status === 'approved' ? 'Approved' : 'Declined'} by {r.decidedBy} on {r.decidedAt}</span>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }
@@ -4000,6 +4339,7 @@ export default function App() {
   const [me, setMe] = useState(null)
   const [authUser, setAuthUser] = useState(null)
   const [chairmanReturn, setChairmanReturn] = useState(null)
+  const [pendingProfile, setPendingProfile] = useState(null)
   const [data, setData] = useState({ staff: [], objectives: [] })
   const tenant = TENANTS[tenantId]
 
@@ -4061,9 +4401,17 @@ export default function App() {
     if (!LIVE || !authUser || me) return
     let live = true
     ;(async () => {
-      try { const c = localStorage.getItem('fc:liveprofile:' + authUser.id); if (live && c) { enterProfile(JSON.parse(c), false); return } } catch { /* ignore */ }
+      // Deliberately no local shortcut here: status is checked against the
+      // database on every entry, so a declined account cannot ride a stale cache.
       try {
         const { data: prof } = await supabase.from('profiles').select('*').eq('id', authUser.id).maybeSingle()
+        // An account waits until HR, the MD or the Chairman approves it. The
+        // database enforces this; the screen simply explains it.
+        if (live && prof && (prof.status === 'pending' || prof.status === 'declined')) {
+          setPendingProfile(prof)
+          setScreen('pending')
+          return
+        }
         if (live && prof && prof.role) {
           const profile = { id: authUser.id, name: prof.name || authUser.email, role: prof.role, sub: prof.subsidiary || tenant.subsidiaries[0], tier: prof.cadence_tier || 'ops' }
           try { localStorage.setItem('fc:liveprofile:' + authUser.id, JSON.stringify(profile)) } catch { /* ignore */ }
@@ -4092,6 +4440,11 @@ export default function App() {
     enterProfile(profile, false)
   }
 
+  function registerAccount(record) {
+    const entry = { id: uid(), ...record, status: 'pending', createdAt: new Date().toISOString().slice(0, 10) }
+    setData((d) => ({ ...d, pendingAccounts: [...(d.pendingAccounts || []), entry] }))
+  }
+
   async function signOut() {
     if (LIVE) { try { await supabase.auth.signOut() } catch { /* ignore */ } }
     setMe(null); setAuthUser(null); setChairmanReturn(null); setScreen('gateway')
@@ -4115,7 +4468,30 @@ export default function App() {
       <style>{CSS}</style>
       {screen === 'gateway' && <LandingPage onCompass={() => setScreen('compass')} />}
       {screen === 'compass' && <Gateway tenant={tenant} onSignIn={() => setScreen('auth')} onBackToSite={() => setScreen('gateway')} />}
-      {screen === 'auth' && <AuthScreen tenant={tenant} staff={data.staff.length ? data.staff : STAFF} onEnter={enter} onBack={() => setScreen('compass')} />}
+      {screen === 'auth' && <AuthScreen tenant={tenant} staff={data.staff.length ? data.staff : STAFF} onEnter={enter} onBack={() => setScreen('compass')} onRegister={registerAccount} pending={data.pendingAccounts || []} />}
+      {screen === 'pending' && (
+        <div className="fc-auth"><div className="fc-auth-card">
+          {tenant.logo && <img className="fc-auth-logo" src={tenant.logo} alt={tenant.name} />}
+          <h2 className="fc-auth-title">{pendingProfile && pendingProfile.status === 'declined' ? 'Account not approved' : 'Pending approval'}</h2>
+          <p className="fc-auth-sub">{(pendingProfile && pendingProfile.email) || (authUser && authUser.email) || ''}</p>
+          <div className="fc-pending">
+            <div className="fc-pending-mark">{pendingProfile && pendingProfile.status === 'declined' ? '\u2715' : '\u23F3'}</div>
+            {pendingProfile && pendingProfile.status === 'declined' ? (
+              <>
+                <p>Your account was not approved.</p>
+                {pendingProfile.decline_reason && <p className="fc-muted">Reason given: {pendingProfile.decline_reason}</p>}
+                <p className="fc-muted">Please speak to HR if you think this is a mistake.</p>
+              </>
+            ) : (
+              <>
+                <p>Your details are with HR for approval.</p>
+                <p className="fc-muted">An account is activated once HR, the Managing Director or the Chairman approves it. You will be able to sign in normally after that.</p>
+              </>
+            )}
+          </div>
+          <button className="fc-btn fc-btn-ghost" onClick={signOut}>Sign out</button>
+        </div></div>
+      )}
       {screen === 'profile' && (
         <div className="fc-auth"><div className="fc-auth-card">
           <h2 className="fc-auth-title">Set up your profile</h2>
@@ -4252,6 +4628,51 @@ option{color:#111}
 .fc-salreq-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.6rem 0;border-top:1px solid var(--hairline);font-size:.88rem}
 .fc-salreq-row:first-of-type{border-top:none}
 .fc-salreq-note{display:block;font-size:.8rem;color:var(--muted);font-style:italic}
+.fc-auth-card.is-wide{max-width:900px}
+.fc-pwwrap{position:relative;display:flex;align-items:center}
+.fc-pwwrap .fc-input{width:100%;padding-right:4.2rem}
+.fc-pweye{position:absolute;right:.6rem;background:none;border:none;color:var(--gold);font-family:var(--sans);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;padding:.3rem .4rem}
+.fc-pweye:hover{text-decoration:underline}
+.fc-rolecards{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin:.4rem 0 1rem}
+.fc-rolecard{text-align:left;background:rgba(255,255,255,.04);border:1px solid var(--hairline);border-radius:10px;padding:.9rem 1rem;cursor:pointer;font-family:inherit;color:var(--parchment);display:flex;flex-direction:column;gap:.25rem;transition:border-color .18s,background .18s}
+.fc-rolecard:hover{border-color:var(--gold)}
+.fc-rolecard.is-on{border-color:var(--gold);background:rgba(184,146,74,.14)}
+.fc-rolecard b{font-size:.95rem}
+.fc-rolecard span{font-size:.78rem;color:var(--muted)}
+.fc-field{display:flex;flex-direction:column;gap:.3rem;text-align:left;font-size:.75rem;color:var(--muted)}
+.fc-field em{font-style:normal;font-size:.7rem;color:var(--muted);opacity:.8}
+.fc-field.is-bad .fc-input{border-color:var(--rag-r)}
+.fc-field.is-wide{grid-column:1 / -1}
+.fc-bioform{text-align:left;max-height:52vh;overflow-y:auto;padding-right:.6rem;margin-bottom:1rem}
+.fc-biogroup{margin-bottom:1.4rem}
+.fc-biogroup h3{font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 .7rem}
+.fc-biogrid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+.fc-pending{border:1px solid var(--gold);border-radius:10px;padding:1.6rem;margin:1rem 0;display:flex;flex-direction:column;gap:.7rem;align-items:center}
+.fc-pending-mark{font-size:2rem}
+.fc-pending p{margin:0;font-size:.92rem}
+.fc-appr{border:1px solid var(--hairline);border-radius:10px;margin-bottom:1rem;overflow:hidden}
+.fc-appr-head{width:100%;display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;background:none;border:none;color:var(--parchment);font-family:inherit;text-align:left;padding:1rem 1.1rem;cursor:pointer;font-size:.92rem}
+.fc-appr-head:hover{background:rgba(255,255,255,.03)}
+.fc-appr-meta{display:block;font-size:.76rem;color:var(--muted);margin-top:.25rem}
+.fc-appr-body{padding:0 1.1rem 1rem;border-top:1px solid var(--hairline)}
+.fc-appr-group{margin-top:1rem}
+.fc-appr-group h4{margin:0 0 .5rem;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.fc-appr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem}
+.fc-appr-item{display:flex;flex-direction:column;gap:.15rem;font-size:.8rem}
+.fc-appr-item span{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.fc-appr-actions{display:flex;align-items:flex-end;gap:.7rem;flex-wrap:wrap;padding:.9rem 1.1rem;border-top:1px solid var(--hairline);background:rgba(255,255,255,.02)}
+.fc-appr-role{min-width:190px}
+.fc-appr-done{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.6rem 0;border-bottom:1px solid var(--hairline);font-size:.85rem}
+@media(max-width:760px){.fc-biogrid,.fc-rolecards,.fc-appr-grid{grid-template-columns:1fr}}
+.fc-cycletabs{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 .9rem;padding-bottom:.7rem;border-bottom:1px solid var(--hairline)}
+.fc-cycletab{display:flex;align-items:center;gap:.5rem;background:none;border:1px solid var(--hairline);border-radius:999px;padding:.42rem .95rem;color:var(--muted);font-family:var(--sans);font-size:.8rem;cursor:pointer;transition:border-color .18s,color .18s}
+.fc-cycletab:hover{border-color:var(--gold);color:var(--parchment)}
+.fc-cycletab.is-on{border-color:var(--gold);background:rgba(184,146,74,.14);color:var(--parchment);font-weight:600}
+.fc-cycletab-now{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+.fc-cycletab-st{font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;opacity:.75}
+.fc-cycle-note{font-size:.82rem;margin:0 0 1rem}
+.fc-prorata{display:block;font-size:.72rem;color:var(--rag-a);margin-top:.15rem}
+.fc-abs-input{width:5.2rem;padding:.3rem .45rem;font-size:.8rem}
 .fc-payorg{margin-bottom:1.8rem}
 .fc-payorg-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding-bottom:.5rem;border-bottom:2px solid var(--gold);margin-bottom:.7rem}
 .fc-payorg-head h3{margin:0;font-size:1.1rem;color:var(--gold)}

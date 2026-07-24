@@ -528,19 +528,52 @@ const REQUIRED_DOCS = [
   { key: 'prof', label: 'Professional certification', req: false, note: 'Where the role requires one' },
 ]
 const docStatus = (s, key) => ((s.docs || {})[key] || {}).status || 'missing'
+
+// Not everyone owes the company employment records. The owner is not an
+// employee of his own company in the sense these documents assume, and a
+// contracted vendor has a contract rather than an NYSC certificate. Both are
+// exempt unless HR says otherwise, and HR can exempt or reinstate anyone.
+function docsExempt(s) {
+  if (!s) return false
+  if (typeof s.docsExempt === 'boolean') return s.docsExempt      // HR's decision wins
+  if (s.role === 'chairman') return true                          // owner
+  if (s.employment === 'contract') return true                    // vendors and contractors
+  return false
+}
+const exemptReason = (s) => (
+  typeof s.docsExempt === 'boolean' ? 'Set by HR'
+    : s.role === 'chairman' ? 'Owner of the group'
+      : s.employment === 'contract' ? 'Engaged on contract, not employment'
+        : ''
+)
+
 function docProgress(s) {
+  if (docsExempt(s)) return { done: 0, total: 0, pct: 100, complete: true, exempt: true }
   const req = REQUIRED_DOCS.filter((d) => d.req)
   const done = req.filter((d) => ['received', 'verified'].includes(docStatus(s, d.key))).length
-  return { done, total: req.length, pct: req.length ? Math.round((done / req.length) * 100) : 100, complete: done === req.length }
+  return { done, total: req.length, pct: req.length ? Math.round((done / req.length) * 100) : 100, complete: done === req.length, exempt: false }
 }
 const newChecklist = (allDone = false) => ONBOARDING_TASKS.map((label, i) => ({ id: 'ob' + i, label, done: allDone }))
 // Everyone starts from zero: the roster was reset so each person completes
 // onboarding and uploads their documents properly.
 function seedOnboarding() { return newChecklist(false) }
+// Someone is only fully onboarded when the checklist is finished AND every
+// required document is on file. An empty checklist used to count as complete,
+// which quietly reported new people as done before they had supplied anything.
 function onboardingProgress(s) {
   const t = s.onboarding || []
   const done = t.filter((x) => x.done).length
-  return { done, total: t.length, pct: t.length ? Math.round((done / t.length) * 100) : 100, complete: t.length === 0 || done === t.length }
+  const tasksDone = t.length > 0 && done === t.length
+  return { done, total: t.length, pct: t.length ? Math.round((done / t.length) * 100) : 0, tasksDone, complete: tasksDone }
+}
+// The whole picture: checklist plus documents.
+function fullyOnboarded(s) {
+  // Exemption means there is nothing being asked of this person, so they are
+  // never counted as outstanding and never hold anything up. HR can still tick
+  // their checklist for its own record, but it does not gate them.
+  if (docsExempt(s)) return true
+  const t = onboardingProgress(s)
+  return t.tasksDone && docProgress(s).complete
 }
 
 /* ---------------------------- Documents --------------------------- */
@@ -1779,6 +1812,9 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
     setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docs: { ...(x.docs || {}), [key]: entry } } : x)) }))
     return rec
   }
+  function setDocsExempt(staffId, exempt) {
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docsExempt: exempt } : x)) }))
+  }
   function setDocStatus(staffId, key, status, note) {
     setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id !== staffId ? x : { ...x, docs: { ...(x.docs || {}), [key]: { ...((x.docs || {})[key] || {}), status, note: note || '', reviewedAt: today(), reviewedBy: me.name } } })) }))
   }
@@ -1894,6 +1930,20 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   }
   function setStaffEmail(id, email) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, email } : s)) })) }
   function setEmailConfig(cfg) { setData((d) => ({ ...d, emailConfig: cfg })) }
+  // Clears the performance side of the platform so a cycle can start clean.
+  // Deliberately narrow: staff records, onboarding checklists, uploaded
+  // documents, salaries, payroll runs and approvals are all left alone.
+  function clearOkrData() {
+    setData((d) => ({
+      ...d,
+      objectives: [],
+      checkins: [],
+      reviews: [],
+      feedback: [],
+      hrActions: [],
+      staff: d.staff.map((p) => ({ ...p, score: 0, prev: 0, band: 'grey' })),
+    }))
+  }
   async function refreshPending() {
     if (!LIVE) return
     try {
@@ -2082,8 +2132,8 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
             ? <SetPassword mode="panel" />
             : <div className="fc-panel"><h2>Change password</h2><p className="fc-muted">Passwords apply to live accounts. This workspace is running in demo mode, where you pick a person to enter rather than signing in.</p></div>)}
           {tab === 'approvals' && <AccountApprovals onRefresh={refreshPending} data={data} me={me} tenant={tenant} onApprove={approveAccount} onDecline={declineAccount} />}
-          {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} onUploadDoc={uploadDoc} onSetDocStatus={setDocStatus} />}
-          {tab === 'cycles' && <Cycles data={data} onActivate={activateCycle} onRoll={rollCycle} />}
+          {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} onUploadDoc={uploadDoc} onSetDocStatus={setDocStatus} onSetExempt={setDocsExempt} />}
+          {tab === 'cycles' && <Cycles data={data} me={me} onActivate={activateCycle} onRoll={rollCycle} onClearOkr={clearOkrData} />}
           {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
           {tab === 'export' && <Exports data={data} tenant={tenant} />}
           {tab === 'admin' && <AdminConsole tenant={tenant} data={data} onAdd={addStaff} onUpdate={updateStaff} onRemove={removeStaff} />}
@@ -3707,6 +3757,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
   const editable = !viewing
   const status = run.status || 'draft'
   const missingEmail = rows.filter(({ s }) => !s.email)
+  // Exempt people cannot hold up a run, since they were never asked for anything.
   const unverified = rows.filter(({ s }) => !docProgress(s).complete)
   const docGateOk = unverified.length === 0 || (override && overrideNote.trim().length > 3)
   const pendingSalary = (data.salaryRequests || []).filter((r) => r.status === 'pending')
@@ -3983,6 +4034,7 @@ async function uploadStaffDoc(staffId, key, file) {
 function MyOnboardingPage({ data, me, onUploadDoc }) {
   const s = data.staff.find((x) => x.id === me.id) || me
   const dp = docProgress(s)
+  const exempt = dp.exempt
   const tasks = s.onboarding || []
   const tasksDone = tasks.filter((t) => t.done).length
   const [busy, setBusy] = useState('')
@@ -4010,19 +4062,21 @@ function MyOnboardingPage({ data, me, onUploadDoc }) {
   return (
     <div className="fc-panel">
       <div className="fc-panel-head">
-        <div><h2>My onboarding</h2><p className="fc-muted">Upload each document below. HR checks them off once received.</p></div>
-        <span className={`fc-ob-pill ${dp.complete ? 'is-done' : ''}`}>{dp.done} of {dp.total} documents</span>
+        <div><h2>My onboarding</h2><p className="fc-muted">{exempt ? 'No employment documents are required from you.' : 'Upload each document below. HR checks them off once received.'}</p></div>
+        <span className={`fc-ob-pill ${dp.complete ? 'is-done' : ''}`}>{exempt ? 'Not required' : `${dp.done} of ${dp.total} documents`}</span>
       </div>
 
+      {exempt && <p className="fc-pay-ok">You are exempt from the employment document checklist. {exemptReason(s)}. If this is wrong, HR can change it.</p>}
+
       <div className="fc-ob-bars">
-        <div className="fc-ob-bar"><span>Documents</span><div className="fc-bar"><i style={{ width: dp.pct + '%' }} /></div><b>{dp.pct}%</b></div>
+        {!exempt && <div className="fc-ob-bar"><span>Documents</span><div className="fc-bar"><i style={{ width: dp.pct + '%' }} /></div><b>{dp.pct}%</b></div>}
         <div className="fc-ob-bar"><span>Checklist</span><div className="fc-bar"><i style={{ width: (tasks.length ? Math.round(tasksDone / tasks.length * 100) : 0) + '%' }} /></div><b>{tasks.length ? Math.round(tasksDone / tasks.length * 100) : 0}%</b></div>
       </div>
 
-      {!dp.complete && <p className="fc-pay-warn">You still have {dp.total - dp.done} required {dp.total - dp.done === 1 ? 'document' : 'documents'} outstanding.</p>}
+      {!exempt && !dp.complete && <p className="fc-pay-warn">You still have {dp.total - dp.done} required {dp.total - dp.done === 1 ? 'document' : 'documents'} outstanding.</p>}
       {msg && <p className={msg.ok ? 'fc-pay-ok' : 'fc-pay-warn'}>{msg.t}</p>}
 
-      <div className="fc-doclist">
+      {!exempt && <div className="fc-doclist">
         {REQUIRED_DOCS.map((d) => {
           const rec = (s.docs || {})[d.key] || {}
           const st = rec.status || 'missing'
@@ -4040,7 +4094,7 @@ function MyOnboardingPage({ data, me, onUploadDoc }) {
             </div>
           )
         })}
-      </div>
+      </div>}
 
       <h3 className="fc-doc-h3">Checklist</h3>
       <div className="fc-obtasks">
@@ -4141,10 +4195,13 @@ function AccountApprovals({ data, me, tenant, onApprove, onDecline, onRefresh })
   )
 }
 
-function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus }) {
-  const people = data.staff.map((s) => ({ s, ...onboardingProgress(s) }))
-  const inProg = people.filter((p) => !p.complete)
-  const doneCount = people.filter((p) => p.complete).length
+function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus, onSetExempt }) {
+  const people = data.staff.map((s) => ({ s, ...onboardingProgress(s), done_all: fullyOnboarded(s) }))
+  const inProg = people.filter((p) => !p.done_all)
+  const doneList = people.filter((p) => p.done_all)
+  const doneCount = doneList.length
+  const [view, setView] = useState('progress')   // progress | done
+  const shown = view === 'done' ? doneList : inProg
   const [open, setOpen] = useState(null)
   const [adding, setAdding] = useState(false)
   const blank = { name: '', email: '', role: 'staff', sub: 'Corporate', title: '', salary: '', rent: '', start: '' }
@@ -4209,16 +4266,23 @@ function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus
           {letter && <p className="fc-pay-ok">{letter}</p>}
         </section>
       )}
-      <div className="fc-board-grid fc-dash-metrics">
-        <Metric value={inProg.length} label="In onboarding" />
-        <Metric value={doneCount} label="Fully onboarded" />
+      <div className="fc-board-grid fc-dash-metrics fc-ob-metrics">
+        <button className={`fc-metric-btn ${view === 'progress' ? 'is-on' : ''}`} onClick={() => setView('progress')}>
+          <Metric value={inProg.length} label="In onboarding" />
+        </button>
+        <button className={`fc-metric-btn ${view === 'done' ? 'is-on' : ''}`} onClick={() => setView('done')}>
+          <Metric value={doneCount} label="Fully onboarded" />
+        </button>
       </div>
-      {inProg.length === 0 && <p className="fc-empty">Everyone is fully onboarded.</p>}
-      {inProg.map(({ s, done, total, pct }) => (
+      <p className="fc-muted fc-ob-hint">{view === 'done'
+        ? 'Fully onboarded means the checklist is finished and every required document is on file.'
+        : 'Showing everyone still outstanding. Tap Fully onboarded to see those who have finished.'}</p>
+      {shown.length === 0 && <p className="fc-empty">{view === 'done' ? 'Nobody is fully onboarded yet.' : 'Everyone is fully onboarded.'}</p>}
+      {shown.map(({ s, done, total, pct }) => (
         <section key={s.id} className="fc-panel fc-ob-card">
           <div className="fc-ob-head" onClick={() => setOpen(open === s.id ? null : s.id)}>
             <div className="fc-ob-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)} · {s.sub}</span></span></div>
-            <div className="fc-ob-prog"><span className={`fc-ob-docs ${docProgress(s).complete ? 'is-done' : ''}`}>{docProgress(s).done}/{docProgress(s).total} docs</span><div className="fc-progress"><div className="fc-progress-fill mid" style={{ width: pct + '%' }} /><span className="fc-progress-pct">{done}/{total}</span></div></div>
+            <div className="fc-ob-prog"><span className={`fc-ob-docs ${docProgress(s).complete ? 'is-done' : ''}`}>{docProgress(s).exempt ? 'no docs required' : `${docProgress(s).done}/${docProgress(s).total} docs`}</span><div className="fc-progress"><div className="fc-progress-fill mid" style={{ width: pct + '%' }} /><span className="fc-progress-pct">{done}/{total}</span></div></div>
           </div>
           {open === s.id && (
             <>
@@ -4228,7 +4292,16 @@ function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus
                 ))}
               </div>
               <h4 className="fc-doc-h4">Documents on file</h4>
-              <div className="fc-doclist">
+              {onSetExempt && (
+                <label className="fc-toggle fc-exempt-toggle">
+                  <input type="checkbox" checked={docProgress(s).exempt} onChange={(e) => onSetExempt(s.id, e.target.checked)} />
+                  No employment documents required from this person
+                  {docProgress(s).exempt && exemptReason(s) && <span className="fc-muted"> · {exemptReason(s)}</span>}
+                </label>
+              )}
+              {docProgress(s).exempt
+                ? <p className="fc-muted fc-exempt-note">Exempt, so nothing is outstanding. Untick above to require the full checklist.</p>
+                : <div className="fc-doclist">
                 {REQUIRED_DOCS.map((dref) => {
                   const rec = (s.docs || {})[dref.key] || {}
                   const st = rec.status || 'missing'
@@ -4248,7 +4321,7 @@ function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus
                     </div>
                   )
                 })}
-              </div>
+              </div>}
             </>
           )}
         </section>
@@ -4264,7 +4337,7 @@ function MyOnboarding({ meRec, onGo }) {
   return (
     <section className="fc-panel fc-stallpanel">
       <div className="fc-panel-head"><h3>Your onboarding is not finished</h3><span className="fc-muted">{pr.done}/{pr.total} steps · {dp.done}/{dp.total} documents</span></div>
-      {!dp.complete && <p className="fc-pay-warn">{dp.total - dp.done} required {dp.total - dp.done === 1 ? 'document is' : 'documents are'} still outstanding.{onGo && <> <button className="fc-link" onClick={onGo}>Upload them now</button></>}</p>}
+      {!dp.exempt && !dp.complete && <p className="fc-pay-warn">{dp.total - dp.done} required {dp.total - dp.done === 1 ? 'document is' : 'documents are'} still outstanding.{onGo && <> <button className="fc-link" onClick={onGo}>Upload them now</button></>}</p>}
       <div className="fc-ob-tasks">
         {(meRec.onboarding || []).map((t) => (
           <div key={t.id} className="fc-ob-task"><span className={t.done ? 'is-done' : ''}>{t.done ? '✓' : '○'} {t.label}</span></div>
@@ -4275,8 +4348,18 @@ function MyOnboarding({ meRec, onGo }) {
 }
 
 /* --------------------------- Review cycles ------------------------ */
-function Cycles({ data, onActivate, onRoll }) {
+function Cycles({ data, me, onActivate, onRoll, onClearOkr }) {
   const [name, setName] = useState('')
+  const [reset, setReset] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [cleared, setCleared] = useState(false)
+  const mayReset = ['chairman', 'md', 'hr', 'admin'].includes(me && me.role)
+  const counts = {
+    objectives: (data.objectives || []).length,
+    checkins: (data.checkins || []).length,
+    reviews: (data.reviews || []).length,
+    feedback: (data.feedback || []).length,
+  }
   const cycles = data.cycles || []
   const active = cycles.find((c) => c.status === 'active')
   const objsIn = (n) => data.objectives.filter((o) => o.cycle === n).length
@@ -4309,6 +4392,53 @@ function Cycles({ data, onActivate, onRoll }) {
           </div>
         ))}
       </section>
+
+      {mayReset && (
+        <section className="fc-panel fc-danger">
+          <div className="fc-panel-head">
+            <div>
+              <h3>Start the OKR year again</h3>
+              <p className="fc-muted">Clears objectives, key results, check-ins, reviews, feedback and scores so everyone writes fresh ones.</p>
+            </div>
+          </div>
+          <div className="fc-danger-what">
+            <div>
+              <b>Will be cleared</b>
+              <ul>
+                <li>Objectives and key results ({counts.objectives})</li>
+                <li>Check-ins ({counts.checkins})</li>
+                <li>Reviews ({counts.reviews})</li>
+                <li>Feedback ({counts.feedback})</li>
+                <li>Scores and RAG bands, back to zero</li>
+              </ul>
+            </div>
+            <div>
+              <b>Will be kept</b>
+              <ul>
+                <li>Everyone on the roster</li>
+                <li>Onboarding checklists and their progress</li>
+                <li>Every uploaded document</li>
+                <li>Salaries, payroll runs and payslips</li>
+                <li>Leave records and account approvals</li>
+              </ul>
+            </div>
+          </div>
+          {cleared && <p className="fc-pay-ok">OKR data cleared. Everyone can now author objectives for {data.activeCycle}.</p>}
+          {!reset
+            ? <button className="fc-btn fc-btn-ghost" onClick={() => { setReset(true); setCleared(false) }}>Clear OKR data…</button>
+            : (
+              <div className="fc-danger-confirm">
+                <p>This cannot be undone. Type <b>CLEAR</b> to confirm.</p>
+                <input className="fc-input" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="CLEAR" />
+                <div className="fc-cta-row">
+                  <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setReset(false); setConfirmText('') }}>Cancel</button>
+                  <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={confirmText.trim().toUpperCase() !== 'CLEAR'}
+                    onClick={() => { onClearOkr(); setReset(false); setConfirmText(''); setCleared(true) }}>Clear OKR data</button>
+                </div>
+              </div>
+            )}
+        </section>
+      )}
     </div>
   )
 }
@@ -4736,6 +4866,22 @@ option{color:#111}
 .fc-demo-tag{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);border:1px solid var(--gold);border-radius:2px;padding:.1rem .45rem}
 .fc-auth-hint{color:var(--muted);font-size:.9rem;margin:0 0 1rem}
 .fc-auth-form{display:flex;flex-direction:column;gap:.7rem}
+.fc-danger{border-color:rgba(184,146,74,.5)}
+.fc-danger-what{display:grid;grid-template-columns:1fr 1fr;gap:1.4rem;margin:.6rem 0 1.1rem}
+.fc-danger-what b{display:block;font-size:.72rem;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem}
+.fc-danger-what ul{margin:0;padding-left:1.1rem}
+.fc-danger-what li{font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
+.fc-danger-confirm{display:flex;flex-direction:column;gap:.6rem;border:1px solid var(--rag-a);border-radius:8px;padding:1rem}
+.fc-danger-confirm p{margin:0;font-size:.88rem}
+.fc-danger-confirm .fc-input{max-width:14rem}
+@media(max-width:700px){.fc-danger-what{grid-template-columns:1fr}}
+.fc-exempt-toggle{display:flex;align-items:center;gap:.55rem;font-size:.86rem;margin:.3rem 0 .8rem}
+.fc-exempt-note{font-size:.84rem;margin:0 0 1rem}
+.fc-ob-metrics{margin-bottom:.4rem}
+.fc-metric-btn{background:none;border:1px solid transparent;border-radius:10px;padding:0;cursor:pointer;font-family:inherit;color:inherit;text-align:left;transition:border-color .18s,background .18s}
+.fc-metric-btn:hover{border-color:var(--hairline);background:rgba(255,255,255,.03)}
+.fc-metric-btn.is-on{border-color:var(--gold);background:rgba(184,146,74,.12)}
+.fc-ob-hint{font-size:.82rem;margin:0 0 1rem}
 .fc-ob-pill{font-family:var(--sans);font-size:.75rem;border:1px solid var(--hairline);border-radius:20px;padding:.3rem .8rem;color:var(--muted);white-space:nowrap}
 .fc-ob-pill.is-done{border-color:var(--rag-g);color:var(--rag-g)}
 .fc-ob-bars{display:flex;gap:1.6rem;flex-wrap:wrap;margin:.9rem 0 1rem}

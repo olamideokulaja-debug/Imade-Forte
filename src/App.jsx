@@ -592,7 +592,7 @@ async function loadData(tenantId) {
   if (LIVE) {
     try {
       const { data } = await supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'dataset').maybeSingle()
-      if (data && data.value) return data.value
+      if (data && data.value) return await overlayProfileDocs(tenantId, data.value)
     } catch { /* fall through */ }
   }
   try {
@@ -619,6 +619,36 @@ async function loadData(tenantId) {
     salaryLog: [],
   }
   return seeded
+}
+
+// Each person's documents, checklist and exemption live on their own profile
+// row, which only they and HR can write. On load we lay those over the shared
+// record, so a document someone just uploaded is never hidden by a stale copy
+// of the shared record saved by somebody else's browser.
+async function overlayProfileDocs(tenantId, dataset) {
+  if (!LIVE || !dataset || !Array.isArray(dataset.staff)) return dataset
+  try {
+    const { data: rows } = await supabase
+      .from('profiles')
+      .select('id, docs, onboarding, docs_exempt, email, name')
+      .eq('tenant_id', tenantId)
+    if (!rows || !rows.length) return dataset
+    const byId = {}
+    const byEmail = {}
+    rows.forEach((r) => { byId[r.id] = r; if (r.email) byEmail[String(r.email).toLowerCase()] = r })
+    const staff = dataset.staff.map((s) => {
+      const r = byId[s.id] || (s.email && byEmail[String(s.email).toLowerCase()])
+      if (!r) return s
+      const merged = { ...s }
+      // The profile row wins for these three, because it is where each person
+      // and HR actually write, one row at a time.
+      if (r.docs && Object.keys(r.docs).length) merged.docs = r.docs
+      if (Array.isArray(r.onboarding) && r.onboarding.length) merged.onboarding = r.onboarding
+      if (typeof r.docs_exempt === 'boolean') merged.docsExempt = r.docs_exempt
+      return merged
+    })
+    return { ...dataset, staff }
+  } catch { return dataset }
 }
 
 async function saveData(tenantId, data) {
@@ -1809,18 +1839,56 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   async function uploadDoc(staffId, key, file) {
     const rec = await uploadStaffDoc(staffId, key, file)
     const entry = { ...rec, at: today(), by: me.name }
-    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docs: { ...(x.docs || {}), [key]: entry } } : x)) }))
+    // Update the screen immediately.
+    let nextDocs = null
+    setData((d) => ({
+      ...d,
+      staff: d.staff.map((x) => {
+        if (x.id !== staffId) return x
+        nextDocs = { ...(x.docs || {}), [key]: entry }
+        return { ...x, docs: nextDocs }
+      }),
+    }))
+    // Persist to the person's OWN profile row, not the shared record. This is
+    // what stops one person's save from overwriting another's upload.
+    await persistStaffField(staffId, { docs: nextDocs })
     return rec
+  }
+  // Writes a single field to one profile row. Falls back silently in demo mode.
+  async function persistStaffField(staffId, patch) {
+    if (!LIVE) return
+    try {
+      const row = {}
+      if ('docs' in patch) row.docs = patch.docs
+      if ('onboarding' in patch) row.onboarding = patch.onboarding
+      if ('docsExempt' in patch) row.docs_exempt = patch.docsExempt
+      await supabase.from('profiles').update(row).eq('id', staffId)
+    } catch { /* the per-person columns may not be applied yet */ }
   }
   function setDocsExempt(staffId, exempt) {
     setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docsExempt: exempt } : x)) }))
+    persistStaffField(staffId, { docsExempt: exempt })
   }
   function setDocStatus(staffId, key, status, note) {
-    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id !== staffId ? x : { ...x, docs: { ...(x.docs || {}), [key]: { ...((x.docs || {})[key] || {}), status, note: note || '', reviewedAt: today(), reviewedBy: me.name } } })) }))
+    let nextDocs = null
+    setData((d) => ({ ...d, staff: d.staff.map((x) => {
+      if (x.id !== staffId) return x
+      nextDocs = { ...(x.docs || {}), [key]: { ...((x.docs || {})[key] || {}), status, note: note || '', reviewedAt: today(), reviewedBy: me.name } }
+      return { ...x, docs: nextDocs }
+    }) }))
+    persistStaffField(staffId, { docs: nextDocs })
   }
   function updateStaff(id, patch) { setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === id ? { ...x, ...patch } : x)) })) }
   function removeStaff(id) { setData((d) => ({ ...d, staff: d.staff.filter((x) => x.id !== id), objectives: d.objectives.filter((o) => o.owner !== id) })) }
-  function toggleOnboarding(staffId, taskId) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id !== staffId ? s : { ...s, onboarding: (s.onboarding || []).map((t) => (t.id === taskId ? { ...t, done: !t.done } : t)) })) })) }
+  function toggleOnboarding(staffId, taskId) {
+    let nextOb = null
+    setData((d) => ({ ...d, staff: d.staff.map((s) => {
+      if (s.id !== staffId) return s
+      nextOb = (s.onboarding || []).map((t) => (t.id === taskId ? { ...t, done: !t.done } : t))
+      return { ...s, onboarding: nextOb }
+    }) }))
+    persistStaffField(staffId, { onboarding: nextOb })
+  }
   function rollCycle(newName) {
     setData((d) => {
       const cycles = (d.cycles || []).map((c) => (c.status === 'active' ? { ...c, status: 'closed' } : c))

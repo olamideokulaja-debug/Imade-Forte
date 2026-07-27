@@ -509,6 +509,45 @@ const ONBOARDING_TASKS = [
 
 // Documents a Nigerian employer normally holds on file. Required items block
 // completion; the rest are collected where they apply.
+// Documents that carry an expiry date. HR sets the date when verifying; we warn
+// as it approaches. Others (offer, cv, ssce) do not expire and are not listed.
+const EXPIRING_DOCS = ['id', 'passport', 'medical', 'workpermit', 'drivinglicence', 'practising']
+const daysUntil = (target) => Math.round((new Date(target).getTime() - Date.now()) / 86400000)
+function parseDate(v) {
+  if (!v) return null
+  // Accept a bare year like "2025" as 1 Jan of that year.
+  const str = /^\d{4}$/.test(String(v)) ? `${v}-01-01` : String(v)
+  const d = new Date(str)
+  return isNaN(d.getTime()) ? null : d
+}
+// Probation ends this many months after the start date. You set six.
+const PROBATION_MONTHS = 6
+function probationInfo(s) {
+  if (!s || s.employment === 'contract' || s.employment === 'intern') return null
+  if (s.probationCleared) return { cleared: true }
+  const start = parseDate(s.startDate)
+  if (!start) return null
+  const ends = new Date(start); ends.setMonth(ends.getMonth() + PROBATION_MONTHS)
+  const left = daysUntil(ends)
+  return { start, ends, daysLeft: left, due: left <= 30, overdue: left < 0, cleared: false }
+}
+// Any document with a stored expiry, and how close it is.
+function expiringDocs(s, withinDays = 60) {
+  const out = []
+  const docs = s.docs || {}
+  Object.keys(docs).forEach((k) => {
+    const exp = docs[k] && docs[k].expiry
+    if (!exp) return
+    const d = parseDate(exp); if (!d) return
+    const left = daysUntil(d)
+    if (left <= withinDays) {
+      const def = REQUIRED_DOCS.find((x) => x.key === k)
+      out.push({ key: k, label: def ? def.label : k, expiry: exp, daysLeft: left, expired: left < 0 })
+    }
+  })
+  return out
+}
+
 const REQUIRED_DOCS = [
   { key: 'offer', label: 'Signed offer letter', req: true, note: 'The copy you signed and returned' },
   { key: 'contract', label: 'Signed employment contract', req: true },
@@ -1869,6 +1908,18 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
       await supabase.from('profiles').update(row).eq('id', staffId)
     } catch { /* the per-person columns may not be applied yet */ }
   }
+  function setDocExpiry(staffId, key, expiry) {
+    let nextDocs = null
+    setData((d) => ({ ...d, staff: d.staff.map((x) => {
+      if (x.id !== staffId) return x
+      nextDocs = { ...(x.docs || {}), [key]: { ...((x.docs || {})[key] || {}), expiry } }
+      return { ...x, docs: nextDocs }
+    }) }))
+    persistStaffField(staffId, { docs: nextDocs })
+  }
+  function clearProbation(staffId) {
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, probationCleared: true, probationClearedAt: today() } : x)) }))
+  }
   function setDocsExempt(staffId, exempt) {
     setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docsExempt: exempt } : x)) }))
     persistStaffField(staffId, { docsExempt: exempt })
@@ -2005,6 +2056,32 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   // Clears the performance side of the platform so a cycle can start clean.
   // Deliberately narrow: staff records, onboarding checklists, uploaded
   // documents, salaries, payroll runs and approvals are all left alone.
+  // Downloads the entire dataset as a file, and on live also files a dated
+  // snapshot in Supabase so there is always a recent recoverable copy that does
+  // not depend on any one browser.
+  async function backupNow(auto) {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')
+    try {
+      if (LIVE) {
+        await supabase.from('kv').upsert({ tenant_id: tenantId, key: 'backup_' + stamp, value: data, updated_at: new Date().toISOString() })
+      }
+      try { localStorage.setItem('fc:lastbackup:' + tenantId, new Date().toISOString()) } catch { /* ignore */ }
+    } catch { /* filing is best effort; the download below is the real safeguard */ }
+    if (!auto) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      downloadBlob(blob, `Forte_Compass_Backup_${stamp}.json`)
+    }
+  }
+  // Nudge a backup if the last one was more than 7 days ago. Files silently.
+  useEffect(() => {
+    if (!me || screen !== 'app') return
+    try {
+      const last = localStorage.getItem('fc:lastbackup:' + tenantId)
+      const stale = !last || (Date.now() - new Date(last).getTime()) > 7 * 24 * 3600 * 1000
+      if (stale && (me.role === 'chairman' || me.role === 'admin')) backupNow(true)
+    } catch { /* ignore */ }
+  }, [me, screen])
+
   function clearOkrData() {
     setData((d) => ({
       ...d,
@@ -2095,14 +2172,27 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   // Every run is filed under its own cycle, so closing a month archives it rather
   // than overwriting it. Past months stay readable and comparable.
   function advancePayroll(next, note, cycleName) {
+    const cyc = cycleName || data.activeCycle
     setData((d) => {
-      const cyc = cycleName || d.activeCycle
       const runs = d.payrollRuns || {}
       const run = runs[cyc] || (d.payrollRun && d.payrollRun.cycle === cyc ? d.payrollRun : { cycle: cyc, status: 'draft', trail: [] })
       const entry = { at: today(), by: me.name, role: me.role, to: next, note: note || '' }
       const updated = { ...run, cycle: cyc, status: next, trail: [...(run.trail || []), entry] }
       return { ...d, payrollRuns: { ...runs, [cyc]: updated }, payrollRun: cyc === d.activeCycle ? updated : d.payrollRun }
     })
+    // Tell the next approver their action is waiting. The chain is
+    // HR -> MD -> Chairman -> Accountant. Best effort; never blocks the run.
+    const link = 'https://imadeforteholdings.com'
+    const nextRole = { md_review: 'md', chair_review: 'chairman', approved: 'accountant' }[next]
+    if (nextRole && data.emailConfig) {
+      const recipients = (data.staff || []).filter((p) => p.role === nextRole && p.email)
+      recipients.forEach((p) => {
+        const subject = next === 'approved'
+          ? `${cyc} payroll approved, ready to disburse`
+          : `${cyc} payroll is waiting for your approval`
+        notify(data.emailConfig, p.email, p.name, subject, link)
+      })
+    }
   }
   function returnPayroll(to, note) { advancePayroll(to, note) }
   function recordPayslips(payslips, cycleName) {
@@ -2120,6 +2210,10 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
 
   const canApproveAccounts = ['hr', 'md', 'chairman', 'admin'].includes(me.role)
   const pendingCount = (data.pendingAccounts || []).filter((r) => r.status === 'pending').length
+  const complianceCount = (data.staff || []).reduce((n, s) => {
+    const pi = probationInfo(s)
+    return n + expiringDocs(s).length + (pi && pi.due && !pi.cleared ? 1 : 0)
+  }, 0)
   const tabs = me.role === 'chairman'
     ? [['cockpit', 'Cockpit'], ['organisations', 'Organisations'], ['organogram', 'Organogram'], ['performance', 'Performance'], ['payroll', 'Payroll'], ['approvals', pendingCount ? `Approvals (${pendingCount})` : 'Approvals'], ['leave', 'Leave'], ['scorecards', 'Scorecards'], ['export', 'Export']]
     : [
@@ -2136,6 +2230,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
         canPay && ['payroll', 'Payroll'],
         canApproveAccounts && ['approvals', pendingCount ? `Approvals (${pendingCount})` : 'Approvals'],
         canOnboard && ['onboarding', 'Onboarding'],
+        canApproveAccounts && ['compliance', complianceCount ? `Compliance (${complianceCount})` : 'Compliance'],
         canDocs && ['documents', 'Documents'],
         canCycle && ['cycles', 'Cycles'],
         canExport && ['export', 'Export'],
@@ -2226,8 +2321,9 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
             ? <SetPassword mode="panel" />
             : <div className="fc-panel"><h2>Change password</h2><p className="fc-muted">Passwords apply to live accounts. This workspace is running in demo mode, where you pick a person to enter rather than signing in.</p></div>)}
           {tab === 'approvals' && <AccountApprovals onRefresh={refreshPending} data={data} me={me} tenant={tenant} onApprove={approveAccount} onDecline={declineAccount} />}
+          {tab === 'compliance' && <Compliance data={data} onSetDocExpiry={setDocExpiry} onClearProbation={clearProbation} />}
           {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} onUploadDoc={uploadDoc} onSetDocStatus={setDocStatus} onSetExempt={setDocsExempt} />}
-          {tab === 'cycles' && <Cycles data={data} me={me} onActivate={activateCycle} onRoll={rollCycle} onClearOkr={clearOkrData} />}
+          {tab === 'cycles' && <Cycles data={data} me={me} onActivate={activateCycle} onRoll={rollCycle} onClearOkr={clearOkrData} onBackup={backupNow} />}
           {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
           {tab === 'export' && <Exports data={data} tenant={tenant} />}
           {tab === 'admin' && <AdminConsole tenant={tenant} data={data} onAdd={addStaff} onUpdate={updateStaff} onRemove={removeStaff} />}
@@ -2853,6 +2949,22 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   })
 
   const risks = stalledIn(data.objectives.filter((o) => o.status === 'approved' || o.status === 'submitted'))
+  // Operational snapshot: headcount, monthly payroll cost per company, onboarding
+  // completion and anything needing attention. Real figures, not scores.
+  const activeStaff = data.staff.filter((s) => s.role !== 'chairman')
+  const headcount = activeStaff.length
+  const costByOrg = [...tenant.subsidiaries].map((org) => {
+    let gross = 0
+    activeStaff.forEach((s) => (s.placements || []).filter((p) => p.org === org).forEach((p) => { gross += p.gross || 0 }))
+    return { org, gross: Math.round(gross), count: activeStaff.filter((s) => (s.placements || []).some((p) => p.org === org)).length }
+  }).filter((o) => o.gross > 0)
+  const totalMonthly = costByOrg.reduce((a, o) => a + o.gross, 0)
+  const onboarded = data.staff.filter((s) => fullyOnboarded(s)).length
+  const complianceItems = data.staff.reduce((n, s) => {
+    const pi = probationInfo(s)
+    return n + expiringDocs(s).length + (pi && pi.due && !pi.cleared ? 1 : 0)
+  }, 0)
+  const pendingAccts = (data.pendingAccounts || []).filter((r) => r.status === 'pending').length
   const movers = [...people].sort((a, b) => b.move - a.move)
   const up = movers.filter((p) => p.move > 0).slice(0, 3)
   const down = movers.filter((p) => p.move < 0).slice(-3).reverse()
@@ -2871,6 +2983,31 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
         <div><h2>Chairman's cockpit</h2><p className="fc-muted">Imade Forte Holdings, group oversight. Read only. {data.activeCycle || 'May 2026'}.</p></div>
         <span className="fc-rubric-key">{tenant.name}</span>
       </div>
+
+      <section className="fc-cockpit-section">
+        <h3 className="fc-cockpit-h">The group today</h3>
+        <div className="fc-board-grid fc-dash-metrics">
+          <Metric value={headcount} label="People on the roster" />
+          <Metric value={naira(totalMonthly)} label="Monthly payroll" />
+          <Metric value={`${onboarded}/${data.staff.length}`} label="Fully onboarded" />
+          <Metric value={complianceItems + pendingAccts} label="Needing attention" />
+        </div>
+        <div className="fc-costgrid">
+          {costByOrg.map((o) => (
+            <div key={o.org} className="fc-costcard">
+              <b>{o.org}</b>
+              <span className="fc-costcard-amt">{naira(o.gross)}</span>
+              <span className="fc-muted">{o.count} {o.count === 1 ? 'person' : 'people'} · per month</span>
+            </div>
+          ))}
+        </div>
+        {(complianceItems > 0 || pendingAccts > 0) && (
+          <div className="fc-cockpit-alerts">
+            {pendingAccts > 0 && <span className="fc-alert-chip">{pendingAccts} account{pendingAccts === 1 ? '' : 's'} awaiting approval</span>}
+            {complianceItems > 0 && <span className="fc-alert-chip is-warn">{complianceItems} compliance reminder{complianceItems === 1 ? '' : 's'}</span>}
+          </div>
+        )}
+      </section>
 
       {onSwitchWorkspace && (
         <section className="fc-ws">
@@ -3398,6 +3535,92 @@ function Leave({ data, me, onRequest, onDecide }) {
   )
 }
 
+// A bulk-payment file the bank can ingest: one row per person to be paid, with
+// the account details and the net amount. A person paid by two companies gets
+// one line per company, matching how the run is computed.
+function buildBankFileCsv(rows) {
+  const head = ['Beneficiary Name', 'Bank', 'Account Number', 'Amount (NGN)', 'Narration']
+  const lines = rows
+    .filter((r) => r.pr && r.pr.netM > 0)
+    .map((r) => {
+      const name = String(r.s.name || '').replace(/,/g, ' ')
+      const bank = String(r.s.bank || '').replace(/,/g, ' ')
+      const acct = String(r.s.account || '')
+      const amount = Math.round(r.pr.netM)
+      const narration = `Salary ${r.org}`.replace(/,/g, ' ')
+      return [name, bank, acct, amount, narration].join(',')
+    })
+  return [head.join(','), ...lines].join('\n')
+}
+
+// The statutory schedule: what is owed to whom, so nothing is remitted late.
+// PAYE goes to the state revenue service, pension to each PFA, NHF to the FMBN.
+function buildRemittanceRows(rows) {
+  const paye = []
+  const pension = []
+  const nhf = []
+  let payeTotal = 0
+  let pensionTotal = 0
+  let nhfTotal = 0
+  rows.forEach((r) => {
+    const p = r.pr
+    if (!p) return
+    if (p.payeM > 0 && !p.isContract) { paye.push([r.s.name, r.org, Math.round(p.payeM)]); payeTotal += p.payeM }
+    if (p.whtM > 0) { paye.push([r.s.name + ' (WHT)', r.org, Math.round(p.whtM)]); payeTotal += p.whtM }
+    const totalPension = (p.empPensionM || 0) + (p.erPensionM || 0)
+    if (totalPension > 0) { pension.push([r.s.name, r.s.pfa || 'PFA not recorded', Math.round(p.empPensionM), Math.round(p.erPensionM), Math.round(totalPension)]); pensionTotal += totalPension }
+    if (p.nhfM > 0) { nhf.push([r.s.name, r.org, Math.round(p.nhfM)]); nhfTotal += p.nhfM }
+  })
+  return { paye, pension, nhf, payeTotal: Math.round(payeTotal), pensionTotal: Math.round(pensionTotal), nhfTotal: Math.round(nhfTotal) }
+}
+
+function buildRemittanceXlsx(XLSX, rows, cycle) {
+  const wb = XLSX.utils.book_new()
+  const rem = buildRemittanceRows(rows)
+  const money = (n) => Number(n || 0)
+
+  // Summary
+  const summary = [
+    ['Statutory remittance schedule', cycle],
+    [],
+    ['Obligation', 'Pay to', 'Amount (NGN)', 'Typical deadline'],
+    ['PAYE and WHT', 'State Internal Revenue Service', money(rem.payeTotal), '10th of the following month'],
+    ['Pension (employee + employer)', 'Employees\' PFAs', money(rem.pensionTotal), 'Within 7 working days of payday'],
+    ['NHF', 'Federal Mortgage Bank of Nigeria', money(rem.nhfTotal), '1 month after deduction'],
+    [],
+    ['Total to remit', '', money(rem.payeTotal + rem.pensionTotal + rem.nhfTotal), ''],
+    [],
+    ['Deadlines are indicative. Confirm current dates with your accountant and the relevant authority.'],
+  ]
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Summary')
+
+  // PAYE detail
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['PAYE and withholding tax', cycle], [],
+    ['Employee', 'Company', 'Amount (NGN)'],
+    ...rem.paye.map((r) => [r[0], r[1], money(r[2])]),
+    [], ['Total', '', money(rem.payeTotal)],
+  ]), 'PAYE')
+
+  // Pension detail
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Pension remittance', cycle], [],
+    ['Employee', 'PFA', 'Employee 8% (NGN)', 'Employer 10% (NGN)', 'Total (NGN)'],
+    ...rem.pension.map((r) => [r[0], r[1], money(r[2]), money(r[3]), money(r[4])]),
+    [], ['Total', '', '', '', money(rem.pensionTotal)],
+  ]), 'Pension')
+
+  if (rem.nhf.length) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['NHF remittance', cycle], [],
+      ['Employee', 'Company', 'Amount (NGN)'],
+      ...rem.nhf.map((r) => [r[0], r[1], money(r[2])]),
+      [], ['Total', '', money(rem.nhfTotal)],
+    ]), 'NHF')
+  }
+  return wb
+}
+
 function buildPayrollXlsx(XLSX, data, opts) {
   const wb = XLSX.utils.book_new()
   const rows = [['Name', 'Organisation', 'Gross', 'Pension', 'NHF', 'PAYE', 'NHIS', 'Levy', 'Net']]
@@ -3672,6 +3895,17 @@ async function deliverPayslips(items, cycle, cfg, onProgress) {
 
 // Posts one email through EmailJS. The public key is meant to be public; EmailJS
 // restricts abuse by origin allow-list and monthly quota rather than by secrecy.
+// Sends a short notification through the same EmailJS template already set up
+// for payslips. The template's four fields are reused: to_name for the person,
+// cycle carries the subject line, payslip_link carries the call-to-action link,
+// and to_email is the recipient. Best effort; a failure never blocks the run.
+async function notify(cfg, toEmail, toName, subject, link) {
+  if (!cfg || !cfg.serviceId || !cfg.templateId || !cfg.publicKey || !toEmail) return false
+  try {
+    return await sendViaEmailJs(cfg, { to_email: toEmail, to_name: toName || 'there', cycle: subject, payslip_link: link || 'https://imadeforteholdings.com' })
+  } catch { return false }
+}
+
 async function sendViaEmailJs(cfg, params) {
   const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
     method: 'POST',
@@ -3827,6 +4061,11 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
     return { org, byType, count: inOrg.length, tot }
   }).filter((g) => g.count > 0)
   const tot = rows.reduce((a, { pr }) => ({ gross: a.gross + pr.grossM, paye: a.paye + pr.payeM, ded: a.ded + pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM, net: a.net + pr.netM }), { gross: 0, paye: 0, ded: 0, net: 0 })
+  const [subFilter, setSubFilter] = useState('all')
+  const subsList = Array.from(new Set(rows.map((r) => r.org)))
+  const shownGrouped = subFilter === 'all' ? grouped : grouped.filter((g) => g.org === subFilter)
+  const shownRows = subFilter === 'all' ? rows : rows.filter((r) => r.org === subFilter)
+  const shownTot = shownRows.reduce((a, { pr }) => ({ gross: a.gross + pr.grossM, paye: a.paye + pr.payeM, ded: a.ded + pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM, net: a.net + pr.netM }), { gross: 0, paye: 0, ded: 0, net: 0 })
   const [sel, setSel] = useState(null)
   const [edit, setEdit] = useState(null)
   const [val, setVal] = useState('')
@@ -3861,6 +4100,53 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
     const XLSX = await import('xlsx')
     const out = XLSX.write(buildPayrollXlsx(XLSX, data, opts), { bookType: 'xlsx', type: 'array' })
     downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Forte_Payroll_${cycle.replace(/\s+/g, '_')}.xlsx`)
+    setDl(false)
+  }
+
+  // The bulk-payment file the bank ingests to pay everyone at once.
+  function downloadBankFile() {
+    const csv = buildBankFileCsv(shownRows)
+    downloadBlob(new Blob([csv], { type: 'text/csv' }), `Bank_Payment_${cycle.replace(/\s+/g, '_')}.csv`)
+  }
+
+  // The statutory schedule: PAYE, pension and NHF, with deadlines.
+  async function downloadRemittance() {
+    setDl(true)
+    const XLSX = await import('xlsx')
+    const label = subFilter === 'all' ? cycle : `${cycle} ${subFilter}`
+    const out = XLSX.write(buildRemittanceXlsx(XLSX, shownRows, label), { bookType: 'xlsx', type: 'array' })
+    downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Remittance_${label.replace(/\s+/g, '_')}.xlsx`)
+    setDl(false)
+  }
+
+  // The full audit trail for this cycle: approvals, salary changes, absences,
+  // overrides. One exportable record of every hand that touched the money.
+  async function downloadAuditLog() {
+    setDl(true)
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+    const trail = (run.trail || []).map((t) => [t.at || '', t.by || '', t.role || '', PAY_STEPS[t.to] ? PAY_STEPS[t.to].label : t.to, t.note || ''])
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Payroll approval trail', cycle], [],
+      ['When', 'Who', 'Role', 'Moved to', 'Note'], ...trail,
+    ]), 'Approvals')
+    const sal = (data.salaryLog || []).map((l) => [l.at || '', l.name || '', naira(l.from), naira(l.to), l.by || '', l.note || ''])
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Salary changes (all cycles)'], [],
+      ['When', 'Employee', 'From', 'To', 'Approved by', 'Note'], ...sal,
+    ]), 'Salary changes')
+    const absMap = (data.absence || {})[cycle] || {}
+    const abs = Object.keys(absMap).map((k) => {
+      const [id, org] = k.split('|')
+      const person = data.staff.find((x) => x.id === id)
+      return [person ? person.name : id, org || '', absMap[k] + ' day(s)']
+    })
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Absence this cycle', cycle], [],
+      ['Employee', 'Company', 'Days absent'], ...abs,
+    ]), 'Absence')
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Payroll_Audit_${cycle.replace(/\s+/g, '_')}.xlsx`)
     setDl(false)
   }
 
@@ -3964,10 +4250,16 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
             <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('approved', '', cycle)}>Approve for disbursement</button>
           </>}
           {isAcct && editable && status === 'approved' && <>
-            <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadForBank}>{dl ? 'Preparing…' : 'Download for bank'}</button>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadBankFile}>Bank payment file</button>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadRemittance}>{dl ? 'Preparing…' : 'Remittance schedule'}</button>
             <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!!busy || !docGateOk} onClick={disburseAndIssue}>{busy || 'Disburse and issue payslips'}</button>
           </>}
-          {status === 'disbursed' && <span className="fc-referred">Disbursed</span>}
+          {status === 'disbursed' && <>
+            <span className="fc-referred">Disbursed</span>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadBankFile}>Bank file</button>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadRemittance}>Remittance</button>
+          </>}
+          {(isAcct || isChair) && <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadAuditLog}>Audit log</button>}
           {!isHR && !isMD && !isChair && !isAcct && <span className="fc-muted">View only</span>}
         </div>
       </div>
@@ -4025,13 +4317,23 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
         </div>
       )}
 
+      {subsList.length > 1 && (
+        <div className="fc-subfilter">
+          <button className={`fc-orgtab ${subFilter === 'all' ? 'is-on' : ''}`} onClick={() => setSubFilter('all')}>All companies</button>
+          {subsList.map((o) => (
+            <button key={o} className={`fc-orgtab ${subFilter === o ? 'is-on' : ''}`} onClick={() => setSubFilter(o)}>{o}</button>
+          ))}
+        </div>
+      )}
+      {subFilter !== 'all' && <p className="fc-muted fc-subfilter-note">Showing {subFilter} only. The bank file and remittance schedule below cover just this company, so it can be paid and remitted on its own.</p>}
+
       <div className="fc-board-grid fc-dash-metrics">
-        <Metric value={naira(tot.gross)} label="Gross monthly" />
-        <Metric value={naira(tot.paye)} label="PAYE monthly" />
-        <Metric value={naira(tot.ded)} label="Total deductions" />
-        <Metric value={naira(tot.net)} label="Net monthly" />
+        <Metric value={naira(shownTot.gross)} label="Gross monthly" />
+        <Metric value={naira(shownTot.paye)} label="PAYE monthly" />
+        <Metric value={naira(shownTot.ded)} label="Total deductions" />
+        <Metric value={naira(shownTot.net)} label="Net monthly" />
       </div>
-      {grouped.map((g) => (
+      {shownGrouped.map((g) => (
         <div key={g.org} className="fc-payorg">
           <div className="fc-payorg-head">
             <h3>{g.org}</h3>
@@ -4289,6 +4591,81 @@ function AccountApprovals({ data, me, tenant, onApprove, onDecline, onRefresh })
   )
 }
 
+// Expiring documents and probation reviews falling due, so nothing lapses
+// unnoticed. HR sets an expiry when verifying a document, and confirms a person
+// past probation here.
+function Compliance({ data, onSetDocExpiry, onClearProbation }) {
+  const [expEdit, setExpEdit] = useState(null)
+  const [expVal, setExpVal] = useState('')
+
+  const probations = data.staff
+    .map((s) => ({ s, p: probationInfo(s) }))
+    .filter(({ p }) => p && !p.cleared && p.due)
+    .sort((a, b) => a.p.daysLeft - b.p.daysLeft)
+
+  const expiries = []
+  data.staff.forEach((s) => expiringDocs(s, 60).forEach((d) => expiries.push({ s, d })))
+  expiries.sort((a, b) => a.d.daysLeft - b.d.daysLeft)
+
+  // Everyone with an expiring doc field, so HR can also add or edit a date.
+  const settable = []
+  data.staff.forEach((s) => {
+    Object.keys(s.docs || {}).forEach((k) => {
+      if (EXPIRING_DOCS.includes(k) || (s.docs[k] && s.docs[k].expiry)) settable.push({ s, key: k, rec: s.docs[k] })
+    })
+  })
+
+  const when = (n) => n < 0 ? `${Math.abs(n)} days ago` : n === 0 ? 'today' : `in ${n} days`
+
+  return (
+    <div className="fc-panel">
+      <div className="fc-panel-head"><div><h2>Compliance and reminders</h2><p className="fc-muted">Documents about to expire, and probation reviews falling due.</p></div></div>
+
+      <h3 className="fc-doc-h3">Probation reviews due</h3>
+      {probations.length === 0 && <p className="fc-muted">No probation reviews are due in the next 30 days.</p>}
+      {probations.map(({ s, p }) => (
+        <div key={s.id} className={`fc-compliance-row ${p.overdue ? 'is-overdue' : 'is-due'}`}>
+          <span><b>{s.name}</b> <span className="fc-muted">· {s.title || s.dept || ''} · started {s.startDate || 'unknown'}</span></span>
+          <span className={p.overdue ? 'fc-doc-rejected' : 'fc-doc-warn'}>Probation ends {when(p.daysLeft)}</span>
+          <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onClearProbation(s.id)}>Confirm past probation</button>
+        </div>
+      ))}
+
+      <h3 className="fc-doc-h3">Documents expiring</h3>
+      {expiries.length === 0 && <p className="fc-muted">No documents expire in the next 60 days.</p>}
+      {expiries.map(({ s, d }) => (
+        <div key={s.id + d.key} className={`fc-compliance-row ${d.expired ? 'is-overdue' : 'is-due'}`}>
+          <span><b>{s.name}</b> <span className="fc-muted">· {d.label}</span></span>
+          <span className={d.expired ? 'fc-doc-rejected' : 'fc-doc-warn'}>{d.expired ? 'Expired' : 'Expires'} {when(d.daysLeft)} ({d.expiry})</span>
+          <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setExpVal(d.expiry); setExpEdit(s.id + '|' + d.key) }}>Update date</button>
+        </div>
+      ))}
+
+      <h3 className="fc-doc-h3">Set or change an expiry date</h3>
+      <p className="fc-muted" style={{ marginTop: '-.4rem' }}>Add an expiry to documents that lapse, such as ID cards, passports, medicals and practising licences.</p>
+      {settable.length === 0 && <p className="fc-muted">No expiring-type documents are on file yet.</p>}
+      {settable.map(({ s, key, rec }) => {
+        const def = REQUIRED_DOCS.find((x) => x.key === key)
+        const id = s.id + '|' + key
+        return (
+          <div key={id} className="fc-compliance-row">
+            <span><b>{s.name}</b> <span className="fc-muted">· {def ? def.label : key}</span></span>
+            {expEdit === id
+              ? <span className="fc-cta-row">
+                  <input className="fc-input fc-exp-input" type="date" value={expVal} onChange={(e) => setExpVal(e.target.value)} />
+                  <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSetDocExpiry(s.id, key, expVal); setExpEdit(null) }}>Save</button>
+                </span>
+              : <>
+                  <span className="fc-muted">{rec && rec.expiry ? `Expires ${rec.expiry}` : 'No expiry set'}</span>
+                  <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setExpVal((rec && rec.expiry) || ''); setExpEdit(id) }}>{rec && rec.expiry ? 'Change' : 'Add expiry'}</button>
+                </>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus, onSetExempt }) {
   const people = data.staff.map((s) => ({ s, ...onboardingProgress(s), done_all: fullyOnboarded(s) }))
   const inProg = people.filter((p) => !p.done_all)
@@ -4446,7 +4823,7 @@ function MyOnboarding({ meRec, onGo }) {
 }
 
 /* --------------------------- Review cycles ------------------------ */
-function Cycles({ data, me, onActivate, onRoll, onClearOkr }) {
+function Cycles({ data, me, onActivate, onRoll, onClearOkr, onBackup }) {
   const [name, setName] = useState('')
   const [reset, setReset] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -4490,6 +4867,18 @@ function Cycles({ data, me, onActivate, onRoll, onClearOkr }) {
           </div>
         ))}
       </section>
+
+      {mayReset && onBackup && (
+        <section className="fc-panel">
+          <div className="fc-panel-head">
+            <div>
+              <h3>Backup</h3>
+              <p className="fc-muted">Download the whole platform as a file you keep. A dated copy is also filed automatically each week.</p>
+            </div>
+          </div>
+          <button className="fc-btn fc-btn-ghost" onClick={() => onBackup(false)}>Download a backup now</button>
+        </section>
+      )}
 
       {mayReset && (
         <section className="fc-panel fc-danger">
@@ -5112,6 +5501,20 @@ option{color:#111}
 .fc-prorata{display:block;font-size:.72rem;color:var(--rag-a);margin-top:.15rem}
 .fc-abs-input{width:5.2rem;padding:.3rem .45rem;font-size:.8rem}
 .fc-payorg{margin-bottom:1.8rem}
+.fc-compliance-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.7rem .9rem;border:1px solid var(--hairline);border-radius:8px;margin-bottom:.6rem}
+.fc-compliance-row.is-due{border-color:var(--rag-a)}
+.fc-compliance-row.is-overdue{border-color:var(--rag-r)}
+.fc-doc-warn{color:var(--rag-a);font-size:.85rem}
+.fc-exp-input{width:11rem}
+.fc-costgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.7rem;margin-top:.8rem}
+.fc-costcard{border:1px solid var(--hairline);border-radius:10px;padding:.9rem 1rem;display:flex;flex-direction:column;gap:.2rem}
+.fc-costcard b{color:var(--gold);font-size:.9rem}
+.fc-costcard-amt{font-size:1.15rem;font-weight:600}
+.fc-cockpit-alerts{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.9rem}
+.fc-alert-chip{font-size:.82rem;padding:.4rem .8rem;border-radius:999px;border:1px solid var(--gold);color:var(--parchment)}
+.fc-alert-chip.is-warn{border-color:var(--rag-a);color:var(--rag-a)}
+.fc-subfilter{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 .8rem}
+.fc-subfilter-note{font-size:.82rem;margin:0 0 1rem}
 .fc-payorg-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding-bottom:.5rem;border-bottom:2px solid var(--gold);margin-bottom:.7rem}
 .fc-payorg-head h3{margin:0;font-size:1.1rem;color:var(--gold)}
 .fc-paytype{margin-bottom:1rem}

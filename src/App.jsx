@@ -593,12 +593,15 @@ async function loadData(tenantId) {
     try {
       const { data } = await supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'dataset').maybeSingle()
       if (data && data.value) return await overlayProfileDocs(tenantId, data.value)
-    } catch { /* fall through */ }
+    } catch { /* fall through to a first-run seed, never to demo cache */ }
+    // Live and no record yet: seed the real roster below. Deliberately does NOT
+    // read localStorage, so a browser used for demo cannot inject stale data.
+  } else {
+    try {
+      const raw = localStorage.getItem(LKEY(tenantId))
+      if (raw) return JSON.parse(raw)
+    } catch { /* ignore */ }
   }
-  try {
-    const raw = localStorage.getItem(LKEY(tenantId))
-    if (raw) return JSON.parse(raw)
-  } catch { /* ignore */ }
   const forte = tenantId === 'imade-forte'
   const seeded = {
     staff: STAFF.map((s) => ({ ...s, onboarding: seedOnboarding(), documents: seedDocuments(), docs: {} })),
@@ -654,6 +657,7 @@ async function overlayProfileDocs(tenantId, dataset) {
 async function saveData(tenantId, data) {
   if (LIVE) {
     try { await supabase.from('kv').upsert({ tenant_id: tenantId, key: 'dataset', value: data, updated_at: new Date().toISOString() }) } catch { /* ignore */ }
+    return
   }
   try { localStorage.setItem(LKEY(tenantId), JSON.stringify(data)) } catch { /* ignore */ }
 }
@@ -2044,18 +2048,40 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
     setData((d) => {
       const req = (d.pendingAccounts || []).find((r) => r.id === id)
       if (!req) return d
-      const person = {
-        id: 'u_' + req.id.slice(0, 6), name: req.name, email: req.email,
-        role: roleOverride || req.role, sub: req.sub, dept: req.dept || '', title: req.title || '',
-        employment: 'fixed', placements: [], salary: 0, rent: 0,
-        bank: req.bank || '', account: req.accountNumber || '', rsa: req.rsa || '', pfa: req.pfa || '', tin: req.tin || '',
-        startDate: req.startDate || '', bio: req, tier: 'ops', band: 'grey', score: 0,
-        onboarding: newChecklist(false), documents: [], docs: {},
+      const addr = String(req.email || '').trim().toLowerCase()
+      // If this person is already on the roster (they were paid, or added by
+      // HR), attach the account to that record rather than creating a second
+      // one. Matching on email is what stops the duplicate.
+      const existing = addr ? d.staff.find((x) => String(x.email || '').trim().toLowerCase() === addr) : null
+      const bioPatch = {
+        email: req.email,
+        title: req.title || undefined,
+        dept: req.dept || undefined,
+        bank: req.bank || undefined,
+        account: req.accountNumber || undefined,
+        rsa: req.rsa || undefined,
+        pfa: req.pfa || undefined,
+        tin: req.tin || undefined,
+        startDate: req.startDate || undefined,
+        bio: req,
       }
+      // Drop undefined keys so we never blank out details the roster already has.
+      Object.keys(bioPatch).forEach((k) => bioPatch[k] === undefined && delete bioPatch[k])
+
+      const staff = existing
+        ? d.staff.map((x) => (x.id === existing.id
+            ? { ...x, ...bioPatch, role: roleOverride || x.role || req.role, accountId: id }
+            : x))
+        : [...d.staff, {
+            id: 'u_' + req.id.slice(0, 6), name: req.name, role: roleOverride || req.role, sub: req.sub,
+            employment: 'fixed', placements: [], salary: 0, rent: 0, tier: 'ops', band: 'grey', score: 0,
+            onboarding: newChecklist(false), documents: [], docs: {}, accountId: id, ...bioPatch,
+          }]
+
       return {
         ...d,
-        staff: [...d.staff, person],
-        pendingAccounts: (d.pendingAccounts || []).map((r) => (r.id === id ? { ...r, status: 'approved', decidedBy: me.name, decidedAt: today() } : r)),
+        staff,
+        pendingAccounts: (d.pendingAccounts || []).map((r) => (r.id === id ? { ...r, status: 'approved', decidedBy: me.name, decidedAt: today(), mergedInto: existing ? existing.id : null } : r)),
       }
     })
   }
@@ -4343,14 +4369,18 @@ function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus
         </button>
       </div>
       <p className="fc-muted fc-ob-hint">{view === 'done'
-        ? 'Fully onboarded means the checklist is finished and every required document is on file.'
-        : 'Showing everyone still outstanding. Tap Fully onboarded to see those who have finished.'}</p>
+        ? 'Fully onboarded means the checklist is finished and every required document is verified.'
+        : 'Showing everyone still outstanding. Someone with all documents in but an unfinished checklist still sits here until the checklist is ticked. Tap Fully onboarded to see those who have finished.'}</p>
       {shown.length === 0 && <p className="fc-empty">{view === 'done' ? 'Nobody is fully onboarded yet.' : 'Everyone is fully onboarded.'}</p>}
       {shown.map(({ s, done, total, pct }) => (
         <section key={s.id} className="fc-panel fc-ob-card">
           <div className="fc-ob-head" onClick={() => setOpen(open === s.id ? null : s.id)}>
             <div className="fc-ob-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)} · {s.sub}</span></span></div>
-            <div className="fc-ob-prog"><span className={`fc-ob-docs ${docProgress(s).complete ? 'is-done' : ''}`}>{docProgress(s).exempt ? 'no docs required' : `${docProgress(s).done}/${docProgress(s).total} docs`}</span><div className="fc-progress"><div className="fc-progress-fill mid" style={{ width: pct + '%' }} /><span className="fc-progress-pct">{done}/{total}</span></div></div>
+            <div className="fc-ob-prog">
+              <span className={`fc-ob-docs ${docProgress(s).complete ? 'is-done' : ''}`}>{docProgress(s).exempt ? 'no docs required' : `${docProgress(s).done}/${docProgress(s).total} docs`}</span>
+              <span className="fc-ob-tasks-lbl">{total ? `${done}/${total} checklist` : 'no checklist'}</span>
+              <div className="fc-progress"><div className="fc-progress-fill mid" style={{ width: (total ? pct : 0) + '%' }} /></div>
+            </div>
           </div>
           {open === s.id && (
             <>
@@ -4694,6 +4724,17 @@ export default function App() {
   const [data, setData] = useState({ staff: [], objectives: [] })
   const tenant = TENANTS[tenantId]
 
+  // Going live: purge any demo caches this browser accumulated while testing,
+  // so nobody signs into stale demo data on the real site. Runs once.
+  useEffect(() => {
+    if (!LIVE) return
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k === LKEY(tenantId) || k === SKEY(tenantId))
+        .forEach((k) => localStorage.removeItem(k))
+    } catch { /* ignore */ }
+  }, [])
+
   // brand tokens per tenant
   useEffect(() => {
     document.documentElement.style.setProperty('--navy', tenant.brand.navy)
@@ -4945,6 +4986,7 @@ option{color:#111}
 @media(max-width:700px){.fc-danger-what{grid-template-columns:1fr}}
 .fc-exempt-toggle{display:flex;align-items:center;gap:.55rem;font-size:.86rem;margin:.3rem 0 .8rem}
 .fc-exempt-note{font-size:.84rem;margin:0 0 1rem}
+.fc-ob-tasks-lbl{font-family:var(--sans);font-size:.72rem;color:var(--muted);margin-right:.9rem;white-space:nowrap}
 .fc-ob-metrics{margin-bottom:.4rem}
 .fc-metric-btn{background:none;border:1px solid transparent;border-radius:10px;padding:0;cursor:pointer;font-family:inherit;color:inherit;text-align:left;transition:border-color .18s,background .18s}
 .fc-metric-btn:hover{border-color:var(--hairline);background:rgba(255,255,255,.03)}

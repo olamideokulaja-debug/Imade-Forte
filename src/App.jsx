@@ -600,6 +600,31 @@ const exemptReason = (s) => (
         : ''
 )
 
+// Payroll eligibility. Company policy: nobody is paid until every required
+// document is VERIFIED by HR. Exempt people (the Chairman, contractors) are
+// eligible automatically, since no documents are required of them. This is a
+// hard rule, deliberately distinct from docProgress, which counts a document as
+// present once uploaded. Here only 'verified' counts.
+function docsAllVerified(s) {
+  const req = REQUIRED_DOCS.filter((d) => d.req)
+  return req.every((d) => docStatus(s, d.key) === 'verified')
+}
+function payEligible(s) {
+  if (docsExempt(s)) return true
+  return docsAllVerified(s)
+}
+function eligibilityReason(s) {
+  if (payEligible(s)) return ''
+  const req = REQUIRED_DOCS.filter((d) => d.req)
+  const missing = req.filter((d) => docStatus(s, d.key) !== 'verified')
+  const notUploaded = missing.filter((d) => !['received', 'verified'].includes(docStatus(s, d.key))).length
+  const awaiting = missing.length - notUploaded
+  const bits = []
+  if (notUploaded > 0) bits.push(`${notUploaded} not uploaded`)
+  if (awaiting > 0) bits.push(`${awaiting} awaiting HR verification`)
+  return bits.join(', ')
+}
+
 function docProgress(s) {
   if (docsExempt(s)) return { done: 0, total: 0, pct: 100, complete: true, exempt: true }
   const req = REQUIRED_DOCS.filter((d) => d.req)
@@ -4258,6 +4283,9 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
   const subsList = Array.from(new Set(rows.map((r) => r.org)))
   const shownGrouped = subFilter === 'all' ? grouped : grouped.filter((g) => g.org === subFilter)
   const shownRows = subFilter === 'all' ? rows : rows.filter((r) => r.org === subFilter)
+  // Money exports only ever include eligible people. A held person is excluded
+  // from the bank file and the remittance until their documents are verified.
+  const payableRows = shownRows.filter(({ s }) => payEligible(s))
   const shownTot = shownRows.reduce((a, { pr }) => ({ gross: a.gross + pr.grossM, paye: a.paye + pr.payeM, ded: a.ded + pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM, net: a.net + pr.netM }), { gross: 0, paye: 0, ded: 0, net: 0 })
   const [sel, setSel] = useState(null)
   const [edit, setEdit] = useState(null)
@@ -4284,9 +4312,15 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
   const editable = !viewing
   const status = run.status || 'draft'
   const missingEmail = rows.filter(({ s }) => !s.email)
-  // Exempt people cannot hold up a run, since they were never asked for anything.
+  // Company policy, hard rule: a person is paid only when every required
+  // document is verified. Exempt people (Chairman, contractors) always pass.
+  // Ineligible people are held out of the run entirely; there is no override.
+  const eligibleRows = rows.filter(({ s }) => payEligible(s))
+  const blockedRows = rows.filter(({ s }) => !payEligible(s))
+  // The older completeness gate remains for the softer checklist warning, but
+  // it no longer governs whether money can move. Eligibility does.
   const unverified = rows.filter(({ s }) => !docProgress(s).complete)
-  const docGateOk = unverified.length === 0 || (override && overrideNote.trim().length > 3)
+  const docGateOk = blockedRows.length === 0
   const pendingSalary = (data.salaryRequests || []).filter((r) => r.status === 'pending')
   // Variance against the last disbursed cycle: who joined, who left the run,
   // and whose net moved, so nothing unexpected goes out.
@@ -4336,7 +4370,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
 
   // The bulk-payment file the bank ingests to pay everyone at once.
   function downloadBankFile() {
-    const csv = buildBankFileCsv(shownRows, bankFormat)
+    const csv = buildBankFileCsv(payableRows, bankFormat)
     const tag = bankFormat === 'generic' ? '' : '_' + bankFormat
     downloadBlob(new Blob([csv], { type: 'text/csv' }), `Bank_Payment_${cycle.replace(/\s+/g, '_')}${tag}.csv`)
   }
@@ -4346,7 +4380,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
     setDl(true)
     const XLSX = await import('xlsx')
     const label = subFilter === 'all' ? cycle : `${cycle} ${subFilter}`
-    const out = XLSX.write(buildRemittanceXlsx(XLSX, shownRows, label), { bookType: 'xlsx', type: 'array' })
+    const out = XLSX.write(buildRemittanceXlsx(XLSX, payableRows, label), { bookType: 'xlsx', type: 'array' })
     downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Remittance_${label.replace(/\s+/g, '_')}.xlsx`)
     setDl(false)
   }
@@ -4394,9 +4428,9 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
     setBusy('Preparing payslips…')
     try {
       const items = []
-      for (let i = 0; i < rows.length; i++) {
-        const { s: person, org, gross, rent, pr } = rows[i]
-        setBusy(`Preparing payslips… ${i + 1} of ${rows.length}`)
+      for (let i = 0; i < eligibleRows.length; i++) {
+        const { s: person, org, gross, rent, pr } = eligibleRows[i]
+        setBusy(`Preparing payslips… ${i + 1} of ${eligibleRows.length}`)
         const one = { ...person, salary: gross, rent, sub: org }
         const { blob, filename } = await buildPayslipPdf(one, opts, cycle, tenant && tenant.name)
         items.push({ s: { ...one, id: person.id + '|' + org, name: person.name, email: person.email }, key: person.id + '|' + org, name: person.name, org, net: pr ? Math.round(pr.netM) : 0, blob, filename })
@@ -4523,13 +4557,18 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
         </div>
       )}
 
-      {isAcct && editable && status === 'approved' && unverified.length > 0 && (
-        <div className="fc-gate">
-          <p className="fc-gate-head"><b>Payroll is held.</b> {unverified.length} of {rows.length} {unverified.length === 1 ? 'person has' : 'people have'} not had their documents verified.</p>
-          <p className="fc-muted fc-gate-names">{unverified.slice(0, 6).map(({ s }) => s.name).join(', ')}{unverified.length > 6 ? ` and ${unverified.length - 6} more` : ''}</p>
-          <label className="fc-toggle fc-gate-toggle"><input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} /> Release this run anyway</label>
-          {override && <textarea className="fc-input" rows={2} placeholder="Why is this run being released before documents are verified? This is recorded permanently." value={overrideNote} onChange={(e) => setOverrideNote(e.target.value)} />}
-          {override && overrideNote.trim().length <= 3 && <p className="fc-muted">Give a reason to unlock disbursement.</p>}
+      {isAcct && editable && status === 'approved' && blockedRows.length > 0 && (
+        <div className="fc-gate fc-gate-hard">
+          <p className="fc-gate-head"><b>{blockedRows.length} {blockedRows.length === 1 ? 'person is' : 'people are'} held from pay.</b> Company policy: nobody is paid until every required document is verified by HR. This cannot be overridden.</p>
+          <div className="fc-gate-list">
+            {blockedRows.map(({ s, org }) => (
+              <div key={s.id + org} className="fc-gate-row">
+                <span><b>{s.name}</b> <span className="fc-muted">· {org}</span></span>
+                <span className="fc-gate-why">{eligibilityReason(s)}</span>
+              </div>
+            ))}
+          </div>
+          <p className="fc-muted">The rest of the run can still be disbursed. Held people are excluded from the bank file, the payslips and the totals until HR verifies their documents. They are then paid in the next run, or once verified you can disburse again.</p>
         </div>
       )}
       {isAcct && editable && status === 'approved' && missingEmail.length > 0 && (
@@ -4610,6 +4649,11 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
         <Metric value={naira(shownTot.ded)} label="Total deductions" />
         <Metric value={naira(shownTot.net)} label="Net monthly" />
       </div>
+      {blockedRows.length > 0 && (() => {
+        const heldNet = blockedRows.filter((r) => subFilter === 'all' || r.org === subFilter).reduce((a, r) => a + (r.pr ? r.pr.netM : 0), 0)
+        const payNet = payableRows.reduce((a, r) => a + (r.pr ? r.pr.netM : 0), 0)
+        return <p className="fc-muted fc-heldnote">Of this, {naira(payNet)} will be paid now. {naira(heldNet)} is held for {blockedRows.length} unverified {blockedRows.length === 1 ? 'person' : 'people'}.</p>
+      })()}
       {shownGrouped.map((g) => (
         <div key={g.org} className="fc-payorg">
           <div className="fc-payorg-head">
@@ -6004,6 +6048,11 @@ option{color:#111}
 .fc-exit-step{display:flex;align-items:center;gap:.6rem;font-size:.9rem;cursor:pointer}
 .fc-exit-step.is-done{color:var(--muted);text-decoration:line-through}
 .fc-exit-archived{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.6rem 0;border-bottom:1px solid var(--hairline);font-size:.88rem}
+.fc-gate-hard{border-color:var(--rag-r)}
+.fc-gate-list{margin:.6rem 0}
+.fc-gate-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.4rem 0;border-bottom:1px solid var(--hairline);font-size:.86rem}
+.fc-gate-why{color:var(--rag-a);font-size:.82rem}
+.fc-heldnote{margin:-.4rem 0 1rem;font-size:.85rem}
 .fc-variance{border:1px solid var(--hairline);border-radius:10px;margin-bottom:1rem;overflow:hidden}
 .fc-variance summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.8rem 1.1rem;cursor:pointer;font-size:.9rem;list-style:none}
 .fc-variance summary::-webkit-details-marker{display:none}

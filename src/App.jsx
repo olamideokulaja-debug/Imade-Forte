@@ -548,6 +548,20 @@ function expiringDocs(s, withinDays = 60) {
   return out
 }
 
+// The exit checklist, mirroring onboarding for someone leaving. HR ticks each
+// as it is done, so a departure is handled as cleanly as an arrival.
+const EXIT_STEPS = [
+  { key: 'resignation', label: 'Resignation or termination letter on file' },
+  { key: 'handover', label: 'Work handover completed and documented' },
+  { key: 'assets', label: 'Company assets returned (laptop, phone, ID, keys)' },
+  { key: 'accounts', label: 'System and email access revoked' },
+  { key: 'finalpay', label: 'Final salary and any accrued leave calculated' },
+  { key: 'pension', label: 'Pension and statutory contributions settled' },
+  { key: 'clearance', label: 'Finance and admin clearance signed' },
+  { key: 'reference', label: 'Reference or certificate of service issued' },
+  { key: 'exitint', label: 'Exit interview held' },
+]
+
 const REQUIRED_DOCS = [
   { key: 'offer', label: 'Signed offer letter', req: true, note: 'The copy you signed and returned' },
   { key: 'contract', label: 'Signed employment contract', req: true },
@@ -1916,6 +1930,22 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
       await supabase.from('profiles').update(row).eq('id', targetId)
     } catch { /* the per-person columns may not be applied yet */ }
   }
+  function beginExit(staffId, lastDay, reason) {
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, exit: { startedBy: me.name, startedAt: today(), lastDay: lastDay || '', reason: reason || '', steps: EXIT_STEPS.map((e) => ({ key: e.key, done: false })), status: 'leaving' } } : x)) }))
+  }
+  function toggleExitStep(staffId, key) {
+    setData((d) => ({ ...d, staff: d.staff.map((x) => {
+      if (x.id !== staffId || !x.exit) return x
+      return { ...x, exit: { ...x.exit, steps: x.exit.steps.map((st) => (st.key === key ? { ...st, done: !st.done } : st)) } }
+    }) }))
+  }
+  function cancelExit(staffId) {
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, exit: undefined } : x)) }))
+  }
+  function completeExit(staffId) {
+    // Archive rather than delete, so the record and its history remain for audit.
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, exit: { ...x.exit, status: 'left', completedAt: today(), completedBy: me.name }, archived: true } : x)) }))
+  }
   function setDocExpiry(staffId, key, expiry) {
     let nextDocs = null
     setData((d) => ({ ...d, staff: d.staff.map((x) => {
@@ -1940,6 +1970,17 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
       return { ...x, docs: nextDocs }
     }) }))
     persistStaffField(staffId, { docs: nextDocs })
+    // A rejection is only useful if the person hears about it, so nudge them by
+    // email. Best effort; reuses the existing EmailJS setup.
+    if (status === 'rejected' && data.emailConfig) {
+      const person = (data.staff || []).find((x) => x.id === staffId)
+      const def = REQUIRED_DOCS.find((x) => x.key === key)
+      if (person && person.email) {
+        notify(data.emailConfig, person.email, person.name,
+          `Action needed: your ${def ? def.label : 'document'} needs re-uploading`,
+          'https://imadeforteholdings.com')
+      }
+    }
   }
   function updateStaff(id, patch) { setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === id ? { ...x, ...patch } : x)) })) }
   function removeStaff(id) { setData((d) => ({ ...d, staff: d.staff.filter((x) => x.id !== id), objectives: d.objectives.filter((o) => o.owner !== id) })) }
@@ -2090,6 +2131,26 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
     } catch { /* ignore */ }
   }, [me, screen])
 
+  // Once a week, when HR signs in, email them a digest of what is lapsing, so a
+  // reminder does not depend on someone opening the Compliance tab.
+  useEffect(() => {
+    if (!me || screen !== 'app' || !LIVE) return
+    if (!['hr', 'admin'].includes(me.role) || !data.emailConfig || !me.email) return
+    try {
+      const key = 'fc:lastdigest:' + tenantId
+      const last = localStorage.getItem(key)
+      const due = !last || (Date.now() - new Date(last).getTime()) > 7 * 24 * 3600 * 1000
+      if (!due) return
+      const expiring = (data.staff || []).filter((s) => !s.archived).reduce((n, s) => n + expiringDocs(s).length, 0)
+      const probations = (data.staff || []).filter((s) => { const p = probationInfo(s); return p && p.due && !p.cleared }).length
+      if (expiring + probations === 0) { localStorage.setItem(key, new Date().toISOString()); return }
+      notify(data.emailConfig, me.email, me.name,
+        `Compliance this week: ${expiring} document${expiring === 1 ? '' : 's'} expiring, ${probations} probation${probations === 1 ? '' : 's'} due`,
+        'https://imadeforteholdings.com')
+      localStorage.setItem(key, new Date().toISOString())
+    } catch { /* ignore */ }
+  }, [me, screen])
+
   function clearOkrData() {
     setData((d) => ({
       ...d,
@@ -2219,7 +2280,11 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
     setData((d) => {
       const cyc = cycleName || d.activeCycle
       const runs = d.payrollRuns || {}
-      const run = { ...(runs[cyc] || d.payrollRun || {}), payslips }
+      // A per-person net snapshot, keyed by placement, so next month's variance
+      // view can say exactly who moved and by how much.
+      const snapshot = {}
+      ;(payslips || []).forEach((p) => { if (p && p.key) snapshot[p.key] = { name: p.name, org: p.org, net: p.net } })
+      const run = { ...(runs[cyc] || d.payrollRun || {}), payslips, snapshot }
       return { ...d, payrollRuns: { ...runs, [cyc]: run }, payrollRun: cyc === d.activeCycle ? run : d.payrollRun }
     })
   }
@@ -2230,7 +2295,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
 
   const canApproveAccounts = ['hr', 'md', 'chairman', 'admin'].includes(me.role)
   const pendingCount = (data.pendingAccounts || []).filter((r) => r.status === 'pending').length
-  const complianceCount = (data.staff || []).reduce((n, s) => {
+  const complianceCount = (data.staff || []).filter((s) => !s.archived).reduce((n, s) => {
     const pi = probationInfo(s)
     return n + expiringDocs(s).length + (pi && pi.due && !pi.cleared ? 1 : 0)
   }, 0)
@@ -2251,6 +2316,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
         canApproveAccounts && ['approvals', pendingCount ? `Approvals (${pendingCount})` : 'Approvals'],
         canOnboard && ['onboarding', 'Onboarding'],
         canApproveAccounts && ['compliance', complianceCount ? `Compliance (${complianceCount})` : 'Compliance'],
+        canApproveAccounts && ['offboarding', 'Offboarding'],
         canDocs && ['documents', 'Documents'],
         canCycle && ['cycles', 'Cycles'],
         canExport && ['export', 'Export'],
@@ -2341,11 +2407,12 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
             ? <SetPassword mode="panel" />
             : <div className="fc-panel"><h2>Change password</h2><p className="fc-muted">Passwords apply to live accounts. This workspace is running in demo mode, where you pick a person to enter rather than signing in.</p></div>)}
           {tab === 'approvals' && <AccountApprovals onRefresh={refreshPending} data={data} me={me} tenant={tenant} onApprove={approveAccount} onDecline={declineAccount} />}
+          {tab === 'offboarding' && <Offboarding data={data} onBegin={beginExit} onToggle={toggleExitStep} onCancel={cancelExit} onComplete={completeExit} />}
           {tab === 'compliance' && <Compliance data={data} onSetDocExpiry={setDocExpiry} onClearProbation={clearProbation} />}
           {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} onUploadDoc={uploadDoc} onSetDocStatus={setDocStatus} onSetExempt={setDocsExempt} />}
           {tab === 'cycles' && <Cycles data={data} me={me} onActivate={activateCycle} onRoll={rollCycle} onClearOkr={clearOkrData} onBackup={backupNow} />}
           {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
-          {tab === 'export' && <Exports data={data} tenant={tenant} />}
+          {tab === 'export' && <Exports data={data} tenant={tenant} me={me} />}
           {tab === 'admin' && <AdminConsole tenant={tenant} data={data} onAdd={addStaff} onUpdate={updateStaff} onRemove={removeStaff} />}
         </main>
       </div>
@@ -2369,6 +2436,8 @@ function Dashboard({ tenant, me, data, onAuthor, onGoOnboarding }) {
         <h2>Good day, {me.name.split(' ')[0]}.</h2>
         <p className="fc-muted">{roleLabel(me)} · {me.sub} · {me.tier === 'ops' ? 'Weekly check-ins' : 'Monthly check-ins'}</p>
       </div>
+
+      <NextStep me={me} data={data} onGoOnboarding={onGoOnboarding} onAuthor={onAuthor} />
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={`${ratio}%`} label="Group outcome ratio" />
         <Metric value={avg} unit="/10" label="Weighted average" />
@@ -2401,6 +2470,38 @@ function Dashboard({ tenant, me, data, onAuthor, onGoOnboarding }) {
     </div>
   )
 }
+
+// The single most useful next action for this person, so a new starter is never
+// dropped into a wall of tabs wondering where to begin. Priority order:
+// finish onboarding, re-upload a rejected document, then author objectives.
+function NextStep({ me, data, onGoOnboarding, onAuthor }) {
+  const s = data.staff.find((x) => x.id === me.id) || me
+  const dp = docProgress(s)
+  const rejected = REQUIRED_DOCS.filter((d) => d.req && ((s.docs || {})[d.key] || {}).status === 'rejected')
+  const mine = data.objectives.filter((o) => o.owner === me.id)
+
+  let step = null
+  if (!dp.exempt && rejected.length > 0) {
+    step = { tone: 'warn', title: `${rejected.length} document${rejected.length === 1 ? ' needs' : 's need'} re-uploading`, body: 'HR has asked for a clearer or corrected copy.', cta: 'Fix documents', act: onGoOnboarding }
+  } else if (!dp.exempt && !dp.complete) {
+    step = { tone: 'go', title: `Finish your onboarding — ${dp.total - dp.done} document${dp.total - dp.done === 1 ? '' : 's'} left`, body: 'Add the remaining documents so HR can complete your file.', cta: 'Continue onboarding', act: onGoOnboarding }
+  } else if (mine.length === 0) {
+    step = { tone: 'go', title: 'Set your objectives for this cycle', body: 'You have no objectives yet. Author your first so your work is on record.', cta: 'Open My OKRs', act: onAuthor }
+  }
+  if (!step) return null
+
+  return (
+    <div className={`fc-nextstep is-${step.tone}`}>
+      <div className="fc-nextstep-body">
+        <span className="fc-nextstep-kicker">Your next step</span>
+        <b>{step.title}</b>
+        <p>{step.body}</p>
+      </div>
+      <button className="fc-btn fc-btn-gold" onClick={step.act}>{step.cta}</button>
+    </div>
+  )
+}
+
 function CheckinNudge({ objectives }) {
   const items = objectives.filter((o) => o.status === 'approved').flatMap((o) => o.krs.map((k) => ({ o, k }))).filter((x) => krHistory(x.k).length === 0)
   if (items.length === 0) return null
@@ -2971,7 +3072,7 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   const risks = stalledIn(data.objectives.filter((o) => o.status === 'approved' || o.status === 'submitted'))
   // Operational snapshot: headcount, monthly payroll cost per company, onboarding
   // completion and anything needing attention. Real figures, not scores.
-  const activeStaff = data.staff.filter((s) => s.role !== 'chairman')
+  const activeStaff = data.staff.filter((s) => s.role !== 'chairman' && !s.archived)
   const headcount = activeStaff.length
   const costByOrg = [...tenant.subsidiaries].map((org) => {
     let gross = 0
@@ -3558,19 +3659,78 @@ function Leave({ data, me, onRequest, onDecide }) {
 // A bulk-payment file the bank can ingest: one row per person to be paid, with
 // the account details and the net amount. A person paid by two companies gets
 // one line per company, matching how the run is computed.
-function buildBankFileCsv(rows) {
-  const head = ['Beneficiary Name', 'Bank', 'Account Number', 'Amount (NGN)', 'Narration']
-  const lines = rows
-    .filter((r) => r.pr && r.pr.netM > 0)
-    .map((r) => {
-      const name = String(r.s.name || '').replace(/,/g, ' ')
-      const bank = String(r.s.bank || '').replace(/,/g, ' ')
-      const acct = String(r.s.account || '')
-      const amount = Math.round(r.pr.netM)
-      const narration = `Salary ${r.org}`.replace(/,/g, ' ')
-      return [name, bank, acct, amount, narration].join(',')
+const BANK_FORMATS = {
+  generic: { label: 'Generic (name, bank, account, amount)', head: ['Beneficiary Name', 'Bank', 'Account Number', 'Amount (NGN)', 'Narration'],
+    row: (r) => [clean(r.s.name), clean(r.s.bank), String(r.s.account || ''), Math.round(r.pr.netM), clean(`Salary ${r.org}`)] },
+  gtbank: { label: 'GTBank (bulk transfer)', head: ['Account Number', 'Amount', 'Narration', 'Beneficiary Bank', 'Beneficiary Name'],
+    row: (r) => [String(r.s.account || ''), Math.round(r.pr.netM), clean(`SAL ${r.org}`), clean(r.s.bank), clean(r.s.name)] },
+  stanbic: { label: 'Stanbic IBTC (BizDirect)', head: ['Beneficiary Name', 'Beneficiary Account', 'Beneficiary Bank', 'Amount', 'Payment Reference'],
+    row: (r) => [clean(r.s.name), String(r.s.account || ''), clean(r.s.bank), Math.round(r.pr.netM), clean(`Salary ${r.org}`)] },
+  fidelity: { label: 'Fidelity (bulk payment)', head: ['S/N', 'Account Number', 'Account Name', 'Bank', 'Amount', 'Narration'],
+    row: (r, i) => [i + 1, String(r.s.account || ''), clean(r.s.name), clean(r.s.bank), Math.round(r.pr.netM), clean(`Salary ${r.org}`)] },
+}
+const clean = (v) => String(v || '').replace(/,/g, ' ').replace(/\r?\n/g, ' ')
+// Cost per subsidiary: monthly and annualised payroll cost, headcount and the
+// employer's own pension contribution, tied to the group's strategic ranking.
+function buildCostReport(XLSX, data, tenant) {
+  const wb = XLSX.utils.book_new()
+  const orgs = ['Corporate', ...tenant.subsidiaries]
+  const rows = [['Company', 'Priority', 'People', 'Monthly gross', 'Monthly net', 'Monthly PAYE', 'Employer pension /mo', 'Annual gross']]
+  let tG = 0, tN = 0, tP = 0, tE = 0, tA = 0
+  orgs.forEach((org) => {
+    let gross = 0, net = 0, paye = 0, erp = 0, annual = 0
+    const ids = new Set()
+    data.staff.filter((s) => !s.archived).forEach((s) => {
+      (s.placements || []).filter((p) => p.org === org).forEach((p) => {
+        const pr = payrollFor({ ...s, salary: p.gross, rent: p.rent || 0 })
+        if (!pr) return
+        ids.add(s.id); gross += pr.grossM; net += pr.netM; paye += pr.payeM; erp += pr.erPensionM || 0; annual += pr.grossA || pr.grossM * 12
+      })
     })
-  return [head.join(','), ...lines].join('\n')
+    if (ids.size === 0) return
+    const prio = (tenant.priorities || []).find((p) => p.name === org)
+    rows.push([org, prio ? prio.rank : (org === 'Corporate' ? 'Head office' : ''), ids.size, Math.round(gross), Math.round(net), Math.round(paye), Math.round(erp), Math.round(annual)])
+    tG += gross; tN += net; tP += paye; tE += erp; tA += annual
+  })
+  rows.push([])
+  rows.push(['All companies', '', '', Math.round(tG), Math.round(tN), Math.round(tP), Math.round(tE), Math.round(tA)])
+  const ws = XLSX.utils.aoa_to_sheet([['Payroll cost by company', data.activeCycle || ''], [], ...rows])
+  XLSX.utils.book_append_sheet(wb, ws, 'Cost by company')
+  return wb
+}
+
+// Year-end statutory pack: a per-person annual tax card and a consolidated PAYE
+// schedule, the two documents an accountant needs to file with the state.
+function buildYearEndXlsx(XLSX, data, tenant, year) {
+  const wb = XLSX.utils.book_new()
+  const card = [['Annual tax card', year], [], ['Employee', 'Company', 'Annual gross', 'Annual PAYE', 'Annual pension (employee)', 'TIN', 'RSA PIN']]
+  const sched = [['Consolidated PAYE schedule', year], [], ['Employee', 'TIN', 'Annual gross', 'Annual PAYE', 'Monthly PAYE (avg)']]
+  let totGross = 0, totPaye = 0
+  data.staff.filter((s) => !s.archived && s.role !== 'chairman').forEach((s) => {
+    (s.placements && s.placements.length ? s.placements : [{ org: s.sub, gross: s.salary || 0, rent: s.rent || 0 }]).forEach((p) => {
+      if (!(p.gross > 0)) return
+      const pr = payrollFor({ ...s, salary: p.gross, rent: p.rent || 0 })
+      if (!pr) return
+      const gA = Math.round(pr.grossA || pr.grossM * 12)
+      const pA = Math.round(pr.payeA || pr.payeM * 12)
+      const penA = Math.round((pr.empPensionA) || (pr.empPensionM * 12) || 0)
+      card.push([s.name, p.org, gA, pA, penA, s.tin || '', s.rsa || ''])
+      sched.push([s.name, s.tin || '', gA, pA, Math.round(pA / 12)])
+      totGross += gA; totPaye += pA
+    })
+  })
+  card.push([]); card.push(['Totals', '', totGross, totPaye, '', '', ''])
+  sched.push([]); sched.push(['Totals', '', totGross, totPaye, Math.round(totPaye / 12)])
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(card), 'Tax cards')
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sched), 'PAYE schedule')
+  return wb
+}
+
+function buildBankFileCsv(rows, format) {
+  const fmt = BANK_FORMATS[format] || BANK_FORMATS.generic
+  const paid = rows.filter((r) => r.pr && r.pr.netM > 0)
+  const lines = paid.map((r, i) => fmt.row(r, i).join(','))
+  return [fmt.head.join(','), ...lines].join('\n')
 }
 
 // The statutory schedule: what is owed to whom, so nothing is remitted late.
@@ -4055,6 +4215,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
   // company a person is paid by.
   const rows = []
   data.staff.forEach((s) => {
+    if (s.archived) return
     const places = (s.placements && s.placements.length) ? s.placements : [{ org: s.sub, gross: s.salary || 0, rent: s.rent || 0 }]
     places.forEach((p) => {
       if (!(p.gross > 0)) return
@@ -4092,6 +4253,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
   const [mailEdit, setMailEdit] = useState(null)
   const [mailVal, setMailVal] = useState('')
   const [dl, setDl] = useState(false)
+  const [bankFormat, setBankFormat] = useState('generic')
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState(null)
   const [returning, setReturning] = useState(false)
@@ -4114,6 +4276,43 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
   const unverified = rows.filter(({ s }) => !docProgress(s).complete)
   const docGateOk = unverified.length === 0 || (override && overrideNote.trim().length > 3)
   const pendingSalary = (data.salaryRequests || []).filter((r) => r.status === 'pending')
+  // Variance against the last disbursed cycle: who joined, who left the run,
+  // and whose net moved, so nothing unexpected goes out.
+  const variance = (() => {
+    const runsByC = data.payrollRuns || {}
+    const order = ['May 2026', 'June 2026', 'July 2026', 'August 2026', 'September 2026', 'October 2026', 'November 2026', 'December 2026']
+    const idx = order.indexOf(cycle)
+    let prevSnap = null
+    for (let i = idx - 1; i >= 0; i--) {
+      const r = runsByC[order[i]]
+      if (r && r.snapshot && Object.keys(r.snapshot).length) { prevSnap = { cycle: order[i], snap: r.snapshot }; break }
+    }
+    if (!prevSnap) return null
+    const now = {}
+    rows.forEach((r) => { now[r.key] = { name: r.s.name, org: r.org, net: Math.round(r.pr.netM) } })
+    const joined = Object.keys(now).filter((k) => !prevSnap.snap[k]).map((k) => now[k])
+    const left = Object.keys(prevSnap.snap).filter((k) => !now[k]).map((k) => prevSnap.snap[k])
+    const changed = Object.keys(now).filter((k) => prevSnap.snap[k] && prevSnap.snap[k].net !== now[k].net)
+      .map((k) => ({ name: now[k].name, org: now[k].org, from: prevSnap.snap[k].net, to: now[k].net, delta: now[k].net - prevSnap.snap[k].net }))
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    const prevTotal = Object.values(prevSnap.snap).reduce((a, x) => a + (x.net || 0), 0)
+    const nowTotal = Object.values(now).reduce((a, x) => a + (x.net || 0), 0)
+    return { prevCycle: prevSnap.cycle, joined, left, changed, prevTotal, nowTotal, delta: nowTotal - prevTotal }
+  })()
+  // A pre-flight before money moves: catch the errors that are expensive to
+  // undo once a bank file has been uploaded.
+  const preflight = (() => {
+    const uniqByPerson = (list) => {
+      const seen = new Set(); const out = []
+      list.forEach((r) => { if (!seen.has(r.s.id)) { seen.add(r.s.id); out.push(r) } })
+      return out
+    }
+    const noBank = uniqByPerson(rows.filter(({ s }) => !s.account || !s.bank))
+    const shortAcct = uniqByPerson(rows.filter(({ s }) => s.account && String(s.account).replace(/\D/g, '').length !== 10))
+    const zeroNet = rows.filter(({ pr }) => pr && pr.netM <= 0)
+    const noEmail = uniqByPerson(rows.filter(({ s }) => !s.email))
+    return { noBank, shortAcct, zeroNet, noEmail }
+  })()
 
   async function downloadForBank() {
     setDl(true)
@@ -4125,8 +4324,9 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
 
   // The bulk-payment file the bank ingests to pay everyone at once.
   function downloadBankFile() {
-    const csv = buildBankFileCsv(shownRows)
-    downloadBlob(new Blob([csv], { type: 'text/csv' }), `Bank_Payment_${cycle.replace(/\s+/g, '_')}.csv`)
+    const csv = buildBankFileCsv(shownRows, bankFormat)
+    const tag = bankFormat === 'generic' ? '' : '_' + bankFormat
+    downloadBlob(new Blob([csv], { type: 'text/csv' }), `Bank_Payment_${cycle.replace(/\s+/g, '_')}${tag}.csv`)
   }
 
   // The statutory schedule: PAYE, pension and NHF, with deadlines.
@@ -4183,11 +4383,11 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
     try {
       const items = []
       for (let i = 0; i < rows.length; i++) {
-        const { s: person, org, gross, rent } = rows[i]
+        const { s: person, org, gross, rent, pr } = rows[i]
         setBusy(`Preparing payslips… ${i + 1} of ${rows.length}`)
         const one = { ...person, salary: gross, rent, sub: org }
         const { blob, filename } = await buildPayslipPdf(one, opts, cycle, tenant && tenant.name)
-        items.push({ s: { ...one, id: person.id + '|' + org, name: person.name, email: person.email }, blob, filename })
+        items.push({ s: { ...one, id: person.id + '|' + org, name: person.name, email: person.email }, key: person.id + '|' + org, name: person.name, org, net: pr ? Math.round(pr.netM) : 0, blob, filename })
       }
       setBusy('Delivering payslips…')
       const res = await deliverPayslips(items, cycle, data.emailConfig, (n, total, name) => setBusy(`Delivering ${n} of ${total} · ${name}`))
@@ -4269,8 +4469,25 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
             <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => setReturning(true)}>Return to MD</button>
             <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onAdvance('approved', '', cycle)}>Approve for disbursement</button>
           </>}
+          {isAcct && editable && status === 'approved' && (preflight.noBank.length + preflight.shortAcct.length + preflight.zeroNet.length + preflight.noEmail.length) > 0 && (
+            <div className="fc-preflight">
+              <b>Check before disbursing</b>
+              <ul>
+                {preflight.noBank.length > 0 && <li className="is-bad">{preflight.noBank.length} without bank account details: {preflight.noBank.slice(0, 4).map((r) => r.s.name).join(', ')}{preflight.noBank.length > 4 ? '…' : ''}</li>}
+                {preflight.shortAcct.length > 0 && <li className="is-bad">{preflight.shortAcct.length} with an account number that is not 10 digits: {preflight.shortAcct.slice(0, 4).map((r) => r.s.name).join(', ')}{preflight.shortAcct.length > 4 ? '…' : ''}</li>}
+                {preflight.zeroNet.length > 0 && <li className="is-warn">{preflight.zeroNet.length} with a net of zero or less: {preflight.zeroNet.slice(0, 4).map((r) => r.s.name).join(', ')}{preflight.zeroNet.length > 4 ? '…' : ''}</li>}
+                {preflight.noEmail.length > 0 && <li className="is-warn">{preflight.noEmail.length} without an email, so no payslip will be sent: {preflight.noEmail.slice(0, 4).map((r) => r.s.name).join(', ')}{preflight.noEmail.length > 4 ? '…' : ''}</li>}
+              </ul>
+              <p className="fc-muted">Bank account issues will bounce at the bank. Fix what you can before uploading the payment file.</p>
+            </div>
+          )}
           {isAcct && editable && status === 'approved' && <>
-            <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadBankFile}>Bank payment file</button>
+            <span className="fc-bankpick">
+              <select className="fc-input fc-bankpick-sel" value={bankFormat} onChange={(e) => setBankFormat(e.target.value)}>
+                {Object.keys(BANK_FORMATS).map((k) => <option key={k} value={k}>{BANK_FORMATS[k].label}</option>)}
+              </select>
+              <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadBankFile}>Bank payment file</button>
+            </span>
             <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadRemittance}>{dl ? 'Preparing…' : 'Remittance schedule'}</button>
             <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!!busy || !docGateOk} onClick={disburseAndIssue}>{busy || 'Disburse and issue payslips'}</button>
           </>}
@@ -4346,6 +4563,34 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
         </div>
       )}
       {subFilter !== 'all' && <p className="fc-muted fc-subfilter-note">Showing {subFilter} only. The bank file and remittance schedule below cover just this company, so it can be paid and remitted on its own.</p>}
+
+      {variance && (isAcct || isChair || isMD || isHR) && (
+        <details className="fc-variance">
+          <summary>
+            <span>Since {variance.prevCycle}</span>
+            <span className={`fc-var-delta ${variance.delta > 0 ? 'up' : variance.delta < 0 ? 'down' : ''}`}>
+              {variance.delta === 0 ? 'no change in net' : `${variance.delta > 0 ? '+' : ''}${naira(variance.delta)} net`}
+            </span>
+          </summary>
+          <div className="fc-var-body">
+            {variance.joined.length > 0 && <p><b>{variance.joined.length} new in this run:</b> {variance.joined.slice(0, 6).map((x) => x.name).join(', ')}{variance.joined.length > 6 ? '…' : ''}</p>}
+            {variance.left.length > 0 && <p><b>{variance.left.length} no longer in the run:</b> {variance.left.slice(0, 6).map((x) => x.name).join(', ')}{variance.left.length > 6 ? '…' : ''}</p>}
+            {variance.changed.length > 0 && (
+              <div className="fc-var-changed">
+                <b>Net changed for {variance.changed.length}:</b>
+                {variance.changed.slice(0, 8).map((c, i) => (
+                  <div key={i} className="fc-var-row">
+                    <span>{c.name} <span className="fc-muted">· {c.org}</span></span>
+                    <span className={c.delta > 0 ? 'fc-var-up' : 'fc-var-down'}>{naira(c.from)} → {naira(c.to)} ({c.delta > 0 ? '+' : ''}{naira(c.delta)})</span>
+                  </div>
+                ))}
+                {variance.changed.length > 8 && <p className="fc-muted">and {variance.changed.length - 8} more</p>}
+              </div>
+            )}
+            {variance.joined.length === 0 && variance.left.length === 0 && variance.changed.length === 0 && <p className="fc-muted">Nothing changed since {variance.prevCycle}. Same people, same net.</p>}
+          </div>
+        </details>
+      )}
 
       <div className="fc-board-grid fc-dash-metrics">
         <Metric value={naira(shownTot.gross)} label="Gross monthly" />
@@ -4451,77 +4696,154 @@ function MyOnboardingPage({ data, me, onUploadDoc }) {
   const s = data.staff.find((x) => x.id === me.id) || me
   const dp = docProgress(s)
   const exempt = dp.exempt
-  const tasks = s.onboarding || []
-  const tasksDone = tasks.filter((t) => t.done).length
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState(null)
+  const [mode, setMode] = useState('guided')   // guided | list
+  const [step, setStep] = useState(0)
 
-  async function pick(docKey) {
+  const req = REQUIRED_DOCS.filter((d) => d.req)
+  const statusOf = (key) => ((s.docs || {})[key] || {}).status || 'missing'
+  const isDone = (key) => ['received', 'verified'].includes(statusOf(key))
+  // In guided mode, walk the required documents, landing first on whatever is
+  // still outstanding so a returning person is not made to scroll.
+  const firstOutstanding = req.findIndex((d) => !isDone(d.key))
+
+  useEffect(() => { if (mode === 'guided' && firstOutstanding >= 0) setStep(firstOutstanding) }, [])
+
+  async function pick(docKey, advance) {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx'
     input.onchange = async () => {
       const file = input.files && input.files[0]
       if (!file) return
-      if (file.size > 10 * 1024 * 1024) { setMsg({ ok: false, t: 'That file is larger than 10MB. Please upload a smaller copy.' }); return }
+      if (file.size > 10 * 1024 * 1024) { setMsg({ ok: false, t: 'That file is larger than 10MB. Please upload a smaller copy, or a clear photo.' }); return }
       setBusy(docKey); setMsg(null)
       try {
         const rec = await onUploadDoc(s.id, docKey, file)
-        setMsg({ ok: true, t: rec && rec.local ? `${file.name} recorded. Hand the original to HR.` : `${file.name} uploaded.` })
+        setMsg({ ok: true, t: rec && rec.local ? `${file.name} saved. Please also hand the original to HR.` : `${file.name} uploaded.` })
+        if (advance) setTimeout(() => nextOutstanding(), 400)
       } catch (e) {
-        setMsg({ ok: false, t: 'Could not upload: ' + (e && e.message ? e.message : 'error') })
+        setMsg({ ok: false, t: 'Could not upload: ' + (e && e.message ? e.message : 'please try again') })
       } finally { setBusy('') }
     }
     input.click()
+  }
+  function nextOutstanding() {
+    const from = step + 1
+    const nxt = req.findIndex((d, i) => i >= from && !isDone(d.key))
+    if (nxt >= 0) setStep(nxt)
+    else { const any = req.findIndex((d) => !isDone(d.key)); setStep(any >= 0 ? any : Math.min(step + 1, req.length - 1)) }
+  }
+
+  if (exempt) {
+    return (
+      <div className="fc-panel">
+        <div className="fc-panel-head"><div><h2>My onboarding</h2><p className="fc-muted">No employment documents are required from you.</p></div></div>
+        <p className="fc-pay-ok">You are exempt from the document checklist. {exemptReason(s)}. If this is wrong, HR can change it.</p>
+      </div>
+    )
+  }
+
+  // The ring: a simple conic gauge so progress is felt, not just read.
+  const ring = (pct, size = 118) => (
+    <div className="fc-ring" style={{ width: size, height: size, background: `conic-gradient(var(--gold) ${pct * 3.6}deg, rgba(255,255,255,.09) 0deg)` }}>
+      <div className="fc-ring-hole"><b>{pct}%</b><span>done</span></div>
+    </div>
+  )
+
+  const rejected = req.filter((d) => statusOf(d.key) === 'rejected')
+
+  const docCard = (d, showNav) => {
+    const rec = (s.docs || {})[d.key] || {}
+    const st = rec.status || 'missing'
+    const isImg = rec.filename && /\.(jpe?g|png)$/i.test(rec.filename)
+    return (
+      <div className={`fc-wizcard is-${st}`}>
+        <div className="fc-wizcard-body">
+          <div className="fc-wizcard-head">
+            <b>{d.label}</b>
+            <span className={`fc-doc-status fc-doc-${st}`}>{st === 'verified' ? 'Verified' : st === 'received' ? 'Received' : st === 'rejected' ? 'Rejected' : 'Not uploaded'}</span>
+          </div>
+          {d.note && <p className="fc-wizcard-note">{d.note}</p>}
+          <p className="fc-wizcard-accept">Accepted: PDF, or a clear photo (JPG or PNG). Up to 10MB. A phone photo is fine if it is readable.</p>
+          {st === 'rejected' && rec.note && <p className="fc-pay-warn">HR asked for this again: {rec.note}</p>}
+          {rec.filename && (
+            <div className="fc-wizcard-file">
+              {isImg && rec.url ? <img src={rec.url} alt={rec.filename} className="fc-wizthumb" /> : <span className="fc-wizfile-ico">{/\.pdf$/i.test(rec.filename) ? 'PDF' : 'FILE'}</span>}
+              <span className="fc-doc-file">{rec.filename}</span>
+            </div>
+          )}
+          <button className="fc-btn fc-btn-gold" disabled={busy === d.key || st === 'verified'} onClick={() => pick(d.key, showNav)}>
+            {busy === d.key ? 'Uploading…' : st === 'missing' ? 'Upload this document' : st === 'verified' ? 'Verified' : 'Replace'}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="fc-panel">
       <div className="fc-panel-head">
-        <div><h2>My onboarding</h2><p className="fc-muted">{exempt ? 'No employment documents are required from you.' : 'Upload each document below. HR checks them off once received.'}</p></div>
-        <span className={`fc-ob-pill ${dp.complete ? 'is-done' : ''}`}>{exempt ? 'Not required' : `${dp.done} of ${dp.total} documents`}</span>
+        <div><h2>My onboarding</h2><p className="fc-muted">Add each document. You can do them one at a time, or see the whole list.</p></div>
+        <div className="fc-seg">
+          <button className={mode === 'guided' ? 'is-on' : ''} onClick={() => setMode('guided')}>Step by step</button>
+          <button className={mode === 'list' ? 'is-on' : ''} onClick={() => setMode('list')}>See all</button>
+        </div>
       </div>
 
-      {exempt && <p className="fc-pay-ok">You are exempt from the employment document checklist. {exemptReason(s)}. If this is wrong, HR can change it.</p>}
-
-      <div className="fc-ob-bars">
-        {!exempt && <div className="fc-ob-bar"><span>Documents</span><div className="fc-bar"><i style={{ width: dp.pct + '%' }} /></div><b>{dp.pct}%</b></div>}
-        <div className="fc-ob-bar"><span>Checklist</span><div className="fc-bar"><i style={{ width: (tasks.length ? Math.round(tasksDone / tasks.length * 100) : 0) + '%' }} /></div><b>{tasks.length ? Math.round(tasksDone / tasks.length * 100) : 0}%</b></div>
+      <div className="fc-wiztop">
+        {ring(dp.pct)}
+        <div className="fc-wiztop-body">
+          <b>{dp.done} of {dp.total} documents in</b>
+          {dp.complete
+            ? <p className="fc-pay-ok">Everything is in. HR will verify each one. Nothing more is needed from you.</p>
+            : <p className="fc-muted">{dp.total - dp.done} still to add.{rejected.length > 0 && ` ${rejected.length} need${rejected.length === 1 ? 's' : ''} re-uploading.`}</p>}
+        </div>
       </div>
 
-      {!exempt && !dp.complete && <p className="fc-pay-warn">You still have {dp.total - dp.done} required {dp.total - dp.done === 1 ? 'document' : 'documents'} outstanding.</p>}
       {msg && <p className={msg.ok ? 'fc-pay-ok' : 'fc-pay-warn'}>{msg.t}</p>}
 
-      {!exempt && <div className="fc-doclist">
-        {REQUIRED_DOCS.map((d) => {
-          const rec = (s.docs || {})[d.key] || {}
-          const st = rec.status || 'missing'
-          return (
-            <div key={d.key} className={`fc-docrow is-${st}`}>
-              <div className="fc-doc-main">
-                <b>{d.label}{d.req ? '' : <span className="fc-doc-opt"> optional</span>}</b>
-                {d.note && <span className="fc-doc-note">{d.note}</span>}
-                {rec.filename && <span className="fc-doc-file">{rec.filename}</span>}
-              </div>
-              <span className={`fc-doc-status fc-doc-${st}`}>{st === 'verified' ? 'Verified' : st === 'received' ? 'Received' : st === 'rejected' ? 'Rejected' : 'Not uploaded'}</span>
-              <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={busy === d.key || st === 'verified'} onClick={() => pick(d.key)}>
-                {busy === d.key ? 'Uploading…' : st === 'missing' ? 'Upload' : 'Replace'}
-              </button>
-            </div>
-          )
-        })}
-      </div>}
+      {rejected.length > 0 && mode === 'guided' && (
+        <div className="fc-wizrejected">
+          <b>Needs your attention</b>
+          {rejected.map((d) => <button key={d.key} className="fc-chip-warn" onClick={() => { setMode('guided'); setStep(req.findIndex((x) => x.key === d.key)) }}>{d.label}</button>)}
+        </div>
+      )}
 
-      <h3 className="fc-doc-h3">Checklist</h3>
-      <div className="fc-obtasks">
-        {tasks.map((t) => (
-          <div key={t.id} className={`fc-obtask ${t.done ? 'is-done' : ''}`}>
-            <span className="fc-obtask-tick">{t.done ? '✓' : ''}</span>
-            <span>{t.label}</span>
+      {mode === 'guided' ? (
+        <div className="fc-wizard">
+          <div className="fc-wizsteps">Document {step + 1} of {req.length}</div>
+          {docCard(req[step], true)}
+          <div className="fc-wiznav">
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={step === 0} onClick={() => setStep(Math.max(0, step - 1))}>← Previous</button>
+            <div className="fc-wizdots">
+              {req.map((d, i) => <button key={d.key} className={`fc-wizdot ${i === step ? 'is-on' : ''} ${isDone(d.key) ? 'is-done' : ''} ${statusOf(d.key) === 'rejected' ? 'is-bad' : ''}`} onClick={() => setStep(i)} title={d.label} />)}
+            </div>
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={step === req.length - 1} onClick={() => setStep(Math.min(req.length - 1, step + 1))}>Next →</button>
           </div>
-        ))}
-      </div>
-      <p className="fc-muted fc-doc-foot">HR completes the checklist as each step is finished. If something looks wrong, speak to HR.</p>
+        </div>
+      ) : (
+        <div className="fc-doclist">
+          {REQUIRED_DOCS.map((d) => {
+            const rec = (s.docs || {})[d.key] || {}
+            const st = rec.status || 'missing'
+            return (
+              <div key={d.key} className={`fc-docrow is-${st}`}>
+                <div className="fc-doc-main">
+                  <b>{d.label}{d.req ? '' : <span className="fc-doc-opt"> optional</span>}</b>
+                  {d.note && <span className="fc-doc-note">{d.note}</span>}
+                  {rec.filename && <span className="fc-doc-file">{rec.filename}</span>}
+                </div>
+                <span className={`fc-doc-status fc-doc-${st}`}>{st === 'verified' ? 'Verified' : st === 'received' ? 'Received' : st === 'rejected' ? 'Rejected' : 'Not uploaded'}</span>
+                <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={busy === d.key || st === 'verified'} onClick={() => pick(d.key, false)}>
+                  {busy === d.key ? 'Uploading…' : st === 'missing' ? 'Upload' : 'Replace'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -4611,6 +4933,99 @@ function AccountApprovals({ data, me, tenant, onApprove, onDecline, onRefresh })
   )
 }
 
+
+// Managing a person's exit: start it, work the checklist, then archive them.
+// Archived people leave the active roster but their record is kept.
+function Offboarding({ data, onBegin, onToggle, onCancel, onComplete }) {
+  const [starting, setStarting] = useState(false)
+  const [who, setWho] = useState('')
+  const [lastDay, setLastDay] = useState('')
+  const [reason, setReason] = useState('')
+
+  const active = data.staff.filter((s) => !s.archived && s.role !== 'chairman')
+  const leaving = data.staff.filter((s) => s.exit && s.exit.status === 'leaving')
+  const left = data.staff.filter((s) => s.archived)
+
+  const progress = (s) => {
+    const steps = (s.exit && s.exit.steps) || []
+    const done = steps.filter((x) => x.done).length
+    return { done, total: steps.length, complete: steps.length > 0 && done === steps.length }
+  }
+
+  return (
+    <div className="fc-panel">
+      <div className="fc-panel-head">
+        <div><h2>Offboarding</h2><p className="fc-muted">Handle a departure as cleanly as an arrival. Nothing is deleted; a completed exit is archived.</p></div>
+        {!starting && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => setStarting(true)}>Start an exit</button>}
+      </div>
+
+      {starting && (
+        <div className="fc-panel fc-exit-start">
+          <h3>Start an exit</h3>
+          <div className="fc-biogrid">
+            <label className="fc-field"><span>Who is leaving</span>
+              <select className="fc-input" value={who} onChange={(e) => setWho(e.target.value)}>
+                <option value="">Choose…</option>
+                {active.filter((s) => !s.exit).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.title || s.dept || ''}</option>)}
+              </select>
+            </label>
+            <label className="fc-field"><span>Last working day</span><input className="fc-input" type="date" value={lastDay} onChange={(e) => setLastDay(e.target.value)} /></label>
+            <label className="fc-field is-wide"><span>Reason (optional)</span><input className="fc-input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Resignation, end of contract, and so on" /></label>
+          </div>
+          <div className="fc-cta-row">
+            <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setStarting(false); setWho(''); setLastDay(''); setReason('') }}>Cancel</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!who} onClick={() => { onBegin(who, lastDay, reason); setStarting(false); setWho(''); setLastDay(''); setReason('') }}>Begin exit checklist</button>
+          </div>
+        </div>
+      )}
+
+      <h3 className="fc-doc-h3">In progress</h3>
+      {leaving.length === 0 && <p className="fc-muted">Nobody is currently leaving.</p>}
+      {leaving.map((s) => {
+        const pr = progress(s)
+        return (
+          <div key={s.id} className="fc-panel fc-exit-card">
+            <div className="fc-panel-head">
+              <div>
+                <h3>{s.name} <span className="fc-muted">· {s.title || s.dept || ''} · {s.sub}</span></h3>
+                <p className="fc-muted">Last day {s.exit.lastDay || 'not set'}{s.exit.reason ? ` · ${s.exit.reason}` : ''} · started by {s.exit.startedBy}</p>
+              </div>
+              <span className={`fc-ob-pill ${pr.complete ? 'is-done' : ''}`}>{pr.done} of {pr.total}</span>
+            </div>
+            <div className="fc-exit-steps">
+              {EXIT_STEPS.map((step) => {
+                const st = (s.exit.steps || []).find((x) => x.key === step.key) || { done: false }
+                return (
+                  <label key={step.key} className={`fc-exit-step ${st.done ? 'is-done' : ''}`}>
+                    <input type="checkbox" checked={st.done} onChange={() => onToggle(s.id, step.key)} />
+                    <span>{step.label}</span>
+                  </label>
+                )
+              })}
+            </div>
+            <div className="fc-cta-row">
+              <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onCancel(s.id)}>Cancel exit</button>
+              <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!pr.complete} onClick={() => onComplete(s.id)}>{pr.complete ? 'Complete and archive' : `Complete (${pr.total - pr.done} left)`}</button>
+            </div>
+          </div>
+        )
+      })}
+
+      {left.length > 0 && (
+        <>
+          <h3 className="fc-doc-h3">Archived</h3>
+          {left.map((s) => (
+            <div key={s.id} className="fc-exit-archived">
+              <span><b>{s.name}</b> <span className="fc-muted">· {s.title || ''} · left {s.exit && s.exit.completedAt}</span></span>
+              <span className="fc-doc-verified">Archived</span>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
 // Expiring documents and probation reviews falling due, so nothing lapses
 // unnoticed. HR sets an expiry when verifying a document, and confirms a person
 // past probation here.
@@ -4688,7 +5103,7 @@ function Compliance({ data, onSetDocExpiry, onClearProbation }) {
 }
 
 function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus, onSetExempt }) {
-  const people = data.staff.map((s) => ({ s, ...onboardingProgress(s), done_all: fullyOnboarded(s) }))
+  const people = data.staff.filter((s) => !s.archived).map((s) => ({ s, ...onboardingProgress(s), done_all: fullyOnboarded(s) }))
   const inProg = people.filter((p) => !p.done_all)
   const doneList = people.filter((p) => p.done_all)
   const doneCount = doneList.length
@@ -4811,7 +5226,7 @@ function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus
                       <span className="fc-doc-acts">
                         {rec.url && <a className="fc-btn fc-btn-ghost fc-btn-sm" href={rec.url} target="_blank" rel="noreferrer">View</a>}
                         {onSetDocStatus && st !== 'missing' && st !== 'verified' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onSetDocStatus(s.id, dref.key, 'verified')}>Verify</button>}
-                        {onSetDocStatus && st === 'received' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onSetDocStatus(s.id, dref.key, 'rejected')}>Reject</button>}
+                        {onSetDocStatus && st === 'received' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { const why = window.prompt('What should the staff member fix or re-send? This is shown to them and emailed.', ''); if (why !== null) onSetDocStatus(s.id, dref.key, 'rejected', why) }}>Reject</button>}
                         {onSetDocStatus && st === 'missing' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onSetDocStatus(s.id, dref.key, 'received')}>Mark received</button>}
                       </span>
                     </div>
@@ -5079,7 +5494,7 @@ function buildTracker(XLSX, data) {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kr), 'Key Results')
   return wb
 }
-function Exports({ data, tenant }) {
+function Exports({ data, tenant, me }) {
   const [busy, setBusy] = useState('')
   const cyc = (data.activeCycle || 'cycle').replace(/\s+/g, '_')
   async function pack() {
@@ -5096,6 +5511,22 @@ function Exports({ data, tenant }) {
     setBusy('')
   }
   const count = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).length
+  const canFinance = me && ['accountant', 'chairman', 'md', 'admin'].includes(me.role)
+  async function costReport() {
+    setBusy('cost')
+    const XLSX = await import('xlsx')
+    const out = XLSX.write(buildCostReport(XLSX, data, tenant), { bookType: 'xlsx', type: 'array' })
+    downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Cost_By_Company_${cyc}.xlsx`)
+    setBusy('')
+  }
+  async function yearEnd() {
+    setBusy('year')
+    const XLSX = await import('xlsx')
+    const year = new Date().getFullYear()
+    const out = XLSX.write(buildYearEndXlsx(XLSX, data, tenant, year), { bookType: 'xlsx', type: 'array' })
+    downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Year_End_Statutory_${year}.xlsx`)
+    setBusy('')
+  }
   return (
     <div className="fc-exports">
       <div className="fc-panel-head"><div><h2>Export</h2><p className="fc-muted">Generate the branded pack and tracker from live {data.activeCycle || ''} data.</p></div></div>
@@ -5110,6 +5541,20 @@ function Exports({ data, tenant }) {
           <p className="fc-muted">A workbook with the cohort scorecard and every key result: baseline, target, current and confidence.</p>
           <button className="fc-btn fc-btn-gold" disabled={!!busy} onClick={tracker}>{busy === 'xlsx' ? 'Preparing…' : 'Download tracker'}</button>
         </div>
+        {canFinance && (
+          <div className="fc-export-card">
+            <h3>Cost by company</h3>
+            <p className="fc-muted">Monthly and annual payroll cost per subsidiary, with headcount, PAYE and employer pension, ranked by strategic priority.</p>
+            <button className="fc-btn fc-btn-gold" disabled={!!busy} onClick={costReport}>{busy === 'cost' ? 'Preparing…' : 'Download cost report'}</button>
+          </div>
+        )}
+        {canFinance && (
+          <div className="fc-export-card">
+            <h3>Year-end statutory pack</h3>
+            <p className="fc-muted">Per-person annual tax cards and a consolidated PAYE schedule for filing with the state revenue service.</p>
+            <button className="fc-btn fc-btn-gold" disabled={!!busy} onClick={yearEnd}>{busy === 'year' ? 'Preparing…' : 'Download year-end pack'}</button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -5534,6 +5979,73 @@ option{color:#111}
 .fc-cockpit-alerts{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.9rem}
 .fc-alert-chip{font-size:.82rem;padding:.4rem .8rem;border-radius:999px;border:1px solid var(--gold);color:var(--parchment)}
 .fc-alert-chip.is-warn{border-color:var(--rag-a);color:var(--rag-a)}
+.fc-nextstep{display:flex;align-items:center;justify-content:space-between;gap:1.2rem;flex-wrap:wrap;border-radius:12px;padding:1.1rem 1.3rem;margin-bottom:1.3rem;border:1px solid var(--gold);background:rgba(184,146,74,.1)}
+.fc-nextstep.is-warn{border-color:var(--rag-a);background:rgba(184,124,74,.12)}
+.fc-nextstep-kicker{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:.3rem}
+.fc-nextstep.is-warn .fc-nextstep-kicker{color:var(--rag-a)}
+.fc-nextstep-body b{font-size:1.08rem;display:block;margin-bottom:.2rem}
+.fc-nextstep-body p{margin:0;font-size:.88rem;color:var(--muted)}
+.fc-nextstep .fc-btn-gold{flex:none}
+.fc-exit-start{border:1px solid var(--gold)}
+.fc-exit-card{border:1px solid var(--hairline)}
+.fc-exit-steps{display:flex;flex-direction:column;gap:.5rem;margin:.8rem 0}
+.fc-exit-step{display:flex;align-items:center;gap:.6rem;font-size:.9rem;cursor:pointer}
+.fc-exit-step.is-done{color:var(--muted);text-decoration:line-through}
+.fc-exit-archived{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.6rem 0;border-bottom:1px solid var(--hairline);font-size:.88rem}
+.fc-variance{border:1px solid var(--hairline);border-radius:10px;margin-bottom:1rem;overflow:hidden}
+.fc-variance summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.8rem 1.1rem;cursor:pointer;font-size:.9rem;list-style:none}
+.fc-variance summary::-webkit-details-marker{display:none}
+.fc-variance summary::before{content:'▸';color:var(--gold);margin-right:.5rem}
+.fc-variance[open] summary::before{content:'▾'}
+.fc-var-delta{font-weight:600}
+.fc-var-delta.up{color:var(--rag-a)}
+.fc-var-delta.down{color:var(--rag-g)}
+.fc-var-body{padding:0 1.1rem 1rem;border-top:1px solid var(--hairline);font-size:.86rem}
+.fc-var-body p{margin:.6rem 0}
+.fc-var-changed{margin-top:.6rem}
+.fc-var-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.35rem 0;border-bottom:1px solid var(--hairline);font-size:.84rem}
+.fc-var-up{color:var(--rag-a)}
+.fc-var-down{color:var(--rag-g)}
+.fc-bankpick{display:inline-flex;align-items:center;gap:.4rem}
+.fc-bankpick-sel{padding:.4rem .5rem;font-size:.8rem;max-width:15rem}
+.fc-preflight{width:100%;border:1px solid var(--rag-a);border-radius:10px;padding:.9rem 1.1rem;margin-bottom:.8rem}
+.fc-preflight>b{display:block;font-size:.82rem;letter-spacing:.1em;text-transform:uppercase;color:var(--rag-a);margin-bottom:.5rem}
+.fc-preflight ul{margin:0 0 .5rem;padding-left:1.1rem}
+.fc-preflight li{font-size:.85rem;margin-bottom:.3rem}
+.fc-preflight li.is-bad{color:var(--rag-r)}
+.fc-preflight li.is-warn{color:var(--rag-a)}
+.fc-seg{display:inline-flex;border:1px solid var(--hairline);border-radius:8px;overflow:hidden}
+.fc-seg button{background:none;border:none;color:var(--muted);font-family:var(--sans);font-size:.8rem;padding:.45rem .9rem;cursor:pointer}
+.fc-seg button.is-on{background:rgba(184,146,74,.16);color:var(--gold)}
+.fc-wiztop{display:flex;align-items:center;gap:1.4rem;margin:1rem 0 1.2rem;flex-wrap:wrap}
+.fc-ring{border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
+.fc-ring-hole{width:78%;height:78%;border-radius:50%;background:var(--navy,#0E2240);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.fc-ring-hole b{font-size:1.5rem;line-height:1}
+.fc-ring-hole span{font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.fc-wiztop-body b{font-size:1.05rem;display:block;margin-bottom:.3rem}
+.fc-wizrejected{border:1px solid var(--rag-a);border-radius:10px;padding:.8rem 1rem;margin-bottom:1.1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.fc-wizrejected b{font-size:.82rem;color:var(--rag-a)}
+.fc-chip-warn{background:rgba(184,124,74,.16);border:1px solid var(--rag-a);color:var(--parchment);border-radius:999px;padding:.35rem .8rem;font-size:.8rem;font-family:inherit;cursor:pointer}
+.fc-wizsteps{font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem}
+.fc-wizcard{border:1px solid var(--hairline);border-radius:12px;overflow:hidden}
+.fc-wizcard.is-rejected{border-color:var(--rag-a)}
+.fc-wizcard.is-verified{border-color:var(--rag-g)}
+.fc-wizcard-body{padding:1.3rem}
+.fc-wizcard-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.5rem}
+.fc-wizcard-head b{font-size:1.1rem}
+.fc-wizcard-note{color:var(--parchment);font-size:.9rem;margin:.2rem 0 .5rem}
+.fc-wizcard-accept{color:var(--muted);font-size:.8rem;margin:0 0 1rem}
+.fc-wizcard-file{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem}
+.fc-wizthumb{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--hairline)}
+.fc-wizfile-ico{width:56px;height:56px;border-radius:8px;border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--muted);letter-spacing:.05em}
+.fc-wizcard-body .fc-btn-gold{width:100%}
+.fc-wiznav{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1rem}
+.fc-wizdots{display:flex;gap:.35rem;flex-wrap:wrap;justify-content:center;flex:1}
+.fc-wizdot{width:11px;height:11px;border-radius:50%;border:1px solid var(--hairline);background:none;cursor:pointer;padding:0}
+.fc-wizdot.is-on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(184,146,74,.3)}
+.fc-wizdot.is-done{background:var(--rag-g);border-color:var(--rag-g)}
+.fc-wizdot.is-bad{background:var(--rag-a);border-color:var(--rag-a)}
+@media(max-width:640px){.fc-wiztop{gap:1rem}.fc-ring{width:92px !important;height:92px !important}.fc-wiznav{flex-wrap:wrap}}
 .fc-subfilter{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 .8rem}
 .fc-subfilter-note{font-size:.82rem;margin:0 0 1rem}
 .fc-payorg-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding-bottom:.5rem;border-bottom:2px solid var(--gold);margin-bottom:.7rem}

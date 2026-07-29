@@ -692,15 +692,27 @@ async function overlayProfileDocs(tenantId, dataset) {
     const byId = {}
     const byEmail = {}
     rows.forEach((r) => { byId[r.id] = r; if (r.email) byEmail[String(r.email).toLowerCase()] = r })
+    const rank = { missing: 0, received: 1, rejected: 2, verified: 3 }
     const staff = dataset.staff.map((s) => {
       const r = (s.email && byEmail[String(s.email).toLowerCase()]) || byId[s.id] || (s.accountId && byId[s.accountId])
       if (!r) return s
       const merged = { ...s }
-      // The profile row wins for these three, because it is where each person
-      // and HR actually write, one row at a time.
-      if (r.docs && Object.keys(r.docs).length) merged.docs = r.docs
-      if (Array.isArray(r.onboarding) && r.onboarding.length) merged.onboarding = r.onboarding
-      if (typeof r.docs_exempt === 'boolean') merged.docsExempt = r.docs_exempt
+      // Merge documents per key rather than replacing the whole set. For each
+      // document, keep whichever copy has the more advanced status, so neither a
+      // stale profile row nor a stale dataset can undo a real change (an upload
+      // or a verify). This is what stops "verified" reverting on refresh.
+      if (r.docs && Object.keys(r.docs).length) {
+        const base = { ...(s.docs || {}) }
+        Object.keys(r.docs).forEach((k) => {
+          const a = base[k], b = r.docs[k]
+          if (!a) { base[k] = b; return }
+          if (!b) return
+          base[k] = (rank[b.status] || 0) >= (rank[a.status] || 0) ? b : a
+        })
+        merged.docs = base
+      }
+      if (Array.isArray(r.onboarding) && r.onboarding.length && (!s.onboarding || !s.onboarding.some((t) => t.done))) merged.onboarding = r.onboarding
+      if (typeof r.docs_exempt === 'boolean' && s.docsExempt == null) merged.docsExempt = r.docs_exempt
       return merged
     })
     return { ...dataset, staff }
@@ -1922,7 +1934,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
       const person = (data.staff || []).find((x) => x.id === staffId)
       let targetId = person && person.accountId ? person.accountId : null
       if (!targetId && person && person.email) {
-        const { data: match } = await supabase.from('profiles').select('id').ilike('email', person.email).maybeSingle()
+        const { data: match } = await supabase.from('profiles').select('id').ilike('email', String(person.email).trim()).maybeSingle()
         if (match) targetId = match.id
       }
       if (!targetId && /^[0-9a-f-]{36}$/i.test(staffId)) targetId = staffId

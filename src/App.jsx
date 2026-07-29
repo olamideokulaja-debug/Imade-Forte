@@ -511,7 +511,7 @@ const ONBOARDING_TASKS = [
 // completion; the rest are collected where they apply.
 // Documents that carry an expiry date. HR sets the date when verifying; we warn
 // as it approaches. Others (offer, cv, ssce) do not expire and are not listed.
-const EXPIRING_DOCS = ['id', 'passport', 'medical', 'workpermit', 'drivinglicence', 'practising']
+const EXPIRING_DOCS = ['passport', 'medical', 'workpermit', 'drivinglicence', 'practising']
 const daysUntil = (target) => Math.round((new Date(target).getTime() - Date.now()) / 86400000)
 function parseDate(v) {
   if (!v) return null
@@ -679,7 +679,7 @@ async function overlayProfileDocs(tenantId, dataset) {
     const byEmail = {}
     rows.forEach((r) => { byId[r.id] = r; if (r.email) byEmail[String(r.email).toLowerCase()] = r })
     const staff = dataset.staff.map((s) => {
-      const r = byId[s.id] || (s.email && byEmail[String(s.email).toLowerCase()])
+      const r = (s.email && byEmail[String(s.email).toLowerCase()]) || byId[s.id] || (s.accountId && byId[s.accountId])
       if (!r) return s
       const merged = { ...s }
       // The profile row wins for these three, because it is where each person
@@ -1905,7 +1905,15 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
       if ('docs' in patch) row.docs = patch.docs
       if ('onboarding' in patch) row.onboarding = patch.onboarding
       if ('docsExempt' in patch) row.docs_exempt = patch.docsExempt
-      await supabase.from('profiles').update(row).eq('id', staffId)
+      const person = (data.staff || []).find((x) => x.id === staffId)
+      let targetId = person && person.accountId ? person.accountId : null
+      if (!targetId && person && person.email) {
+        const { data: match } = await supabase.from('profiles').select('id').ilike('email', person.email).maybeSingle()
+        if (match) targetId = match.id
+      }
+      if (!targetId && /^[0-9a-f-]{36}$/i.test(staffId)) targetId = staffId
+      if (!targetId) return
+      await supabase.from('profiles').update(row).eq('id', targetId)
     } catch { /* the per-person columns may not be applied yet */ }
   }
   function setDocExpiry(staffId, key, expiry) {
@@ -2108,6 +2116,18 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
       try {
         const { error } = await supabase.rpc('approve_account', { target: id, new_role: roleOverride || null })
         if (error) { window.alert(error.message || 'Could not approve the account.'); return }
+        // Link the now-approved account to the roster person of the same email,
+        // rather than leaving two entries. The account UUID becomes their
+        // accountId, so documents and payroll attach to one record.
+        const req = (data.pendingAccounts || []).find((r) => r.id === id)
+        if (req && req.email) {
+          const addr = String(req.email).trim().toLowerCase()
+          setData((d) => {
+            const existing = d.staff.find((x) => String(x.email || '').trim().toLowerCase() === addr)
+            if (!existing) return d
+            return { ...d, staff: d.staff.map((x) => (x.id === existing.id ? { ...x, accountId: id, role: roleOverride || x.role } : x)) }
+          })
+        }
         await refreshPending()
         return
       } catch (e) { window.alert((e && e.message) || 'Could not approve the account.'); return }
@@ -4611,7 +4631,8 @@ function Compliance({ data, onSetDocExpiry, onClearProbation }) {
   const settable = []
   data.staff.forEach((s) => {
     Object.keys(s.docs || {}).forEach((k) => {
-      if (EXPIRING_DOCS.includes(k) || (s.docs[k] && s.docs[k].expiry)) settable.push({ s, key: k, rec: s.docs[k] })
+      if (EXPIRING_DOCS.includes(k) && s.docs[k] && s.docs[k].status && s.docs[k].status !== 'missing') settable.push({ s, key: k, rec: s.docs[k] })
+      else if (s.docs[k] && s.docs[k].expiry) settable.push({ s, key: k, rec: s.docs[k] })
     })
   })
 

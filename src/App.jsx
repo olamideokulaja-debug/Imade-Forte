@@ -4800,12 +4800,25 @@ async function uploadStaffDoc(staffId, key, file, onProgress) {
 function findMe(data, me) {
   if (!me) return null
   const addr = String(me.email || '').trim().toLowerCase()
-  return (
-    data.staff.find((x) => x.id === me.id) ||
-    data.staff.find((x) => x.accountId && x.accountId === me.id) ||
-    (addr && data.staff.find((x) => String(x.email || '').trim().toLowerCase() === addr)) ||
-    me
+  // Collect every roster record that could be this person: by id, by linked
+  // account, or by email. A stray duplicate (an empty record a past sign-in
+  // created) can match by id, so we must not just take the first hit.
+  const candidates = data.staff.filter((x) =>
+    x.id === me.id ||
+    (x.accountId && x.accountId === me.id) ||
+    (addr && String(x.email || '').trim().toLowerCase() === addr)
   )
+  if (candidates.length === 0) return me
+  if (candidates.length === 1) return candidates[0]
+  // More than one match means there is a duplicate. Prefer the record that
+  // actually holds the person's work: most documents, then most onboarding
+  // progress, then a real salary. This routes them to their real record.
+  const score = (x) => (
+    Object.keys(x.docs || {}).length * 100 +
+    ((x.onboarding || []).filter((t) => t.done).length) * 10 +
+    (x.salary > 0 ? 1 : 0)
+  )
+  return candidates.slice().sort((a, b) => score(b) - score(a))[0]
 }
 
 // The person's own onboarding: what is outstanding, and somewhere to upload it.

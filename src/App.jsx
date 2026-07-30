@@ -1930,6 +1930,20 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   const canExport = me.role === 'chairman' || me.role === 'md' || me.role === 'hr' || me.role === 'admin'
 
   function addStaff(s) { setData((d) => ({ ...d, staff: [...d.staff, { ...s, onboarding: newChecklist(false), documents: [], docs: {} }] })) }
+  const [refreshing, setRefreshing] = useState(false)
+  // Reload the dataset from Supabase (with fresh profile overlays), so HR pulls
+  // in documents staff have uploaded since the page was opened.
+  async function refreshData() {
+    setRefreshing(true)
+    try { const fresh = await loadData(tenant.id); if (fresh) setData(fresh) } catch { /* ignore */ }
+    setRefreshing(false)
+  }
+  function submitForReview(staffId) {
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, onboardingSubmitted: today() } : x)) }))
+    // Persist so HR sees the flag; reuse the docs channel by writing onboarding.
+    const person = (data.staff || []).find((x) => x.id === staffId)
+    if (person) persistStaffField(staffId, { onboarding: person.onboarding || [] })
+  }
   async function uploadDoc(staffId, key, file, onProgress) {
     const rec = await uploadStaffDoc(staffId, key, file, onProgress)
     const entry = { ...rec, at: today(), by: me.name }
@@ -2437,7 +2451,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'reviews' && <Reviews data={data} me={me} cycle={activeCycle} onSaveReview={saveReview} onAckReview={ackReview} onGiveFeedback={giveFeedback} />}
           {tab === 'performance' && <Performance data={data} me={me} onRefer={referToHr} onResolve={resolveHrAction} />}
           {tab === 'leave' && <Leave data={data} me={me} onRequest={requestLeave} onDecide={decideLeave} />}
-          {tab === 'myonboarding' && <MyOnboardingPage data={data} me={me} onUploadDoc={uploadDoc} />}
+          {tab === 'myonboarding' && <MyOnboardingPage data={data} me={me} onUploadDoc={uploadDoc} onSubmit={submitForReview} />}
           {tab === 'mypayslip' && <MyPayslip data={data} me={me} tenant={tenant} />}
           {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={requestSalaryChange} onDecideSalary={decideSalaryRequest} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} onSetEmailConfig={setEmailConfig} onSetAbsence={setAbsence} />}
           {tab === 'account' && (LIVE
@@ -2446,7 +2460,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'approvals' && <AccountApprovals onRefresh={refreshPending} data={data} me={me} tenant={tenant} onApprove={approveAccount} onDecline={declineAccount} />}
           {tab === 'offboarding' && <Offboarding data={data} onBegin={beginExit} onToggle={toggleExitStep} onCancel={cancelExit} onComplete={completeExit} />}
           {tab === 'compliance' && <Compliance data={data} onSetDocExpiry={setDocExpiry} onClearProbation={clearProbation} />}
-          {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} onUploadDoc={uploadDoc} onSetDocStatus={setDocStatus} onSetExempt={setDocsExempt} />}
+          {tab === 'onboarding' && <Onboarding data={data} tenant={tenant} onToggle={toggleOnboarding} onAdd={addStaff} onUploadDoc={uploadDoc} onSetDocStatus={setDocStatus} onSetExempt={setDocsExempt} onRefresh={refreshData} refreshing={refreshing} />}
           {tab === 'cycles' && <Cycles data={data} me={me} onActivate={activateCycle} onRoll={rollCycle} onClearOkr={clearOkrData} onBackup={backupNow} />}
           {tab === 'documents' && <Documents data={data} me={me} onAdd={addDocument} onRemove={removeDocument} />}
           {tab === 'export' && <Exports data={data} tenant={tenant} me={me} />}
@@ -4780,7 +4794,7 @@ async function uploadStaffDoc(staffId, key, file, onProgress) {
 }
 
 // The person's own onboarding: what is outstanding, and somewhere to upload it.
-function MyOnboardingPage({ data, me, onUploadDoc }) {
+function MyOnboardingPage({ data, me, onUploadDoc, onSubmit }) {
   const s = data.staff.find((x) => x.id === me.id) || me
   const dp = docProgress(s)
   const exempt = dp.exempt
@@ -4896,8 +4910,13 @@ function MyOnboardingPage({ data, me, onUploadDoc }) {
         <div className="fc-wiztop-body">
           <b>{dp.done} of {dp.total} documents in</b>
           {dp.complete
-            ? <p className="fc-pay-ok">Everything is in. HR will verify each one. Nothing more is needed from you.</p>
+            ? (s.onboardingSubmitted
+                ? <p className="fc-pay-ok">Submitted to HR on {s.onboardingSubmitted}. HR will verify each document. Nothing more is needed from you.</p>
+                : <p className="fc-muted">All your documents are in. Press Submit so HR knows you are ready for review.</p>)
             : <p className="fc-muted">{dp.total - dp.done} still to add.{rejected.length > 0 && ` ${rejected.length} need${rejected.length === 1 ? 's' : ''} re-uploading.`}</p>}
+          {dp.complete && !s.onboardingSubmitted && onSubmit && (
+            <button className="fc-btn fc-btn-gold" style={{ marginTop: '.6rem' }} onClick={() => onSubmit(s.id)}>Submit to HR for review</button>
+          )}
         </div>
       </div>
 
@@ -5201,7 +5220,7 @@ function Compliance({ data, onSetDocExpiry, onClearProbation }) {
   )
 }
 
-function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus, onSetExempt }) {
+function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus, onSetExempt, onRefresh, refreshing }) {
   const people = data.staff.filter((s) => !s.archived).map((s) => ({ s, ...onboardingProgress(s), done_all: fullyOnboarded(s) }))
   const inProg = people.filter((p) => !p.done_all)
   const doneList = people.filter((p) => p.done_all)
@@ -5238,8 +5257,11 @@ function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus
   }
   return (
     <div className="fc-onboard">
-      <div className="fc-panel-head"><div><h2>Onboarding</h2><p className="fc-muted">New-hire checklists. Tick items as they are completed.</p></div>
-        {onAdd && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => setAdding((a) => !a)}>{adding ? 'Close' : '+ Add new hire'}</button>}
+      <div className="fc-panel-head"><div><h2>Onboarding</h2><p className="fc-muted">New-hire checklists. Tick items as they are completed. Use Refresh to pull the latest uploads from staff.</p></div>
+        <div className="fc-cta-row">
+          {onRefresh && <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={refreshing} onClick={onRefresh}>{refreshing ? 'Refreshing…' : '↻ Refresh uploads'}</button>}
+          {onAdd && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => setAdding((a) => !a)}>{adding ? 'Close' : '+ Add new hire'}</button>}
+        </div>
       </div>
       {adding && (
         <section className="fc-panel fc-ob-add">
@@ -5287,7 +5309,7 @@ function Onboarding({ data, tenant, onToggle, onAdd, onUploadDoc, onSetDocStatus
       {shown.map(({ s, done, total, pct }) => (
         <section key={s.id} className="fc-panel fc-ob-card">
           <div className="fc-ob-head" onClick={() => setOpen(open === s.id ? null : s.id)}>
-            <div className="fc-ob-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)} · {s.sub}</span></span></div>
+            <div className="fc-ob-who"><Avatar name={s.name} /><span><b>{s.name}</b><span className="fc-muted"> · {roleLabel(s)} · {s.sub}</span>{s.onboardingSubmitted && !fullyOnboarded(s) && <span className="fc-ob-submitted">Submitted for review</span>}</span></div>
             <div className="fc-ob-prog">
               <span className={`fc-ob-docs ${docProgress(s).complete ? 'is-done' : ''}`}>{docProgress(s).exempt ? 'no docs required' : `${docProgress(s).done}/${docProgress(s).total} docs`}</span>
               <span className="fc-ob-tasks-lbl">{total ? `${done}/${total} checklist` : 'no checklist'}</span>
@@ -5940,6 +5962,7 @@ option{color:#111}
 @media(max-width:700px){.fc-danger-what{grid-template-columns:1fr}}
 .fc-exempt-toggle{display:flex;align-items:center;gap:.55rem;font-size:.86rem;margin:.3rem 0 .8rem}
 .fc-exempt-note{font-size:.84rem;margin:0 0 1rem}
+.fc-ob-submitted{display:inline-block;margin-left:.5rem;font-size:.68rem;padding:.15rem .5rem;border-radius:999px;background:rgba(184,146,74,.18);color:var(--gold);vertical-align:middle}
 .fc-ob-tasks-lbl{font-family:var(--sans);font-size:.72rem;color:var(--muted);margin-right:.9rem;white-space:nowrap}
 .fc-ob-metrics{margin-bottom:.4rem}
 .fc-metric-btn{background:none;border:1px solid transparent;border-radius:10px;padding:0;cursor:pointer;font-family:inherit;color:inherit;text-align:left;transition:border-color .18s,background .18s}

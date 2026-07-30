@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'data-safe-v1' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'data-safe-v2-payedit' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -2129,31 +2129,45 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   // Salary is never changed silently. Anyone other than the Chairman raises a
   // request; the Chairman's decision is what actually moves the number, and
   // every applied change is written to an immutable log.
-  function requestSalaryChange(id, salary, reason) {
+  function requestSalaryChange(id, salary, reason, org) {
     const person = data.staff.find((x) => x.id === id)
-    const from = (person && person.salary) || 0
+    const places = (person && person.placements && person.placements.length) ? person.placements : [{ org: person ? person.sub : '', gross: person ? person.salary : 0 }]
+    const targetOrg = org || (places.length === 1 ? places[0].org : (person ? person.sub : ''))
+    const from = (places.find((p) => p.org === targetOrg) || places[0] || {}).gross || 0
     if (Number(salary) === Number(from)) return
-    if (me.role === 'chairman') { applySalaryChange(id, Number(salary), me.name, reason || 'Set by the Chairman'); return }
+    // The Chairman can change pay directly. Anyone else (HR, MD) raises a
+    // request the Chairman approves, so pay changes always have sign-off.
+    if (me.role === 'chairman') { applySalaryChange(id, Number(salary), me.name, reason || 'Set by the Chairman', targetOrg); return }
     setData((d) => ({
       ...d,
-      salaryRequests: [...(d.salaryRequests || []), { id: uid(), staffId: id, name: person ? person.name : id, from, to: Number(salary), by: me.name, role: me.role, at: today(), reason: reason || '', status: 'pending' }],
+      salaryRequests: [...(d.salaryRequests || []), { id: uid(), staffId: id, name: person ? person.name : id, org: targetOrg, from, to: Number(salary), by: me.name, role: me.role, at: today(), reason: reason || '', status: 'pending' }],
     }))
   }
-  function applySalaryChange(id, salary, by, note) {
+  function applySalaryChange(id, salary, by, note, org) {
     setData((d) => {
       const person = d.staff.find((x) => x.id === id)
-      const from = (person && person.salary) || 0
+      if (!person) return d
+      const places = (person.placements && person.placements.length)
+        ? person.placements
+        : [{ org: person.sub, gross: person.salary || 0, rent: person.rent || 0 }]
+      // Which placement to change: the named company, else the only one, else
+      // the person's primary (sub). We change that placement's gross, which is
+      // what payroll actually computes from.
+      const targetOrg = org || (places.length === 1 ? places[0].org : person.sub)
+      const before = (places.find((p) => p.org === targetOrg) || places[0] || {}).gross || 0
+      const nextPlaces = places.map((p) => (p.org === targetOrg ? { ...p, gross: Number(salary) } : p))
+      const newTotal = nextPlaces.reduce((a, p) => a + (p.gross || 0), 0)
       return {
         ...d,
-        staff: d.staff.map((s) => (s.id === id ? { ...s, salary: Number(salary) } : s)),
-        salaryLog: [...(d.salaryLog || []), { id: uid(), staffId: id, name: person ? person.name : id, from, to: Number(salary), by, at: today(), note: note || '' }],
+        staff: d.staff.map((s) => (s.id === id ? { ...s, placements: nextPlaces, salary: newTotal } : s)),
+        salaryLog: [...(d.salaryLog || []), { id: uid(), staffId: id, name: person ? person.name : id, org: targetOrg, from: before, to: Number(salary), by, at: today(), note: note || '' }],
       }
     })
   }
   function decideSalaryRequest(reqId, approve, note) {
     const req = (data.salaryRequests || []).find((r) => r.id === reqId)
     if (!req) return
-    if (approve) applySalaryChange(req.staffId, req.to, me.name, `Approved: requested by ${req.by}. ${req.reason || ''}`.trim())
+    if (approve) applySalaryChange(req.staffId, req.to, me.name, `Approved: requested by ${req.by}. ${req.reason || ''}`.trim(), req.org)
     setData((d) => ({ ...d, salaryRequests: (d.salaryRequests || []).map((r) => (r.id === reqId ? { ...r, status: approve ? 'approved' : 'declined', decidedBy: me.name, decidedAt: today(), decisionNote: note || '' } : r)) }))
   }
   function setStaffEmail(id, email) { setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === id ? { ...s, email } : s)) })) }
@@ -4600,7 +4614,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
           <h3>Salary changes awaiting the Chairman</h3>
           {pendingSalary.map((r) => (
             <div key={r.id} className="fc-salreq-row">
-              <span><b>{r.name}</b> <span className="fc-muted">{naira(r.from)} to {naira(r.to)} · requested by {r.by} on {r.at}</span>{r.reason && <span className="fc-salreq-note">{r.reason}</span>}</span>
+              <span><b>{r.name}</b>{r.org && <span className="fc-muted"> ({r.org})</span>} <span className="fc-muted">{naira(r.from)} to {naira(r.to)} · requested by {r.by} on {r.at}</span>{r.reason && <span className="fc-salreq-note">{r.reason}</span>}</span>
               {isChair
                 ? <span className="fc-doc-acts">
                     <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onDecideSalary(r.id, false)}>Decline</button>
@@ -4693,7 +4707,12 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
                         ? <input className="fc-input fc-pt-input" autoFocus value={mailVal} placeholder="email address" onChange={(e) => setMailVal(e.target.value)} onBlur={() => { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) }} onKeyDown={(e) => { if (e.key === 'Enter') { onSetEmail(s.id, mailVal.trim()); setMailEdit(null) } }} />
                         : <button className="fc-pt-mail" onClick={() => canEdit && (setMailVal(s.email || ''), setMailEdit(key))}>{s.email || (canEdit ? '+ add email' : 'no email')}</button>}
                     </span>
-                    {edit === key ? <span><input className="fc-input fc-pt-input" value={val} onChange={(e) => setVal(e.target.value)} /></span> : <span>{naira(pr.grossM)}</span>}
+                    {edit === key
+                      ? <span className="fc-pay-editcell">
+                          <input className="fc-input fc-pt-input" autoFocus value={val} onChange={(e) => setVal(e.target.value)} placeholder="new gross" />
+                          <input className="fc-input fc-pt-reason" value={salReason} onChange={(e) => setSalReason(e.target.value)} placeholder="reason, e.g. pay rise" />
+                        </span>
+                      : <span>{naira(pr.grossM)}</span>}
                     <span>{naira(pr.payeM)}</span>
                     <span>{naira(pr.empPensionM + pr.nhfM + pr.payeM + pr.nhisEmpM + pr.devLevyM)}</span>
                     <span><b>{naira(pr.netM)}</b></span>
@@ -4701,7 +4720,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
                       {edit === key
                         ? <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => { onSetSalary(s.id, Number(val) || 0, salReason, org); setEdit(null); setSalReason('') }}>{me.role === 'chairman' ? 'Save' : 'Request'}</button>
                         : <>
-                            {canEdit && editable && status === 'draft' && <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => { setVal(String(Math.round(pr.grossM))); setEdit(key) }}>Edit</button>}
+                            {canEdit && editable && status !== 'disbursed' && <button className="fc-btn fc-btn-ghost fc-btn-sm" title={me.role === 'chairman' ? 'Change this pay' : 'Request a pay change, sent to the Chairman to approve'} onClick={() => { setVal(String(Math.round(pr.grossM))); setSalReason(''); setEdit(key) }}>{me.role === 'chairman' ? 'Change pay' : 'Change pay'}</button>}
                             {canAbsence && editable && status !== 'disbursed' && (absEdit === key
                               ? <input className="fc-input fc-abs-input" autoFocus type="number" min="0" max="31" value={absVal} placeholder="days"
                                   onChange={(e) => setAbsVal(e.target.value)}
@@ -6241,6 +6260,8 @@ option{color:#111}
 .fc-wizdot.is-done{background:var(--rag-g);border-color:var(--rag-g)}
 .fc-wizdot.is-bad{background:var(--rag-a);border-color:var(--rag-a)}
 @media(max-width:640px){.fc-wiztop{gap:1rem}.fc-ring{width:92px !important;height:92px !important}.fc-wiznav{flex-wrap:wrap}}
+.fc-pay-editcell{display:flex;flex-direction:column;gap:.35rem}
+.fc-pt-reason{font-size:.8rem}
 .fc-subfilter{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 .8rem}
 .fc-subfilter-note{font-size:.82rem;margin:0 0 1rem}
 .fc-payorg-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding-bottom:.5rem;border-bottom:2px solid var(--gold);margin-bottom:.7rem}

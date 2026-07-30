@@ -12,6 +12,11 @@ const SB_URL = import.meta.env.VITE_SUPABASE_URL
 const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 const supabase = SB_URL && SB_KEY ? createClient(SB_URL, SB_KEY) : null
 const LIVE = !!supabase
+// Build marker: read window.FC_BUILD in the browser console to confirm the
+// deployed build. This tag ('data-safe-v1') is the one with all data-protection
+// fixes: live ignores localStorage, per-document verify merge, email self-heal,
+// and the richest-record resolver.
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'data-safe-v1' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four

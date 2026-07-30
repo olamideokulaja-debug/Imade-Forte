@@ -1930,8 +1930,8 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   const canExport = me.role === 'chairman' || me.role === 'md' || me.role === 'hr' || me.role === 'admin'
 
   function addStaff(s) { setData((d) => ({ ...d, staff: [...d.staff, { ...s, onboarding: newChecklist(false), documents: [], docs: {} }] })) }
-  async function uploadDoc(staffId, key, file) {
-    const rec = await uploadStaffDoc(staffId, key, file)
+  async function uploadDoc(staffId, key, file, onProgress) {
+    const rec = await uploadStaffDoc(staffId, key, file, onProgress)
     const entry = { ...rec, at: today(), by: me.name }
     // Update the screen immediately.
     let nextDocs = null
@@ -4733,12 +4733,44 @@ function Payslip({ s, opts = {}, cycle = 'July 2026', onBack, onDownload }) {
 // Stores a staff document. Where Supabase is configured the file is uploaded to
 // a private bucket and a signed link kept; otherwise the record is marked
 // received so onboarding can still be tracked without a file store.
-async function uploadStaffDoc(staffId, key, file) {
-  if (!supabase) return { status: 'received', filename: file.name, url: null, local: true }
+async function uploadStaffDoc(staffId, key, file, onProgress) {
+  if (!supabase) {
+    // Demo mode: simulate progress so the experience is the same.
+    if (onProgress) { onProgress(30); await new Promise((r) => setTimeout(r, 120)); onProgress(70); await new Promise((r) => setTimeout(r, 120)); onProgress(100) }
+    return { status: 'received', filename: file.name, url: null, local: true }
+  }
   const safe = String(file.name).replace(/[^A-Za-z0-9._-]+/g, '_')
   const path = `${staffId}/${key}_${Date.now()}_${safe}`
-  const up = await supabase.storage.from('staff-docs').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: true })
-  if (up.error) throw new Error(up.error.message)
+
+  // Upload via XHR so we can report real progress. The storage REST endpoint
+  // accepts the file with the user's access token.
+  // The signed-in user's access token authorises the upload.
+  let token = SB_KEY
+  try { const { data } = await supabase.auth.getSession(); if (data && data.session && data.session.access_token) token = data.session.access_token } catch { /* fall back to anon */ }
+
+  const uploaded = await new Promise((resolve, reject) => {
+    try {
+      const url = `${SB_URL}/storage/v1/object/staff-docs/${path}`
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', url, true)
+      xhr.setRequestHeader('Authorization', 'Bearer ' + token)
+      xhr.setRequestHeader('apikey', SB_KEY)
+      xhr.setRequestHeader('x-upsert', 'true')
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100)) }
+      xhr.onload = () => { (xhr.status >= 200 && xhr.status < 300) ? resolve(true) : reject(new Error('Upload failed (' + xhr.status + ')')) }
+      xhr.onerror = () => reject(new Error('Network error during upload'))
+      xhr.send(file)
+    } catch (e) { reject(e) }
+  }).catch(async () => {
+    // Fall back to the SDK if the direct upload is blocked for any reason.
+    const up = await supabase.storage.from('staff-docs').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: true })
+    if (up.error) throw new Error(up.error.message)
+    if (onProgress) onProgress(100)
+    return true
+  })
+  if (!uploaded) throw new Error('Upload did not complete')
+
   let url = null
   try {
     const signed = await supabase.storage.from('staff-docs').createSignedUrl(path, 60 * 60 * 24 * 365)
@@ -4753,6 +4785,7 @@ function MyOnboardingPage({ data, me, onUploadDoc }) {
   const dp = docProgress(s)
   const exempt = dp.exempt
   const [busy, setBusy] = useState('')
+  const [pct, setPct] = useState(0)
   const [msg, setMsg] = useState(null)
   const [mode, setMode] = useState('guided')   // guided | list
   const [step, setStep] = useState(0)
@@ -4774,14 +4807,15 @@ function MyOnboardingPage({ data, me, onUploadDoc }) {
       const file = input.files && input.files[0]
       if (!file) return
       if (file.size > 10 * 1024 * 1024) { setMsg({ ok: false, t: 'That file is larger than 10MB. Please upload a smaller copy, or a clear photo.' }); return }
-      setBusy(docKey); setMsg(null)
+      setBusy(docKey); setPct(0); setMsg(null)
       try {
-        const rec = await onUploadDoc(s.id, docKey, file)
-        setMsg({ ok: true, t: rec && rec.local ? `${file.name} saved. Please also hand the original to HR.` : `${file.name} uploaded.` })
-        if (advance) setTimeout(() => nextOutstanding(), 400)
+        const rec = await onUploadDoc(s.id, docKey, file, (p) => setPct(p))
+        setPct(100)
+        setMsg({ ok: true, t: rec && rec.local ? `${file.name} saved. Please also hand the original to HR.` : `${file.name} uploaded and saved.` })
+        if (advance) setTimeout(() => nextOutstanding(), 500)
       } catch (e) {
         setMsg({ ok: false, t: 'Could not upload: ' + (e && e.message ? e.message : 'please try again') })
-      } finally { setBusy('') }
+      } finally { setBusy(''); setPct(0) }
     }
     input.click()
   }
@@ -4827,11 +4861,20 @@ function MyOnboardingPage({ data, me, onUploadDoc }) {
           {rec.filename && (
             <div className="fc-wizcard-file">
               {isImg && rec.url ? <img src={rec.url} alt={rec.filename} className="fc-wizthumb" /> : <span className="fc-wizfile-ico">{/\.pdf$/i.test(rec.filename) ? 'PDF' : 'FILE'}</span>}
-              <span className="fc-doc-file">{rec.filename}</span>
+              <div className="fc-wizcard-fileinfo">
+                <span className="fc-doc-file">{rec.filename}</span>
+                <span className="fc-wizcard-onfile">{st === 'verified' ? '✓ Verified by HR' : st === 'rejected' ? 'Needs re-uploading' : '✓ On file, awaiting HR check'}</span>
+              </div>
+            </div>
+          )}
+          {busy === d.key && (
+            <div className="fc-uploadbar">
+              <div className="fc-uploadbar-track"><div className="fc-uploadbar-fill" style={{ width: pct + '%' }} /></div>
+              <span className="fc-uploadbar-pct">{pct < 100 ? `Uploading… ${pct}%` : 'Finishing…'}</span>
             </div>
           )}
           <button className="fc-btn fc-btn-gold" disabled={busy === d.key || st === 'verified'} onClick={() => pick(d.key, showNav)}>
-            {busy === d.key ? 'Uploading…' : st === 'missing' ? 'Upload this document' : st === 'verified' ? 'Verified' : 'Replace'}
+            {busy === d.key ? `Uploading… ${pct}%` : st === 'missing' ? 'Upload this document' : st === 'verified' ? 'Verified' : 'Replace'}
           </button>
         </div>
       </div>
@@ -4893,7 +4936,7 @@ function MyOnboardingPage({ data, me, onUploadDoc }) {
                 </div>
                 <span className={`fc-doc-status fc-doc-${st}`}>{st === 'verified' ? 'Verified' : st === 'received' ? 'Received' : st === 'rejected' ? 'Rejected' : 'Not uploaded'}</span>
                 <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={busy === d.key || st === 'verified'} onClick={() => pick(d.key, false)}>
-                  {busy === d.key ? 'Uploading…' : st === 'missing' ? 'Upload' : 'Replace'}
+                  {busy === d.key ? `Uploading… ${pct}%` : st === 'missing' ? 'Upload' : 'Replace'}
                 </button>
               </div>
             )
@@ -6091,6 +6134,12 @@ option{color:#111}
 .fc-wizcard{border:1px solid var(--hairline);border-radius:12px;overflow:hidden}
 .fc-wizcard.is-rejected{border-color:var(--rag-a)}
 .fc-wizcard.is-verified{border-color:var(--rag-g)}
+.fc-wizcard-fileinfo{display:flex;flex-direction:column;gap:.15rem}
+.fc-wizcard-onfile{font-size:.74rem;color:var(--rag-g)}
+.fc-uploadbar{margin:0 0 1rem}
+.fc-uploadbar-track{height:8px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden}
+.fc-uploadbar-fill{height:100%;background:var(--gold);border-radius:6px;transition:width .15s ease}
+.fc-uploadbar-pct{display:block;margin-top:.35rem;font-size:.78rem;color:var(--muted)}
 .fc-wizcard-body{padding:1.3rem}
 .fc-wizcard-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.5rem}
 .fc-wizcard-head b{font-size:1.1rem}

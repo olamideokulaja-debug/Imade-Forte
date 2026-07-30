@@ -2526,7 +2526,7 @@ function Dashboard({ tenant, me, data, onAuthor, onGoOnboarding }) {
 // dropped into a wall of tabs wondering where to begin. Priority order:
 // finish onboarding, re-upload a rejected document, then author objectives.
 function NextStep({ me, data, onGoOnboarding, onAuthor }) {
-  const s = data.staff.find((x) => x.id === me.id) || me
+  const s = findMe(data, me)
   const dp = docProgress(s)
   const rejected = REQUIRED_DOCS.filter((d) => d.req && ((s.docs || {})[d.key] || {}).status === 'rejected')
   const mine = data.objectives.filter((o) => o.owner === me.id)
@@ -4160,7 +4160,7 @@ async function sendViaEmailJs(cfg, params) {
 function MyPayslip({ data, me, tenant }) {
   const cycle = data.activeCycle || 'July 2026'
   const run = data.payrollRun && data.payrollRun.cycle === cycle ? data.payrollRun : { status: 'draft' }
-  const s = data.staff.find((x) => x.id === me.id) || me
+  const s = findMe(data, me)
   const issued = run.status === 'disbursed'
   const record = (run.payslips || {})[s.id]
   const [busy, setBusy] = useState(false)
@@ -4793,9 +4793,24 @@ async function uploadStaffDoc(staffId, key, file, onProgress) {
   return { status: 'received', filename: file.name, url, path }
 }
 
+// Resolves the roster record for the signed-in person. A live account's id is a
+// UUID, but their roster record often has a friendly id (s_adebayo) and is
+// linked by email or accountId. Matching on all three finds their real record,
+// so their uploaded documents are recognised instead of asking again.
+function findMe(data, me) {
+  if (!me) return null
+  const addr = String(me.email || '').trim().toLowerCase()
+  return (
+    data.staff.find((x) => x.id === me.id) ||
+    data.staff.find((x) => x.accountId && x.accountId === me.id) ||
+    (addr && data.staff.find((x) => String(x.email || '').trim().toLowerCase() === addr)) ||
+    me
+  )
+}
+
 // The person's own onboarding: what is outstanding, and somewhere to upload it.
 function MyOnboardingPage({ data, me, onUploadDoc, onSubmit }) {
-  const s = data.staff.find((x) => x.id === me.id) || me
+  const s = findMe(data, me)
   const dp = docProgress(s)
   const exempt = dp.exempt
   const [busy, setBusy] = useState('')

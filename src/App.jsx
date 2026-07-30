@@ -5792,7 +5792,7 @@ export default function App() {
           return
         }
         if (live && prof && prof.role) {
-          const profile = { id: authUser.id, name: prof.name || authUser.email, role: prof.role, sub: prof.subsidiary || tenant.subsidiaries[0], tier: prof.cadence_tier || 'ops' }
+          const profile = { id: authUser.id, name: prof.name || authUser.email, email: prof.email || authUser.email, role: prof.role, sub: prof.subsidiary || tenant.subsidiaries[0], tier: prof.cadence_tier || 'ops' }
           try { localStorage.setItem('fc:liveprofile:' + authUser.id, JSON.stringify(profile)) } catch { /* ignore */ }
           enterProfile(profile, false)
           return
@@ -5806,7 +5806,36 @@ export default function App() {
   function enterProfile(profile, persistDemo = true) {
     setMe(profile); setScreen('app')
     if (!LIVE && persistDemo) { try { localStorage.setItem(SKEY(tenantId), JSON.stringify(profile)) } catch { /* ignore */ } }
-    setData((d) => (d.staff.some((s) => s.id === profile.id) ? d : { ...d, staff: [...d.staff, { band: 'green', score: 0, prev: 0, ...profile }] }))
+    setData((d) => {
+      const addr = String(profile.email || '').trim().toLowerCase()
+      // Try to find the roster record this account belongs to: by matching
+      // email, then by accountId, then by exact name. If found and it is missing
+      // the email or account link, stamp them on so HR can always read this
+      // person's uploads. This self-heals the blank-email problem.
+      let linkedId = null
+      const staff = d.staff.map((x) => {
+        const xEmail = String(x.email || '').trim().toLowerCase()
+        const matches = (addr && xEmail === addr) || (x.accountId && x.accountId === profile.id) || (!linkedId && !xEmail && x.name && profile.name && x.name.trim().toLowerCase() === profile.name.trim().toLowerCase())
+        if (matches && !linkedId) {
+          linkedId = x.id
+          const patch = {}
+          if (addr && xEmail !== addr) patch.email = profile.email
+          if (x.accountId !== profile.id) patch.accountId = profile.id
+          return Object.keys(patch).length ? { ...x, ...patch } : x
+        }
+        return x
+      })
+      // Persist the stamped email to that roster person, and to the kv dataset
+      // via the normal save effect. Only if we actually linked someone.
+      if (linkedId) {
+        // The email and accountId sit on the roster record; the normal save
+        // effect writes the whole dataset to Supabase, so no extra write here.
+        return { ...d, staff }
+      }
+      // No roster match at all: add the account as its own record (as before).
+      if (d.staff.some((s) => s.id === profile.id)) return d
+      return { ...d, staff: [...d.staff, { band: 'green', score: 0, prev: 0, ...profile }] }
+    })
   }
   function enter(profile) { enterProfile(profile) }
 

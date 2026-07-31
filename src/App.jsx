@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v6-layout' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v7-docoverlay' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -693,7 +693,10 @@ async function loadData(tenantId) {
             if (kvShared && kvShared.value) base = kvShared.value
           } catch { /* ignore */ }
         }
-        return { ...blankShared(tenantId), ...(base || {}), staff: people }
+        const assembled = { ...blankShared(tenantId), ...(base || {}), staff: people }
+        // Pull each person's uploaded/verified documents from the profiles table
+        // onto their roster record. This is what makes uploads visible to HR.
+        return await overlayProfileDocs(tenantId, assembled)
       }
       // No staff rows yet, but this tenant may have data in the OLD kv blob.
       // Migrate from it (in-memory) so real people are never lost during the

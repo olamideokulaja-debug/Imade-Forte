@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'data-safe-v2-payedit' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v4-perrow' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -674,11 +674,28 @@ const SKEY = (t) => `fc:session:${t}`
 async function loadData(tenantId) {
   if (LIVE) {
     try {
-      const { data } = await supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'dataset').maybeSingle()
-      if (data && data.value) return await overlayProfileDocs(tenantId, data.value)
-    } catch { /* fall through to a first-run seed, never to demo cache */ }
-    // Live and no record yet: seed the real roster below. Deliberately does NOT
-    // read localStorage, so a browser used for demo cannot inject stale data.
+      // NEW ARCHITECTURE: people come from their own rows in the staff table,
+      // so one browser can never overwrite another person. The kv blob is now
+      // used ONLY for shared, low-contention data (OKRs, cycles, payroll runs).
+      const [{ data: staffRows }, { data: shared }] = await Promise.all([
+        supabase.from('staff').select('id, data, updated_at').eq('tenant_id', tenantId),
+        supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'shared').maybeSingle(),
+      ])
+      if (staffRows && staffRows.length) {
+        const people = staffRows.map((r) => ({ ...r.data, id: r.id }))
+        const base = (shared && shared.value) ? shared.value : {}
+        return { ...blankShared(tenantId), ...base, staff: people }
+      }
+      // No staff rows yet, but this tenant may have data in the OLD kv blob.
+      // Migrate from it (in-memory) so real people are never lost during the
+      // switch. The first save then writes them into per-person rows.
+      const { data: oldBlob } = await supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'dataset').maybeSingle()
+      if (oldBlob && oldBlob.value && Array.isArray(oldBlob.value.staff) && oldBlob.value.staff.length) {
+        const migrated = await overlayProfileDocs(tenantId, oldBlob.value)
+        return migrated
+      }
+      // Truly first run: fall through to the seed below.
+    } catch { /* fall through to seed */ }
   } else {
     try {
       const raw = localStorage.getItem(LKEY(tenantId))
@@ -749,9 +766,59 @@ async function overlayProfileDocs(tenantId, dataset) {
   } catch { return dataset }
 }
 
+// The shared, non-person part of the dataset. People are stored per-row.
+function blankShared(tenantId) {
+  const forte = tenantId === 'imade-forte'
+  return {
+    objectives: [], reviews: [], feedback: [], leave: [],
+    cycles: forte
+      ? [{ id: 'c_may', name: 'May 2026', status: 'closed' }, { id: 'c_jun', name: 'June 2026', status: 'closed' }, { id: 'c_jul', name: 'July 2026', status: 'active' }]
+      : [{ id: 'c1', name: 'Current cycle', status: 'active' }],
+    activeCycle: forte ? 'July 2026' : 'Current cycle',
+    hrActions: [], payrollRun: { cycle: forte ? 'July 2026' : 'Current cycle', status: 'draft', trail: [], payslips: null },
+    payrollRuns: {}, absence: {}, pendingAccounts: [], salaryRequests: [], salaryLog: [], emailConfig: null,
+  }
+}
+
+// Remembers what each person looked like last save, so we only write the rows
+// that actually changed. This keeps saves small and avoids touching rows that
+// did not change (so two people editing different records never collide).
+let _lastStaffJson = {}
+function primeStaffCache(data) {
+  _lastStaffJson = {}
+  ;(Array.isArray(data && data.staff) ? data.staff : []).forEach((p) => { if (p && p.id) _lastStaffJson[p.id] = JSON.stringify(p) })
+}
+
 async function saveData(tenantId, data) {
   if (LIVE) {
-    try { await supabase.from('kv').upsert({ tenant_id: tenantId, key: 'dataset', value: data, updated_at: new Date().toISOString() }) } catch { /* ignore */ }
+    try {
+      // 1. Write ONLY the people whose record changed, each to their own row.
+      const people = Array.isArray(data.staff) ? data.staff : []
+      const changed = []
+      const seen = new Set()
+      people.forEach((p) => {
+        if (!p || !p.id) return
+        seen.add(p.id)
+        const json = JSON.stringify(p)
+        if (_lastStaffJson[p.id] !== json) { changed.push(p); _lastStaffJson[p.id] = json }
+      })
+      if (changed.length) {
+        await supabase.from('staff').upsert(
+          changed.map((p) => ({ id: p.id, tenant_id: tenantId, data: p, updated_at: new Date().toISOString() })),
+          { onConflict: 'tenant_id,id' }
+        )
+      }
+      // 2. A person removed from the roster (offboarded/deleted) is deleted from
+      //    their row too, so the delete sticks.
+      const toDelete = Object.keys(_lastStaffJson).filter((id) => !seen.has(id))
+      if (toDelete.length) {
+        await supabase.from('staff').delete().eq('tenant_id', tenantId).in('id', toDelete)
+        toDelete.forEach((id) => { delete _lastStaffJson[id] })
+      }
+      // 3. Write the shared, non-person data to its own kv row.
+      const shared = { ...data }; delete shared.staff
+      await supabase.from('kv').upsert({ tenant_id: tenantId, key: 'shared', value: shared, updated_at: new Date().toISOString() })
+    } catch { /* best effort; a failed write is retried on the next change */ }
     return
   }
   try { localStorage.setItem(LKEY(tenantId), JSON.stringify(data)) } catch { /* ignore */ }
@@ -1940,7 +2007,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   // in documents staff have uploaded since the page was opened.
   async function refreshData() {
     setRefreshing(true)
-    try { const fresh = await loadData(tenant.id); if (fresh) setData(fresh) } catch { /* ignore */ }
+    try { const fresh = await loadData(tenant.id); if (fresh) { primeStaffCache(fresh); setData(fresh) } } catch { /* ignore */ }
     setRefreshing(false)
   }
   function submitForReview(staffId) {
@@ -5770,7 +5837,7 @@ export default function App() {
   }, [tenantId])
 
   // load data whenever tenant changes and we are in the app
-  useEffect(() => { loadData(tenantId).then(setData) }, [tenantId])
+  useEffect(() => { loadData(tenantId).then((d) => { primeStaffCache(d); setData(d) }) }, [tenantId])
 
   // persist on change
   useEffect(() => { if (data.staff.length) saveData(tenantId, data) }, [data])
@@ -5860,31 +5927,39 @@ export default function App() {
     if (!LIVE && persistDemo) { try { localStorage.setItem(SKEY(tenantId), JSON.stringify(profile)) } catch { /* ignore */ } }
     setData((d) => {
       const addr = String(profile.email || '').trim().toLowerCase()
-      // Try to find the roster record this account belongs to: by matching
-      // email, then by accountId, then by exact name. If found and it is missing
-      // the email or account link, stamp them on so HR can always read this
-      // person's uploads. This self-heals the blank-email problem.
+      // Find the ONE roster record this account belongs to. Priority:
+      //   1. same email
+      //   2. same accountId
+      //   3. the Chairman record, when this signing-in account is the Chairman
+      //      (there is only ever one Chairman, so this is safe and stops the
+      //      duplicate-Chairman problem regardless of name spelling)
+      //   4. same exact name, only if that record has no email yet
+      // We pick a single winner and never scan again, so no duplicate is made.
       let linkedId = null
-      const staff = d.staff.map((x) => {
-        const xEmail = String(x.email || '').trim().toLowerCase()
-        const matches = (addr && xEmail === addr) || (x.accountId && x.accountId === profile.id) || (!linkedId && !xEmail && x.name && profile.name && x.name.trim().toLowerCase() === profile.name.trim().toLowerCase())
-        if (matches && !linkedId) {
-          linkedId = x.id
+      const findWinner = () => {
+        let m = addr ? d.staff.find((x) => String(x.email || '').trim().toLowerCase() === addr) : null
+        if (m) return m
+        m = d.staff.find((x) => x.accountId && x.accountId === profile.id)
+        if (m) return m
+        if (profile.role === 'chairman') { m = d.staff.find((x) => x.role === 'chairman'); if (m) return m }
+        m = d.staff.find((x) => !String(x.email || '').trim() && x.name && profile.name && x.name.trim().toLowerCase() === profile.name.trim().toLowerCase())
+        return m || null
+      }
+      const winner = findWinner()
+      if (winner) {
+        linkedId = winner.id
+        const staff = d.staff.map((x) => {
+          if (x.id !== winner.id) return x
           const patch = {}
-          if (addr && xEmail !== addr) patch.email = profile.email
+          // Only fill a blank email; never overwrite an existing good email with
+          // a different one (that is how names/emails got clobbered before).
+          if (addr && !String(x.email || '').trim()) patch.email = profile.email
           if (x.accountId !== profile.id) patch.accountId = profile.id
           return Object.keys(patch).length ? { ...x, ...patch } : x
-        }
-        return x
-      })
-      // Persist the stamped email to that roster person, and to the kv dataset
-      // via the normal save effect. Only if we actually linked someone.
-      if (linkedId) {
-        // The email and accountId sit on the roster record; the normal save
-        // effect writes the whole dataset to Supabase, so no extra write here.
+        })
         return { ...d, staff }
       }
-      // No roster match at all: add the account as its own record (as before).
+      // Genuinely no match: add the account as its own record.
       if (d.staff.some((s) => s.id === profile.id)) return d
       return { ...d, staff: [...d.staff, { band: 'green', score: 0, prev: 0, ...profile }] }
     })

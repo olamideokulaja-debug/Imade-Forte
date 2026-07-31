@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v7-docoverlay' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v8-deleteguard' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -694,6 +694,11 @@ async function loadData(tenantId) {
           } catch { /* ignore */ }
         }
         const assembled = { ...blankShared(tenantId), ...(base || {}), staff: people }
+        // Only a load that actually produced people counts as a real roster. A
+        // read that returns nothing but the shared row (a refused read, a
+        // half-woken session) must never be treated as "the roster is empty",
+        // because the save routine would then delete everyone as offboarded.
+        _rosterLoadedFromDb = people.length > 0
         // Pull each person's uploaded/verified documents from the profiles table
         // onto their roster record. This is what makes uploads visible to HR.
         return await overlayProfileDocs(tenantId, assembled)
@@ -703,6 +708,7 @@ async function loadData(tenantId) {
       // switch. The first save then writes them into per-person rows.
       const { data: oldBlob } = await supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'dataset').maybeSingle()
       if (oldBlob && oldBlob.value && Array.isArray(oldBlob.value.staff) && oldBlob.value.staff.length) {
+        _rosterLoadedFromDb = true
         const migrated = await overlayProfileDocs(tenantId, oldBlob.value)
         return migrated
       }
@@ -797,6 +803,13 @@ function blankShared(tenantId) {
 // did not change (so two people editing different records never collide).
 let _lastStaffJson = {}
 let _lastSharedJson = null
+// True only when a load genuinely returned people from the database. Set in
+// loadData. Everything destructive is gated on it: a browser that never got a
+// real roster is not allowed to tell the database that people no longer exist.
+let _rosterLoadedFromDb = false
+// A person leaving is a one-at-a-time act. More than this many disappearing
+// from the roster in a single save is a symptom, not an instruction.
+const MAX_BULK_DELETE = 2
 function primeStaffCache(data) {
   _lastStaffJson = {}
   ;(Array.isArray(data && data.staff) ? data.staff : []).forEach((p) => { if (p && p.id) _lastStaffJson[p.id] = JSON.stringify(p) })
@@ -824,9 +837,23 @@ async function saveData(tenantId, data) {
       // 2. A person removed from the roster (offboarded/deleted) is deleted from
       //    their row too, so the delete sticks.
       const toDelete = Object.keys(_lastStaffJson).filter((id) => !seen.has(id))
-      if (toDelete.length) {
+      // Three conditions must all hold before we remove anyone. This exists
+      // because on 31 July 2026 a browser that held a roster of one told the
+      // database that the other nineteen people had left, and they were duly
+      // deleted. A refusal here costs nothing (the rows simply stay, and a real
+      // offboarding is retried on the next save); a wrong delete costs the roster.
+      const safeToDelete =
+        toDelete.length > 0 &&
+        _rosterLoadedFromDb &&                 // this browser actually read the roster
+        people.length > 0 &&                   // and still holds people
+        toDelete.length <= MAX_BULK_DELETE     // and is removing a plausible number
+      if (safeToDelete) {
         await supabase.from('staff').delete().eq('tenant_id', tenantId).in('id', toDelete)
         toDelete.forEach((id) => { delete _lastStaffJson[id] })
+      } else if (toDelete.length) {
+        // Keep the cache entries so nothing is silently forgotten, and leave a
+        // trail the Chairman can read in the browser console.
+        try { console.warn('[Forte Compass] refused to delete', toDelete.length, 'staff rows:', toDelete) } catch (e) { /* ignore */ }
       }
       // 3. Write the shared, non-person data into the staff table under a
       //    reserved id, using the same upsert that saves people. This avoids the
@@ -5963,7 +5990,8 @@ export default function App() {
         if (m) return m
         m = d.staff.find((x) => x.accountId && x.accountId === profile.id)
         if (m) return m
-        if (profile.role === 'chairman') { m = d.staff.find((x) => x.role === 'chairman'); if (m) return m }
+        const roleOf = (v) => String(v || '').trim().toLowerCase()
+        if (roleOf(profile.role) === 'chairman') { m = d.staff.find((x) => roleOf(x.role) === 'chairman'); if (m) return m }
         m = d.staff.find((x) => !String(x.email || '').trim() && x.name && profile.name && x.name.trim().toLowerCase() === profile.name.trim().toLowerCase())
         return m || null
       }
@@ -5981,8 +6009,14 @@ export default function App() {
         })
         return { ...d, staff }
       }
-      // Genuinely no match: add the account as its own record.
+      // Genuinely no match: add the account as its own record. Two refusals
+      // first. If the roster has not loaded, "no match" means we cannot see the
+      // roster, not that the person is absent, and adding them here is what
+      // produced the duplicate Chairman. And a record whose name is just an
+      // email address is a shell, never a person.
       if (d.staff.some((s) => s.id === profile.id)) return d
+      if (!_rosterLoadedFromDb || !d.staff.length) return d
+      if (String(profile.name || '').includes('@')) return d
       return { ...d, staff: [...d.staff, { band: 'green', score: 0, prev: 0, ...profile }] }
     })
   }

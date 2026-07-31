@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v4-perrow' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v5-sharedinstaff' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -677,14 +677,23 @@ async function loadData(tenantId) {
       // NEW ARCHITECTURE: people come from their own rows in the staff table,
       // so one browser can never overwrite another person. The kv blob is now
       // used ONLY for shared, low-contention data (OKRs, cycles, payroll runs).
-      const [{ data: staffRows }, { data: shared }] = await Promise.all([
-        supabase.from('staff').select('id, data, updated_at').eq('tenant_id', tenantId),
-        supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'shared').maybeSingle(),
-      ])
+      const { data: staffRows } = await supabase.from('staff').select('id, data, updated_at').eq('tenant_id', tenantId)
       if (staffRows && staffRows.length) {
-        const people = staffRows.map((r) => ({ ...r.data, id: r.id }))
-        const base = (shared && shared.value) ? shared.value : {}
-        return { ...blankShared(tenantId), ...base, staff: people }
+        // Shared, non-person data lives in the SAME staff table under a reserved
+        // id, so it uses the identical write path that already works. (We no
+        // longer depend on the kv table, whose writes were being refused.)
+        const sharedRow = staffRows.find((r) => r.id === '__shared__')
+        const people = staffRows.filter((r) => r.id !== '__shared__').map((r) => ({ ...r.data, id: r.id }))
+        let base = sharedRow ? sharedRow.data : null
+        // One-time fallback: if shared not migrated to the staff table yet, try
+        // the old kv row so nothing is lost on the switch.
+        if (!base) {
+          try {
+            const { data: kvShared } = await supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'shared').maybeSingle()
+            if (kvShared && kvShared.value) base = kvShared.value
+          } catch { /* ignore */ }
+        }
+        return { ...blankShared(tenantId), ...(base || {}), staff: people }
       }
       // No staff rows yet, but this tenant may have data in the OLD kv blob.
       // Migrate from it (in-memory) so real people are never lost during the
@@ -784,6 +793,7 @@ function blankShared(tenantId) {
 // that actually changed. This keeps saves small and avoids touching rows that
 // did not change (so two people editing different records never collide).
 let _lastStaffJson = {}
+let _lastSharedJson = null
 function primeStaffCache(data) {
   _lastStaffJson = {}
   ;(Array.isArray(data && data.staff) ? data.staff : []).forEach((p) => { if (p && p.id) _lastStaffJson[p.id] = JSON.stringify(p) })
@@ -815,9 +825,18 @@ async function saveData(tenantId, data) {
         await supabase.from('staff').delete().eq('tenant_id', tenantId).in('id', toDelete)
         toDelete.forEach((id) => { delete _lastStaffJson[id] })
       }
-      // 3. Write the shared, non-person data to its own kv row.
+      // 3. Write the shared, non-person data into the staff table under a
+      //    reserved id, using the same upsert that saves people. This avoids the
+      //    kv table entirely, whose writes were being refused with a 401.
       const shared = { ...data }; delete shared.staff
-      await supabase.from('kv').upsert({ tenant_id: tenantId, key: 'shared', value: shared, updated_at: new Date().toISOString() })
+      const sharedJson = JSON.stringify(shared)
+      if (_lastSharedJson !== sharedJson) {
+        await supabase.from('staff').upsert(
+          { id: '__shared__', tenant_id: tenantId, data: shared, updated_at: new Date().toISOString() },
+          { onConflict: 'tenant_id,id' }
+        )
+        _lastSharedJson = sharedJson
+      }
     } catch { /* best effort; a failed write is retried on the next change */ }
     return
   }

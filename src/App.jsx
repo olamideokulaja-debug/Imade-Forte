@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v5-sharedinstaff' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v6-layout' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -5859,7 +5859,7 @@ export default function App() {
   useEffect(() => { loadData(tenantId).then((d) => { primeStaffCache(d); setData(d) }) }, [tenantId])
 
   // persist on change
-  useEffect(() => { if (data.staff.length) saveData(tenantId, data) }, [data])
+  useEffect(() => { if (!data.staff.length) return; if (LIVE && (!me || screen !== 'app')) return; saveData(tenantId, data) }, [data])
 
   // Table mode (opt-in): load objectives from the enforced tables when the user enters,
   // and mirror the user's own objective changes back to the tables. Off unless VITE_USE_TABLES=on.
@@ -6730,13 +6730,14 @@ option{color:#111}
 
 /* payroll */
 .fc-paytable{border:1px solid var(--hairline);border-radius:6px;overflow-x:auto}
-.fc-pt-row{display:grid;grid-template-columns:2fr 1.1fr 1fr 1fr 1.1fr 150px;gap:.6rem;align-items:center;padding:.6rem .9rem}
+.fc-pt-row{display:grid;grid-template-columns:1.8fr 1fr .9fr 1fr 1fr minmax(230px,auto);gap:.6rem;align-items:center;padding:.6rem .9rem}
 .fc-pt-row+.fc-pt-row{border-top:1px solid var(--hairline)}
 .fc-pt-head{background:rgba(184,146,74,.08);color:var(--gold-lit);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
 .fc-pt-name{font-weight:600}
 .fc-pt-name .fc-muted{font-weight:400}
 .fc-pt-input{padding:.35rem .5rem;max-width:130px}
-.fc-pt-actions{display:flex;gap:.4rem;justify-content:flex-end}
+.fc-pt-actions{display:flex;gap:.4rem;justify-content:flex-end;flex-wrap:wrap}
+.fc-pt-actions .fc-btn{white-space:nowrap}
 .fc-pay-note{font-size:.8rem;color:var(--muted);margin-top:.9rem}
 .fc-payrun{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border:1px solid var(--hairline);border-left:3px solid var(--gold);border-radius:6px;padding:.7rem 1rem;margin-bottom:1rem;background:rgba(9,26,51,.35)}
 .fc-payrun-status{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}

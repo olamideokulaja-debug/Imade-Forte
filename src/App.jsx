@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v8-deleteguard' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v9-docrefresh' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -76,7 +76,7 @@ const roleLabel = (x) => (x && x.title) || ROLES[x && x.role] || ''
 /* ------------------------ Seeded cohort --------------------------- */
 // Real May 2026 cohort. Bands seed the group board; a subset carries full OKRs.
 const STAFF = [
-  { id: 's_olamide', name: 'Dr. Okulaja Olamide', role: 'chairman', sub: 'Imade Forte', dept: 'Management', title: 'Chairman', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 371241.6, rent: 0 }], salary: 371241.6, rent: 0, bank: 'GT Bank', account: '0028842186', rsa: 'PEN200243923626', note: 'Salary 300,000. Fuel allowance and vehicle maintenance are booked separately.', tier: 'leadership', band: 'grey', score: 0, email: '' },
+  { id: 's_olamide', name: 'Dr. Olamide Okulaja', role: 'chairman', sub: 'Imade Forte', dept: 'Management', title: 'Chairman', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 371241.6, rent: 0 }], salary: 371241.6, rent: 0, bank: 'GT Bank', account: '0028842186', rsa: 'PEN200243923626', note: 'Salary 300,000. Fuel allowance and vehicle maintenance are booked separately.', tier: 'leadership', band: 'grey', score: 0, email: '' },
   { id: 's_jennifer', name: 'Jennifer Kaja', role: 'md', sub: 'Imade Forte', dept: 'Management', title: 'Managing Director', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 889009.0, rent: 2000000 }, { org: 'Genesys', gross: 630125.1, rent: 1000000 }], salary: 1519134.1, rent: 3000000, bank: 'Fidelity Bank', account: '6974598513', rsa: 'PEN200782675923', pfa: 'Stanbic IBTC', startDate: '2025', tier: 'leadership', band: 'grey', score: 0, email: '' },
   { id: 's_godwin', name: 'Godwin Idiong', role: 'lead', sub: 'Imade Forte', dept: 'ICT', title: 'Product Manager', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 303485.1, rent: 520000 }, { org: 'Genesys', gross: 958657.5, rent: 1000000 }], salary: 1262142.6, rent: 1520000, bank: 'Stanbic IBTC', account: '0026369052', rsa: 'PEN100419064014', pfa: 'Stanbic IBTC', tin: 'N-9743430', startDate: '2026-04-20', tier: 'leadership', band: 'grey', score: 0, email: '' },
   { id: 's_adebayo', name: 'Adebayo Okediji', role: 'accountant', sub: 'Imade Forte', dept: 'Finance', title: 'Senior Accountant', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 632096.3, rent: 500000 }], salary: 632096.3, rent: 500000, bank: 'Stanbic IBTC', account: '0035318115', rsa: 'PEN110038525941', pfa: 'Stanbic IBTC', tin: 'N-7692365', startDate: '2026-03-25', tier: 'leadership', band: 'grey', score: 0, email: '' },
@@ -5867,6 +5867,24 @@ export default function App() {
   const [pendingProfile, setPendingProfile] = useState(null)
   const [data, setData] = useState({ staff: [], objectives: [] })
   const tenant = TENANTS[tenantId]
+
+  // The first load happens on page mount, before anyone has signed in, so the
+  // read of `profiles` comes back empty under RLS and documents never make it
+  // onto the roster. That is why HR had to press "Refresh uploads" by hand.
+  // Run the overlay again once a session exists.
+  const dataRef = useRef(data)
+  useEffect(() => { dataRef.current = data }, [data])
+  useEffect(() => {
+    if (!LIVE || !me || screen !== 'app') return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const merged = await overlayProfileDocs(tenantId, dataRef.current)
+        if (!cancelled && merged && merged !== dataRef.current) setData(merged)
+      } catch (e) { /* leave the roster as loaded */ }
+    })()
+    return () => { cancelled = true }
+  }, [me, screen, tenantId])
 
   // Going live: purge any demo caches this browser accumulated while testing,
   // so nobody signs into stale demo data on the real site. Runs once.

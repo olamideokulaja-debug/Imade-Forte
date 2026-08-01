@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v12-focusrefresh' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v13-cockpitroster' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -3254,11 +3254,19 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
     { id: 's_adebayo', label: 'Accountant' },
   ]
 
-  const people = data.staff.filter((s) => s.role !== 'chairman' && personScore(data, s.id).total > 0).map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) }))
-  const green = people.filter((p) => p.band === 'green').length
-  const amber = people.filter((p) => p.band === 'amber').length
-  const red = people.filter((p) => p.band === 'red').length
-  const avg = people.length ? r1(people.reduce((a, p) => a + p.total, 0) / people.length) : 0
+  // Everyone on the roster appears here. Previously this list was filtered to
+  // people with an OKR score above zero, so with no objectives authored the
+  // Cockpit showed an empty board, no staff standing rows and therefore nothing
+  // to click into. Headcount and drill-down must not depend on OKRs existing.
+  const people = data.staff.filter((s) => s.role !== 'chairman' && !s.archived)
+    .map((s) => ({ s, ...personScore(data, s.id), move: movementOf(data, s) }))
+  // Scores, bands and averages still come only from people who are actually
+  // scored, so an unscored person cannot drag the group average to zero.
+  const scored = people.filter((p) => p.total > 0)
+  const green = scored.filter((p) => p.band === 'green').length
+  const amber = scored.filter((p) => p.band === 'amber').length
+  const red = scored.filter((p) => p.band === 'red').length
+  const avg = scored.length ? r1(scored.reduce((a, p) => a + p.total, 0) / scored.length) : 0
   const ratio = outcomeRatio(data.objectives)
 
   const orgs = [...tenant.subsidiaries].map((org) => {
@@ -3269,7 +3277,7 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
     const prio = tenant.priorities.find((p) => p.name === org)
     return {
       org, count: st.length, ratio: outcomeRatioForOrg(data, org), avg: oavg, band: oavg == null ? null : bandOf(oavg), move: omove,
-      rank: prio ? prio.rank : (org === 'Corporate' ? 'Head office' : '—'), g: st.filter((p) => p.band === 'green').length, a: st.filter((p) => p.band === 'amber').length, r: st.filter((p) => p.band === 'red').length,
+      rank: prio ? prio.rank : (org === 'Corporate' ? 'Head office' : '—'), g: st.filter((p) => p.total > 0 && p.band === 'green').length, a: st.filter((p) => p.total > 0 && p.band === 'amber').length, r: st.filter((p) => p.total > 0 && p.band === 'red').length,
     }
   })
 
@@ -3290,7 +3298,7 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
     return n + expiringDocs(s).length + (pi && pi.due && !pi.cleared ? 1 : 0)
   }, 0)
   const pendingAccts = (data.pendingAccounts || []).filter((r) => r.status === 'pending').length
-  const movers = [...people].sort((a, b) => b.move - a.move)
+  const movers = [...scored].sort((a, b) => b.move - a.move)
   const up = movers.filter((p) => p.move > 0).slice(0, 3)
   const down = movers.filter((p) => p.move < 0).slice(-3).reverse()
 

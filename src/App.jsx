@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v13-cockpitroster' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v14-motion' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -1118,6 +1118,36 @@ function AfricaMark({ className = '' }) {
   )
 }
 
+// Reveal-on-scroll. Returns a ref to attach and a flag that flips true the
+// first time the element enters view, then stops observing. Falls back to
+// "already visible" where IntersectionObserver is unavailable, so nothing is
+// ever hidden by a failed feature check.
+function useReveal(threshold = 0.15) {
+  const ref = useRef(null)
+  const [shown, setShown] = useState(false)
+  useEffect(() => {
+    if (shown) return
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined') { setShown(true); return }
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) { setShown(true); obs.disconnect() } })
+    }, { threshold, rootMargin: '0px 0px -8% 0px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [shown, threshold])
+  return [ref, shown]
+}
+
+function Reveal({ children, delay = 0, as: Tag = 'div', className = '' }) {
+  const [ref, shown] = useReveal()
+  return (
+    <Tag ref={ref} className={`fc-reveal ${shown ? 'is-in' : ''} ${className}`.trim()}
+      style={delay ? { transitionDelay: `${delay}ms` } : undefined}>
+      {children}
+    </Tag>
+  )
+}
+
 function LandingPage({ onCompass }) {
   const initial = (typeof location !== 'undefined' && IF_PAGES.includes((location.hash || '').replace('#', ''))) ? location.hash.replace('#', '') : 'home'
   const [page, setPage] = useState(initial)
@@ -1590,12 +1620,12 @@ function Gateway({ tenant, onSignIn, onBackToSite }) {
           <button className="fc-btn fc-btn-ghost" onClick={onSignIn}>Sign in</button>
         </div>
       </header>
-      <main id="top" className="fc-hero">
+      <main id="top" className="fc-hero fc-hero-live">
         <div className="fc-hero-copy">
-          <p className="fc-eyebrow">Office of the Chairman · OKR &amp; Performance</p>
-          <h1 className="fc-headline">Manage to <span className="fc-gold">outcomes</span>.</h1>
-          <p className="fc-sub">Forte Compass holds every team to the change it creates, not the hours it logs or the reports it files. Objectives are authored, tracked, scored and coached against outcomes, right across the group.</p>
-          <div className="fc-cta-row">
+          <p className="fc-eyebrow fc-rise" style={{ animationDelay: '40ms' }}>Office of the Chairman · OKR &amp; Performance</p>
+          <h1 className="fc-headline fc-rise" style={{ animationDelay: '140ms' }}>Manage to <span className="fc-gold">outcomes</span>.</h1>
+          <p className="fc-sub fc-rise" style={{ animationDelay: '260ms' }}>Forte Compass holds every team to the change it creates, not the hours it logs or the reports it files. Objectives are authored, tracked, scored and coached against outcomes, right across the group.</p>
+          <div className="fc-cta-row fc-rise" style={{ animationDelay: '380ms' }}>
             <button className="fc-btn fc-btn-gold" onClick={onSignIn}>Sign in</button>
             <a className="fc-link" href="#how" onClick={() => setRevealed(true)}>See how it works</a>
           </div>
@@ -1603,25 +1633,25 @@ function Gateway({ tenant, onSignIn, onBackToSite }) {
         <aside className="fc-ladder">
           <ol className="fc-ladder-list">
             {rungs.map((r, i) => (
-              <li key={r[0]} className={`fc-rung ${r[2] ? 'is-lit' : ''}`}>
+              <li key={r[0]} className={`fc-rung fc-rise ${r[2] ? 'is-lit' : ''}`} style={{ animationDelay: `${420 + i * 120}ms` }}>
                 <span className="fc-rung-index">{i + 1}</span>
                 <span className="fc-rung-body"><span className="fc-rung-label">{r[0]}</span><span className="fc-rung-note">{r[1]}</span></span>
                 {r[2] && <span className="fc-rung-flag">counts</span>}
               </li>
             ))}
           </ol>
-          <p className="fc-ladder-caption">Effort climbs. Only the outcome is scored.</p>
+          <p className="fc-ladder-caption fc-rise" style={{ animationDelay: '900ms' }}>Effort climbs. Only the outcome is scored.</p>
         </aside>
       </main>
       <section id="how" className="fc-how">
-        <p className="fc-eyebrow fc-eyebrow-dark">What it does</p>
+        <Reveal as="p" className="fc-eyebrow fc-eyebrow-dark">What it does</Reveal>
         <div className="fc-cap-grid">
           {caps.map((c, i) => (
-            <article key={c[0]} className="fc-cap">
+            <Reveal key={c[0]} as="article" className="fc-cap" delay={i * 90}>
               <span className="fc-cap-index">{String(i + 1).padStart(2, '0')}</span>
               <h3 className="fc-cap-title">{c[0]}</h3>
               <p className="fc-cap-body">{c[1]}</p>
-            </article>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -6170,6 +6200,39 @@ export default function App() {
 
 /* ------------------------------- Styles --------------------------- */
 const CSS = `
+/* ---------------- Motion layer (landing pages) --------------------
+   Everything here is presentational. It never gates content: if the
+   observer or the animation fails, the .is-in / final state still shows.
+------------------------------------------------------------------- */
+.fc-reveal{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.22,.61,.36,1),transform .7s cubic-bezier(.22,.61,.36,1)}
+.fc-reveal.is-in{opacity:1;transform:none}
+@keyframes fcRise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+.fc-rise{opacity:0;animation:fcRise .85s cubic-bezier(.22,.61,.36,1) forwards}
+/* Depth behind the hero: a slow, very low-contrast wash so the page reads
+   as alive without competing with the headline. */
+.fc-hero-live{position:relative;overflow:hidden}
+.fc-hero-live::before{content:'';position:absolute;inset:-20% -10% auto -10%;height:70%;pointer-events:none;
+  background:radial-gradient(60% 60% at 30% 25%,rgba(184,146,74,.16),transparent 70%);
+  animation:fcDrift 26s ease-in-out infinite alternate}
+@keyframes fcDrift{from{transform:translate3d(-3%,0,0) scale(1)}to{transform:translate3d(6%,4%,0) scale(1.12)}}
+.fc-hero-live>*{position:relative;z-index:1}
+/* The ladder: rungs lift slightly under the cursor, the scored rung glows. */
+.fc-rung{transition:transform .35s cubic-bezier(.22,.61,.36,1),border-color .35s ease,background .35s ease}
+.fc-rung:hover{transform:translateX(4px)}
+.fc-rung.is-lit{animation:fcLit 3.6s ease-in-out infinite}
+@keyframes fcLit{0%,100%{box-shadow:0 0 0 0 rgba(184,146,74,0)}50%{box-shadow:0 0 22px -6px rgba(184,146,74,.55)}}
+/* Capability cards lift on hover with a gold hairline picking out the edge. */
+.fc-cap{transition:transform .4s cubic-bezier(.22,.61,.36,1),box-shadow .4s ease}
+.fc-cap:hover{transform:translateY(-6px);box-shadow:0 18px 40px -24px rgba(14,34,64,.55)}
+.fc-cap-index{transition:color .4s ease}
+.fc-cap:hover .fc-cap-index{color:var(--gold,#B8924A)}
+@media (prefers-reduced-motion:reduce){
+  .fc-reveal{opacity:1!important;transform:none!important;transition:none!important}
+  .fc-rise{opacity:1!important;animation:none!important}
+  .fc-hero-live::before,.fc-rung.is-lit{animation:none!important}
+  .fc-rung:hover,.fc-cap:hover{transform:none!important}
+}
+
 :root{--navy:#0E2240;--navy-deep:#091A33;--navy-soft:#16304F;--gold:#B8924A;--gold-lit:#D8B266;--parchment:#EDE9E0;--muted:#93A0B4;--hairline:rgba(237,233,224,.14);--rag-g:#4FA07A;--rag-a:#C79A3E;--rag-r:#B65656;--ink:#22303F;}
 *{box-sizing:border-box}
 .fc-root{margin:0;min-height:100vh;background:radial-gradient(120% 80% at 78% -10%,var(--navy-soft) 0%,var(--navy) 42%,var(--navy-deep) 100%);color:var(--parchment);font-family:'Lora',Georgia,serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}

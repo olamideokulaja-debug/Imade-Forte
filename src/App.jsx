@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v9-docrefresh' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v12-focusrefresh' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -674,10 +674,28 @@ const SKEY = (t) => `fc:session:${t}`
 async function loadData(tenantId) {
   if (LIVE) {
     try {
+      // The staff read policy is `auth.role() = 'authenticated'`, and this
+      // function runs on page mount, which can be BEFORE the client has
+      // restored the session from storage. When it loses that race the read
+      // returns zero rows with no error: that is the intermittent empty
+      // roster. Waiting for the session settles it at source, and the retry
+      // below becomes a second line of defence rather than the cure.
+      await supabase.auth.getSession()
+    } catch (e) { /* the retry below still applies */ }
+    try {
       // NEW ARCHITECTURE: people come from their own rows in the staff table,
       // so one browser can never overwrite another person. The kv blob is now
       // used ONLY for shared, low-contention data (OKRs, cycles, payroll runs).
-      const { data: staffRows } = await supabase.from('staff').select('id, data, updated_at').eq('tenant_id', tenantId)
+      // The roster read is the one that matters. A single empty or refused
+      // read used to fall straight through to the old kv blob, which then got
+      // saved back over everyone (this is what reverted the Chairman's name on
+      // 1 August 2026). Retry before believing an empty answer.
+      let staffRows = null
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await supabase.from('staff').select('id, data, updated_at').eq('tenant_id', tenantId)
+        if (!res.error && res.data && res.data.length) { staffRows = res.data; break }
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)))
+      }
       if (staffRows && staffRows.length) {
         // Shared, non-person data lives in the SAME staff table under a reserved
         // id, so it uses the identical write path that already works. (We no
@@ -703,17 +721,17 @@ async function loadData(tenantId) {
         // onto their roster record. This is what makes uploads visible to HR.
         return await overlayProfileDocs(tenantId, assembled)
       }
-      // No staff rows yet, but this tenant may have data in the OLD kv blob.
-      // Migrate from it (in-memory) so real people are never lost during the
-      // switch. The first save then writes them into per-person rows.
-      const { data: oldBlob } = await supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'dataset').maybeSingle()
-      if (oldBlob && oldBlob.value && Array.isArray(oldBlob.value.staff) && oldBlob.value.staff.length) {
-        _rosterLoadedFromDb = true
-        const migrated = await overlayProfileDocs(tenantId, oldBlob.value)
-        return migrated
-      }
-      // Truly first run: fall through to the seed below.
-    } catch { /* fall through to seed */ }
+      // The kv dataset blob was the pre-migration store. Migration finished on
+      // 31 July 2026 and every person now lives in their own staff row, so this
+      // blob is only ever stale. Reading it here is what let an hours-old copy
+      // overwrite live records. Return an empty, explicitly-not-loaded roster
+      // instead: the app shows nothing and, critically, saves nothing.
+      _rosterLoadedFromDb = false
+      return { ...blankShared(tenantId), staff: [] }
+    } catch {
+      _rosterLoadedFromDb = false
+      return { ...blankShared(tenantId), staff: [] }
+    }
   } else {
     try {
       const raw = localStorage.getItem(LKEY(tenantId))
@@ -5874,11 +5892,39 @@ export default function App() {
   // Run the overlay again once a session exists.
   const dataRef = useRef(data)
   useEffect(() => { dataRef.current = data }, [data])
+  // A tab left open for hours holds an old roster in memory, and that is what
+  // caused the 31 July data loss. Re-read whenever the tab is brought back into
+  // focus, so a returning tab is always current. Read-only: it never writes.
+  useEffect(() => {
+    if (!LIVE || !me || screen !== 'app') return
+    const onVisible = async () => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+      try {
+        const fresh = await loadData(tenantId)
+        if (fresh && fresh.staff && fresh.staff.length) { primeStaffCache(fresh); setData(fresh) }
+      } catch (e) { /* keep what is on screen */ }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [me, screen, tenantId])
+
   useEffect(() => {
     if (!LIVE || !me || screen !== 'app') return
     let cancelled = false
     ;(async () => {
       try {
+        // An empty roster here means the earlier read did not land, not that
+        // the company has no staff. Read again now that a session exists.
+        if (!dataRef.current.staff.length) {
+          const fresh = await loadData(tenantId)
+          if (!cancelled && fresh && fresh.staff && fresh.staff.length) {
+            primeStaffCache(fresh); setData(fresh); return
+          }
+        }
         const merged = await overlayProfileDocs(tenantId, dataRef.current)
         if (!cancelled && merged && merged !== dataRef.current) setData(merged)
       } catch (e) { /* leave the roster as loaded */ }

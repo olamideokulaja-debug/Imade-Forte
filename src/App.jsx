@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v14-motion' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v15-livestrip' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -1596,6 +1596,23 @@ function ContactView() {
 /* --------------------------- Compass overview --------------------- */
 function Gateway({ tenant, onSignIn, onBackToSite }) {
   const [revealed, setRevealed] = useState(false)
+  // Live group figures for the pre-login page. These come from an RPC that
+  // returns AGGREGATES ONLY (counts, a ratio) and never a name, a salary or a
+  // person. The staff table is not readable before sign-in and must stay that
+  // way, so this deliberately does not query it directly. If the call fails the
+  // strip simply does not render: the page must never depend on it.
+  const [stats, setStats] = useState(null)
+  useEffect(() => {
+    if (!LIVE) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data, error } = await supabase.rpc('public_group_stats', { t: 'imade-forte' })
+        if (!cancelled && !error && data) setStats(data)
+      } catch (e) { /* leave the strip hidden */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
   const rungs = [
     ['Input', 'resources committed', false],
     ['Activity', 'actions taken', false],
@@ -1643,6 +1660,17 @@ function Gateway({ tenant, onSignIn, onBackToSite }) {
           <p className="fc-ladder-caption fc-rise" style={{ animationDelay: '900ms' }}>Effort climbs. Only the outcome is scored.</p>
         </aside>
       </main>
+      {stats && (
+        <section className="fc-livestrip">
+          <span className="fc-livestrip-label">The group, right now</span>
+          <div className="fc-livestrip-row">
+            <Reveal className="fc-livestat"><b><CountUp to={stats.people || 0} /></b><span>on the roster</span></Reveal>
+            <Reveal className="fc-livestat" delay={90}><b><CountUp to={stats.companies || 0} /></b><span>operating companies</span></Reveal>
+            <Reveal className="fc-livestat" delay={180}><b><CountUp to={stats.objectives || 0} /></b><span>objectives in flight</span></Reveal>
+            <Reveal className="fc-livestat" delay={270}><b><CountUp to={stats.outcome_ratio || 0} suffix="%" /></b><span>outcome ratio</span></Reveal>
+          </div>
+        </section>
+      )}
       <section id="how" className="fc-how">
         <Reveal as="p" className="fc-eyebrow fc-eyebrow-dark">What it does</Reveal>
         <div className="fc-cap-grid">
@@ -6226,6 +6254,12 @@ const CSS = `
 .fc-cap:hover{transform:translateY(-6px);box-shadow:0 18px 40px -24px rgba(14,34,64,.55)}
 .fc-cap-index{transition:color .4s ease}
 .fc-cap:hover .fc-cap-index{color:var(--gold,#B8924A)}
+/* Live group figures on the pre-login page. Aggregates only. */
+.fc-livestrip{padding:clamp(2rem,5vw,3.25rem) clamp(1.5rem,6vw,5rem);border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline)}
+.fc-livestrip-label{display:block;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold,#B8924A);margin-bottom:1.4rem}
+.fc-livestrip-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:clamp(1.25rem,4vw,3rem)}
+.fc-livestat b{display:block;font-size:clamp(1.9rem,4.5vw,2.9rem);font-weight:600;line-height:1.05;font-variant-numeric:tabular-nums}
+.fc-livestat span{display:block;margin-top:.35rem;font-size:.85rem;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){
   .fc-reveal{opacity:1!important;transform:none!important;transition:none!important}
   .fc-rise{opacity:1!important;animation:none!important}

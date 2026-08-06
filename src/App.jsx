@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v15-livestrip' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v29-leaveid' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -81,7 +81,7 @@ const STAFF = [
   { id: 's_godwin', name: 'Godwin Idiong', role: 'lead', sub: 'Imade Forte', dept: 'ICT', title: 'Product Manager', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 303485.1, rent: 520000 }, { org: 'Genesys', gross: 958657.5, rent: 1000000 }], salary: 1262142.6, rent: 1520000, bank: 'Stanbic IBTC', account: '0026369052', rsa: 'PEN100419064014', pfa: 'Stanbic IBTC', tin: 'N-9743430', startDate: '2026-04-20', tier: 'leadership', band: 'grey', score: 0, email: '' },
   { id: 's_adebayo', name: 'Adebayo Okediji', role: 'accountant', sub: 'Imade Forte', dept: 'Finance', title: 'Senior Accountant', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 632096.3, rent: 500000 }], salary: 632096.3, rent: 500000, bank: 'Stanbic IBTC', account: '0035318115', rsa: 'PEN110038525941', pfa: 'Stanbic IBTC', tin: 'N-7692365', startDate: '2026-03-25', tier: 'leadership', band: 'grey', score: 0, email: '' },
   { id: 's_goodness', name: 'Goodness Onyeneke', role: 'staff', sub: 'Imade Forte', dept: 'Administration', title: 'EA to the Chairman', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 357502.99, rent: 0 }], salary: 357502.99, rent: 0, bank: 'Access Bank', account: '0104361895', rsa: 'PEN210123195595', pfa: 'Access ARM', tin: '2512496755127', startDate: '2025-10-27', note: 'July paid on 18 days worked.', tier: 'ops', band: 'grey', score: 0, email: '' },
-  { id: 's_chinonso', name: 'Chinonso Erugo', role: 'hr', sub: 'Imade Forte', dept: 'Administration', title: 'Acting HR and Admin', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 305535.5, rent: 0 }, { org: 'Girard', gross: 53879.3, rent: 0 }], salary: 359414.8, rent: 0, bank: 'Zenith Bank', account: '2175607820', rsa: 'PEN100633158510', pfa: 'Access ARM', tin: 'N-6282414', startDate: '2026-02-09', tier: 'leadership', band: 'grey', score: 0, email: '' },
+  { id: 's_chinonso', name: 'Chinonso Erugo', role: 'staff', sub: 'Imade Forte', dept: 'Administration', title: 'Admin Officer', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 305535.5, rent: 0 }, { org: 'Girard', gross: 53879.3, rent: 0 }], salary: 359414.8, rent: 0, bank: 'Zenith Bank', account: '2175607820', rsa: 'PEN100633158510', pfa: 'Access ARM', tin: 'N-6282414', startDate: '2026-02-09', tier: 'leadership', band: 'grey', score: 0, email: '' },
   { id: 's_emmanuella', name: 'Emmanuella Ezeakor', role: 'staff', sub: 'Imade Forte', dept: 'Administration', title: 'Front Desk and Customer Service', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 200000.0, rent: 750000 }], salary: 200000.0, rent: 750000, bank: 'Fidelity Bank', account: '6151210135', rsa: 'PEN210222135811', pfa: 'Stanbic IBTC', tin: 'N-16730937', startDate: '2026-06-08', tier: 'ops', band: 'grey', score: 0, email: '' },
   { id: 's_blessing', name: 'Blessing Shima', role: 'staff', sub: 'Imade Forte', dept: 'Administration', title: 'Office Assistant and Janitor', employment: 'fixed', placements: [{ org: 'Imade Forte', gross: 118350.0, rent: 0 }], salary: 118350.0, rent: 0, bank: 'First Bank', account: '3045664363', startDate: '2026-02-13', tier: 'ops', band: 'grey', score: 0, email: '' },
   { id: 's_chinomso', name: 'Chinomso Ordor', role: 'staff', sub: 'Genesys', dept: 'ICT', title: 'ICT and Implementation Officer', employment: 'fixed', placements: [{ org: 'Genesys', gross: 305535.5, rent: 0 }, { org: 'Girard', gross: 53879.3, rent: 0 }], salary: 359414.8, rent: 0, bank: 'GT Bank', account: '0611304471', startDate: '2026-02-02', tier: 'ops', band: 'grey', score: 0, email: '' },
@@ -683,49 +683,48 @@ async function loadData(tenantId) {
       await supabase.auth.getSession()
     } catch (e) { /* the retry below still applies */ }
     try {
-      // NEW ARCHITECTURE: people come from their own rows in the staff table,
-      // so one browser can never overwrite another person. The kv blob is now
-      // used ONLY for shared, low-contention data (OKRs, cycles, payroll runs).
-      // The roster read is the one that matters. A single empty or refused
-      // read used to fall straight through to the old kv blob, which then got
-      // saved back over everyone (this is what reverted the Chairman's name on
-      // 1 August 2026). Retry before believing an empty answer.
-      let staffRows = null
+      // CONSOLIDATED SHAPE (1 August 2026): a person is ONE row in `people`,
+      // carrying their documents with them. The old staff + profiles split, and
+      // the email/id/accountId matching that stitched them together at load
+      // time, are gone: that matching caused the duplicate Chairman, the
+      // documents that needed a manual refresh, and the reverting name.
+      // The in-memory shape is deliberately unchanged, so every screen above
+      // this line keeps working exactly as before.
+      let peopleRows = null
       for (let attempt = 0; attempt < 3; attempt++) {
-        const res = await supabase.from('staff').select('id, data, updated_at').eq('tenant_id', tenantId)
-        if (!res.error && res.data && res.data.length) { staffRows = res.data; break }
+        const res = await supabase.from('people')
+          .select('id, slug, account_id, email, name, role, title, dept, employment, archived, docs, data')
+          .eq('tenant_id', tenantId)
+        if (!res.error && res.data && res.data.length) { peopleRows = res.data; break }
         if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)))
       }
-      if (staffRows && staffRows.length) {
-        // Shared, non-person data lives in the SAME staff table under a reserved
-        // id, so it uses the identical write path that already works. (We no
-        // longer depend on the kv table, whose writes were being refused.)
-        const sharedRow = staffRows.find((r) => r.id === '__shared__')
-        const people = staffRows.filter((r) => r.id !== '__shared__').map((r) => ({ ...r.data, id: r.id }))
-        let base = sharedRow ? sharedRow.data : null
-        // One-time fallback: if shared not migrated to the staff table yet, try
-        // the old kv row so nothing is lost on the switch.
-        if (!base) {
-          try {
-            const { data: kvShared } = await supabase.from('kv').select('value').eq('tenant_id', tenantId).eq('key', 'shared').maybeSingle()
-            if (kvShared && kvShared.value) base = kvShared.value
-          } catch { /* ignore */ }
-        }
-        const assembled = { ...blankShared(tenantId), ...(base || {}), staff: people }
-        // Only a load that actually produced people counts as a real roster. A
-        // read that returns nothing but the shared row (a refused read, a
-        // half-woken session) must never be treated as "the roster is empty",
-        // because the save routine would then delete everyone as offboarded.
+      if (peopleRows && peopleRows.length) {
+        const people = peopleRows.map((r) => ({
+          ...(r.data || {}),
+          id: r.slug || r.id,
+          rowId: r.id,
+          accountId: r.account_id || undefined,
+          email: r.email || '',
+          name: r.name || (r.data && r.data.name) || '',
+          role: r.role || (r.data && r.data.role),
+          title: r.title || (r.data && r.data.title),
+          dept: r.dept || (r.data && r.data.dept),
+          employment: r.employment || (r.data && r.data.employment) || 'fixed',
+          archived: !!r.archived,
+          // Documents can live in the promoted column, in the jsonb, or both.
+          // Merge rather than replace: an empty column must never erase
+          // documents that are present in the record.
+          docs: { ...((r.data && r.data.docs) || {}), ...(r.docs || {}) },
+        }))
+        let base = null
+        try {
+          const { data: st } = await supabase.from('tenant_settings').select('data').eq('tenant_id', tenantId).maybeSingle()
+          if (st && st.data) base = st.data
+        } catch (e) { /* settings are recoverable; the roster is what matters */ }
         _rosterLoadedFromDb = people.length > 0
-        // Pull each person's uploaded/verified documents from the profiles table
-        // onto their roster record. This is what makes uploads visible to HR.
-        return await overlayProfileDocs(tenantId, assembled)
+        return { ...blankShared(tenantId), ...(base || {}), staff: people }
       }
-      // The kv dataset blob was the pre-migration store. Migration finished on
-      // 31 July 2026 and every person now lives in their own staff row, so this
-      // blob is only ever stale. Reading it here is what let an hours-old copy
-      // overwrite live records. Return an empty, explicitly-not-loaded roster
-      // instead: the app shows nothing and, critically, saves nothing.
+      // An unreadable roster shows nothing and, critically, saves nothing.
       _rosterLoadedFromDb = false
       return { ...blankShared(tenantId), staff: [] }
     } catch {
@@ -847,9 +846,27 @@ async function saveData(tenantId, data) {
         if (_lastStaffJson[p.id] !== json) { changed.push(p); _lastStaffJson[p.id] = json }
       })
       if (changed.length) {
-        await supabase.from('staff').upsert(
-          changed.map((p) => ({ id: p.id, tenant_id: tenantId, data: p, updated_at: new Date().toISOString() })),
-          { onConflict: 'tenant_id,id' }
+        // Write to the consolidated `people` table. The promoted columns are
+        // kept in step with the jsonb on every write, so the database can
+        // enforce uniqueness on email and account, and so SQL can read a
+        // person without digging through jsonb.
+        await supabase.from('people').upsert(
+          changed.map((p) => ({
+            tenant_id: tenantId,
+            slug: p.id,
+            account_id: p.accountId || null,
+            email: (p.email && String(p.email).trim()) || null,
+            name: p.name || null,
+            role: p.role || null,
+            title: p.title || null,
+            dept: p.dept || null,
+            employment: p.employment || 'fixed',
+            archived: !!p.archived,
+            docs: p.docs || {},
+            data: p,
+            updated_at: new Date().toISOString(),
+          })),
+          { onConflict: 'tenant_id,slug' }
         )
       }
       // 2. A person removed from the roster (offboarded/deleted) is deleted from
@@ -866,22 +883,21 @@ async function saveData(tenantId, data) {
         people.length > 0 &&                   // and still holds people
         toDelete.length <= MAX_BULK_DELETE     // and is removing a plausible number
       if (safeToDelete) {
-        await supabase.from('staff').delete().eq('tenant_id', tenantId).in('id', toDelete)
+        await supabase.from('people').delete().eq('tenant_id', tenantId).in('slug', toDelete)
         toDelete.forEach((id) => { delete _lastStaffJson[id] })
       } else if (toDelete.length) {
         // Keep the cache entries so nothing is silently forgotten, and leave a
         // trail the Chairman can read in the browser console.
         try { console.warn('[Forte Compass] refused to delete', toDelete.length, 'staff rows:', toDelete) } catch (e) { /* ignore */ }
       }
-      // 3. Write the shared, non-person data into the staff table under a
-      //    reserved id, using the same upsert that saves people. This avoids the
-      //    kv table entirely, whose writes were being refused with a 401.
+      // 3. Shared, non-person data now has its own table rather than hiding in
+      //    the roster under a reserved id pretending to be a person.
       const shared = { ...data }; delete shared.staff
       const sharedJson = JSON.stringify(shared)
       if (_lastSharedJson !== sharedJson) {
-        await supabase.from('staff').upsert(
-          { id: '__shared__', tenant_id: tenantId, data: shared, updated_at: new Date().toISOString() },
-          { onConflict: 'tenant_id,id' }
+        await supabase.from('tenant_settings').upsert(
+          { tenant_id: tenantId, data: shared, updated_at: new Date().toISOString() },
+          { onConflict: 'tenant_id' }
         )
         _lastSharedJson = sharedJson
       }
@@ -2121,9 +2137,13 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   const canOrg = me.role === 'chairman' || me.role === 'md' || me.role === 'hr' || me.role === 'admin'
   const canPerf = me.role === 'chairman' || me.role === 'md' || me.role === 'hr'
   const canPay = me.role === 'md' || me.role === 'hr' || me.role === 'admin' || me.role === 'accountant'
-  const canOnboard = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  // The Chairman can run onboarding and verify documents. Added 3 August 2026
+  // while the Acting HR steps back to Admin Officer and before the incoming HR
+  // Manager starts, so the document checklists that gate payroll are never
+  // stranded with nobody able to work them. Deliberately NOT added to canPay.
+  const canOnboard = me.role === 'md' || me.role === 'hr' || me.role === 'admin' || me.role === 'chairman'
   const canCycle = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
-  const canDocs = me.role === 'md' || me.role === 'hr' || me.role === 'admin'
+  const canDocs = me.role === 'md' || me.role === 'hr' || me.role === 'admin' || me.role === 'chairman'
   const canExport = me.role === 'chairman' || me.role === 'md' || me.role === 'hr' || me.role === 'admin'
 
   function addStaff(s) { setData((d) => ({ ...d, staff: [...d.staff, { ...s, onboarding: newChecklist(false), documents: [], docs: {} }] })) }
@@ -2136,24 +2156,23 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
     setRefreshing(false)
   }
   function submitForReview(staffId) {
-    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, onboardingSubmitted: today() } : x)) }))
-    // Persist so HR sees the flag; reuse the docs channel by writing onboarding.
+    // Persist the flag ITSELF. This previously wrote `onboarding` instead,
+    // which meant the submitted flag never actually saved, and it would have
+    // replaced a missing checklist with an empty array.
     const person = (data.staff || []).find((x) => x.id === staffId)
-    if (person) persistStaffField(staffId, { onboarding: person.onboarding || [] })
+    if (!person) return
+    const stamp = today()
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, onboardingSubmitted: stamp } : x)) }))
+    persistStaffField(staffId, { onboardingSubmitted: stamp })
   }
   async function uploadDoc(staffId, key, file, onProgress) {
     const rec = await uploadStaffDoc(staffId, key, file, onProgress)
     const entry = { ...rec, at: today(), by: me.name }
     // Update the screen immediately.
-    let nextDocs = null
-    setData((d) => ({
-      ...d,
-      staff: d.staff.map((x) => {
-        if (x.id !== staffId) return x
-        nextDocs = { ...(x.docs || {}), [key]: entry }
-        return { ...x, docs: nextDocs }
-      }),
-    }))
+    // Derive from current state, then save, then set. See toggleOnboarding.
+    const person = (data.staff || []).find((x) => x.id === staffId)
+    const nextDocs = { ...((person && person.docs) || {}), [key]: entry }
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docs: nextDocs } : x)) }))
     // Persist to the person's OWN profile row, not the shared record. This is
     // what stops one person's save from overwriting another's upload.
     await persistStaffField(staffId, { docs: nextDocs })
@@ -2163,20 +2182,34 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   async function persistStaffField(staffId, patch) {
     if (!LIVE) return
     try {
-      const row = {}
-      if ('docs' in patch) row.docs = patch.docs
-      if ('onboarding' in patch) row.onboarding = patch.onboarding
-      if ('docsExempt' in patch) row.docs_exempt = patch.docsExempt
-      const person = (data.staff || []).find((x) => x.id === staffId)
-      let targetId = person && person.accountId ? person.accountId : null
-      if (!targetId && person && person.email) {
-        const { data: match } = await supabase.from('profiles').select('id').ilike('email', String(person.email).trim()).maybeSingle()
-        if (match) targetId = match.id
+      // Documents, onboarding and the exemption flag belong to the person's own
+      // row. NOTE: this component receives `tenant`, not `tenantId`. Filtering
+      // on an undefined tenantId matched no rows, so every tick was written to
+      // nowhere and reverted on the next load. Introduced in v16, fixed in v19.
+      const tid = (tenant && tenant.id) || null
+      if (!tid) return
+      // Refuse to persist a null or undefined value. A caller that computes its
+      // patch from a state updater can hand us null before the updater has run,
+      // and writing that erases the field outright. This is how Adebayo's
+      // onboarding checklist was wiped on 1 August 2026. Deleting a field is
+      // never expressed as null here; it is done deliberately elsewhere.
+      const clean = {}
+      Object.keys(patch || {}).forEach((k) => { if (patch[k] !== null && patch[k] !== undefined) clean[k] = patch[k] })
+      if (!Object.keys(clean).length) {
+        try { console.warn('[Forte Compass] refused an empty or null save for', staffId, patch) } catch (e) { /* ignore */ }
+        return
       }
-      if (!targetId && /^[0-9a-f-]{36}$/i.test(staffId)) targetId = staffId
-      if (!targetId) return
-      await supabase.from('profiles').update(row).eq('id', targetId)
-    } catch { /* the per-person columns may not be applied yet */ }
+      const row = { updated_at: new Date().toISOString() }
+      if ('docs' in clean) row.docs = clean.docs
+      const person = (data.staff || []).find((x) => x.id === staffId)
+      const nextData = person ? { ...person, ...clean } : null
+      if (nextData) row.data = nextData
+      const { error } = await supabase.from('people').update(row).eq('tenant_id', tid).eq('slug', staffId)
+      // A failure here must be visible. Silence is what let this run unnoticed.
+      if (error) { try { console.error('[Forte Compass] could not save', Object.keys(patch).join(', '), 'for', staffId, error.message) } catch (e) { /* ignore */ } }
+    } catch (e) {
+      try { console.error('[Forte Compass] save failed for', staffId, e && e.message) } catch (e2) { /* ignore */ }
+    }
   }
   function beginExit(staffId, lastDay, reason) {
     setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, exit: { startedBy: me.name, startedAt: today(), lastDay: lastDay || '', reason: reason || '', steps: EXIT_STEPS.map((e) => ({ key: e.key, done: false })), status: 'leaving' } } : x)) }))
@@ -2195,28 +2228,41 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
     setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, exit: { ...x.exit, status: 'left', completedAt: today(), completedBy: me.name }, archived: true } : x)) }))
   }
   function setDocExpiry(staffId, key, expiry) {
-    let nextDocs = null
-    setData((d) => ({ ...d, staff: d.staff.map((x) => {
-      if (x.id !== staffId) return x
-      nextDocs = { ...(x.docs || {}), [key]: { ...((x.docs || {})[key] || {}), expiry } }
-      return { ...x, docs: nextDocs }
-    }) }))
+    // Derive from current state, then save, then set. See toggleOnboarding.
+    const person = (data.staff || []).find((x) => x.id === staffId)
+    if (!person) return
+    const nextDocs = { ...(person.docs || {}), [key]: { ...((person.docs || {})[key] || {}), expiry } }
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docs: nextDocs } : x)) }))
     persistStaffField(staffId, { docs: nextDocs })
   }
+  // Removes an objective and everything hanging off it. Only reachable for
+  // drafts, so nothing that has been scored can be lost this way.
+  function deleteObjective(id) {
+    setData((d) => ({
+      ...d,
+      objectives: (d.objectives || []).filter((o) => o.id !== id),
+      checkins: (d.checkins || []).filter((c) => c.objectiveId !== id),
+    }))
+  }
   function clearProbation(staffId) {
-    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, probationCleared: true, probationClearedAt: today() } : x)) }))
+    // This used to update the screen only, with no persistStaffField call, so
+    // the tick reverted on the next load. Derive, save, then set, as elsewhere.
+    const person = (data.staff || []).find((x) => x.id === staffId)
+    if (!person) return
+    const at = today()
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, probationCleared: true, probationClearedAt: at } : x)) }))
+    persistStaffField(staffId, { probationCleared: true, probationClearedAt: at })
   }
   function setDocsExempt(staffId, exempt) {
     setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docsExempt: exempt } : x)) }))
     persistStaffField(staffId, { docsExempt: exempt })
   }
   function setDocStatus(staffId, key, status, note) {
-    let nextDocs = null
-    setData((d) => ({ ...d, staff: d.staff.map((x) => {
-      if (x.id !== staffId) return x
-      nextDocs = { ...(x.docs || {}), [key]: { ...((x.docs || {})[key] || {}), status, note: note || '', reviewedAt: today(), reviewedBy: me.name } }
-      return { ...x, docs: nextDocs }
-    }) }))
+    // Derive from current state, then save, then set. See toggleOnboarding.
+    const person = (data.staff || []).find((x) => x.id === staffId)
+    if (!person) return
+    const nextDocs = { ...(person.docs || {}), [key]: { ...((person.docs || {})[key] || {}), status, note: note || '', reviewedAt: today(), reviewedBy: me.name } }
+    setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === staffId ? { ...x, docs: nextDocs } : x)) }))
     persistStaffField(staffId, { docs: nextDocs })
     // A rejection is only useful if the person hears about it, so nudge them by
     // email. Best effort; reuses the existing EmailJS setup.
@@ -2233,12 +2279,14 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   function updateStaff(id, patch) { setData((d) => ({ ...d, staff: d.staff.map((x) => (x.id === id ? { ...x, ...patch } : x)) })) }
   function removeStaff(id) { setData((d) => ({ ...d, staff: d.staff.filter((x) => x.id !== id), objectives: d.objectives.filter((o) => o.owner !== id) })) }
   function toggleOnboarding(staffId, taskId) {
-    let nextOb = null
-    setData((d) => ({ ...d, staff: d.staff.map((s) => {
-      if (s.id !== staffId) return s
-      nextOb = (s.onboarding || []).map((t) => (t.id === taskId ? { ...t, done: !t.done } : t))
-      return { ...s, onboarding: nextOb }
-    }) }))
+    // Compute the next checklist FROM CURRENT STATE first. This used to be
+    // computed inside the setData updater and read straight afterwards, but
+    // React does not guarantee the updater has run by then, so the save often
+    // fired with null and wiped the checklist. Derive it, save it, then set it.
+    const person = (data.staff || []).find((s) => s.id === staffId)
+    if (!person || !Array.isArray(person.onboarding)) return
+    const nextOb = person.onboarding.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t))
+    setData((d) => ({ ...d, staff: d.staff.map((s) => (s.id === staffId ? { ...s, onboarding: nextOb } : s)) }))
     persistStaffField(staffId, { onboarding: nextOb })
   }
   function rollCycle(newName) {
@@ -2374,9 +2422,9 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')
     try {
       if (LIVE) {
-        await supabase.from('kv').upsert({ tenant_id: tenantId, key: 'backup_' + stamp, value: data, updated_at: new Date().toISOString() })
+        await supabase.from('kv').upsert({ tenant_id: tenant.id, key: 'backup_' + stamp, value: data, updated_at: new Date().toISOString() })
       }
-      try { localStorage.setItem('fc:lastbackup:' + tenantId, new Date().toISOString()) } catch { /* ignore */ }
+      try { localStorage.setItem('fc:lastbackup:' + tenant.id, new Date().toISOString()) } catch { /* ignore */ }
     } catch { /* filing is best effort; the download below is the real safeguard */ }
     if (!auto) {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -2387,7 +2435,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
   useEffect(() => {
     if (!me || screen !== 'app') return
     try {
-      const last = localStorage.getItem('fc:lastbackup:' + tenantId)
+      const last = localStorage.getItem('fc:lastbackup:' + tenant.id)
       const stale = !last || (Date.now() - new Date(last).getTime()) > 7 * 24 * 3600 * 1000
       if (stale && (me.role === 'chairman' || me.role === 'admin')) backupNow(true)
     } catch { /* ignore */ }
@@ -2399,7 +2447,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
     if (!me || screen !== 'app' || !LIVE) return
     if (!['hr', 'admin'].includes(me.role) || !data.emailConfig || !me.email) return
     try {
-      const key = 'fc:lastdigest:' + tenantId
+      const key = 'fc:lastdigest:' + tenant.id
       const last = localStorage.getItem(key)
       const due = !last || (Date.now() - new Date(last).getTime()) > 7 * 24 * 3600 * 1000
       if (!due) return
@@ -2545,7 +2593,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
       // A per-person net snapshot, keyed by placement, so next month's variance
       // view can say exactly who moved and by how much.
       const snapshot = {}
-      ;(payslips || []).forEach((p) => { if (p && p.key) snapshot[p.key] = { name: p.name, org: p.org, net: p.net } })
+      ;(payslips || []).forEach((p) => { if (p && p.key) snapshot[p.key] = { name: p.name, org: p.org, net: p.net, gross: p.gross || null } })
       const run = { ...(runs[cyc] || d.payrollRun || {}), payslips, snapshot }
       return { ...d, payrollRuns: { ...runs, [cyc]: run }, payrollRun: cyc === d.activeCycle ? run : d.payrollRun }
     })
@@ -2648,7 +2696,8 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'objectives' && !editing && (
             <Objectives me={me} objectives={myObjectives} tenant={tenant}
               onNew={() => setEditing({ id: uid(), owner: me.id, sub: me.sub, priority: tenant.priorities[0].rank, cycle: activeCycle, status: 'draft', title: '', description: '', krs: [] })}
-              onEdit={(o) => setEditing(o)} onSubmit={(id) => setStatus(id, 'submitted')} onUseSuggestion={useSuggestion} />
+              onEdit={(o) => setEditing(o)} onSubmit={(id) => setStatus(id, 'submitted')}
+              onDelete={deleteObjective} onUseSuggestion={useSuggestion} />
           )}
           {tab === 'objectives' && editing && (
             <Author tenant={tenant} me={me} objective={editing} onCancel={() => setEditing(null)}
@@ -2803,7 +2852,7 @@ function StatusTag({ s }) {
 }
 
 /* --------------------------- Objectives list ---------------------- */
-function Objectives({ me, objectives, tenant, onNew, onEdit, onSubmit, onUseSuggestion }) {
+function Objectives({ me, objectives, tenant, onNew, onEdit, onSubmit, onDelete, onUseSuggestion }) {
   const [suggesting, setSuggesting] = useState(false)
   return (
     <div className="fc-objlist">
@@ -2828,6 +2877,13 @@ function Objectives({ me, objectives, tenant, onNew, onEdit, onSubmit, onUseSugg
             ))}
           </ul>
           <div className="fc-objcard-actions">
+            {/* Deleting is limited to objectives that have not been approved.
+                An approved objective carries check-ins and a score, so it is
+                returned to draft first rather than removed outright. */}
+            {onDelete && o.status === 'draft' && (
+              <button className="fc-btn fc-btn-ghost fc-btn-sm fc-btn-danger"
+                onClick={() => { if (window.confirm(`Delete "${o.title || 'this objective'}"? This cannot be undone.`)) onDelete(o.id) }}>Delete</button>
+            )}
             <button className="fc-btn fc-btn-ghost fc-btn-sm" onClick={() => onEdit(o)}>Edit</button>
             {o.status === 'draft' && <button className="fc-btn fc-btn-gold fc-btn-sm" onClick={() => onSubmit(o.id)}>Submit for approval</button>}
           </div>
@@ -3301,16 +3357,101 @@ function OrgPanel({ tenant, data, org, me }) {
 }
 
 /* --------------------------- Chairman cockpit --------------------- */
+// Monthly trend, read from metrics_monthly. Deliberately honest about how much
+// history exists: with fewer than three points a line would imply a trend that
+// is not there, so it shows the figures and says when the line arrives.
+function TrendPanel({ tenantId }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => {
+    if (!LIVE) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data, error } = await supabase.from('metrics_monthly')
+          .select('period, headcount, gross, onboarded, captured_at')
+          .eq('tenant_id', tenantId)
+          .order('captured_at', { ascending: true })
+        if (!cancelled && !error && data) setRows(data)
+      } catch (e) { /* panel simply does not render */ }
+    })()
+    return () => { cancelled = true }
+  }, [tenantId])
+  if (!rows || !rows.length) return null
+
+  const last = rows[rows.length - 1]
+  const prev = rows.length > 1 ? rows[rows.length - 2] : null
+  const delta = (a, b) => (b == null || a == null ? null : Number(a) - Number(b))
+  const dHead = prev ? delta(last.headcount, prev.headcount) : null
+  const dGross = prev ? delta(last.gross, prev.gross) : null
+
+  const vals = rows.map((r) => Number(r.gross) || 0)
+  const max = Math.max(...vals, 1)
+  const W = 560, H = 90, pad = 4
+  const step = rows.length > 1 ? (W - pad * 2) / (rows.length - 1) : 0
+  const pts = rows.map((r, i) => {
+    const x = pad + i * step
+    const y = H - pad - ((Number(r.gross) || 0) / max) * (H - pad * 2)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+
+  return (
+    <section className="fc-cockpit-section">
+      <h3 className="fc-cockpit-h">Trend <span className="fc-muted">· {rows.length} month{rows.length === 1 ? '' : 's'} recorded</span></h3>
+      <div className="fc-trend">
+        <div className="fc-trend-figs">
+          <div className="fc-trend-fig">
+            <b>{last.headcount}</b>
+            <span>on the roster{dHead != null && dHead !== 0 ? ` · ${dHead > 0 ? '+' : ''}${dHead}` : ''}</span>
+          </div>
+          <div className="fc-trend-fig">
+            <b>{naira(Math.round(Number(last.gross) || 0))}</b>
+            <span>monthly gross{dGross ? ` · ${dGross > 0 ? '+' : ''}${naira(Math.round(dGross))}` : ''}</span>
+          </div>
+          <div className="fc-trend-fig">
+            <b>{last.onboarded}</b>
+            <span>fully onboarded</span>
+          </div>
+        </div>
+        {rows.length >= 3 ? (
+          <svg className="fc-trend-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="Monthly gross trend">
+            <polyline points={pts} fill="none" stroke="#B8924A" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            {rows.map((r, i) => {
+              const x = pad + i * step
+              const y = H - pad - ((Number(r.gross) || 0) / max) * (H - pad * 2)
+              return <circle key={r.period} cx={x} cy={y} r="3" fill="#B8924A" />
+            })}
+          </svg>
+        ) : (
+          <p className="fc-trend-note">
+            A line needs at least 3 months. One row is recorded automatically on the 1st, so the first trend appears in {3 - rows.length} more month{3 - rows.length === 1 ? '' : 's'}.
+          </p>
+        )}
+        <div className="fc-trend-axis">{rows.map((r) => <span key={r.period}>{r.period}</span>)}</div>
+      </div>
+    </section>
+  )
+}
+
 function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   const [sel, setSel] = useState(null)
   const [selOrg, setSelOrg] = useState(null)
   const ownerName = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Unknown'
-  const WORKSPACES = [
-    { id: 's_jennifer', label: 'Managing Director' },
-    { id: 's_godwin', label: 'Product Manager' },
-    { id: 's_chinonso', label: 'HR and Admin' },
-    { id: 's_adebayo', label: 'Accountant' },
-  ]
+  // Derived from the roster, not hardcoded. A pinned list goes stale the moment
+  // somebody changes role: on 3 August the Acting HR became Admin Officer and
+  // her card still read "HR and Admin" while showing no HR tab. Now the card
+  // follows whoever actually holds the role, and disappears if nobody does.
+  // Contractors are excluded: a workspace card is a role you step into, and a
+  // contractor holds no role. Where more than one person shares a role, the
+  // one with the most placements wins, so the substantive holder is picked
+  // rather than whoever happens to sort first.
+  const WORKSPACES = ['md', 'hr', 'accountant', 'lead'].map((r) => {
+    const holders = data.staff.filter((x) =>
+      x.role === r && !x.archived && (x.employment || 'fixed') !== 'contract')
+    if (!holders.length) return null
+    const best = holders.slice().sort((a, b) =>
+      ((b.placements || []).length - (a.placements || []).length))[0]
+    return { id: best.id, label: best.title || ROLES[r] || r }
+  }).filter(Boolean)
 
   // Everyone on the roster appears here. Previously this list was filtered to
   // people with an OKR score above zero, so with no objectives authored the
@@ -3342,7 +3483,13 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
   const risks = stalledIn(data.objectives.filter((o) => o.status === 'approved' || o.status === 'submitted'))
   // Operational snapshot: headcount, monthly payroll cost per company, onboarding
   // completion and anything needing attention. Real figures, not scores.
-  const activeStaff = data.staff.filter((s) => s.role !== 'chairman' && !s.archived)
+  // ONE basis for every operational figure on this screen: everyone currently
+  // on the roster, Chairman included, people who have left excluded. Previously
+  // headcount and cost excluded the Chairman while the onboarding ratio and
+  // compliance counted leavers, which is why 18, 19 and 6/19 appeared together
+  // and why this screen's payroll total differed from the Payroll page by
+  // exactly the Chairman's salary.
+  const activeStaff = data.staff.filter((s) => !s.archived)
   const headcount = activeStaff.length
   const costByOrg = [...tenant.subsidiaries].map((org) => {
     let gross = 0
@@ -3350,13 +3497,23 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
     return { org, gross: Math.round(gross), count: activeStaff.filter((s) => (s.placements || []).some((p) => p.org === org)).length }
   }).filter((o) => o.gross > 0)
   const totalMonthly = costByOrg.reduce((a, o) => a + o.gross, 0)
-  const onboarded = data.staff.filter((s) => fullyOnboarded(s)).length
-  const complianceItems = data.staff.reduce((n, s) => {
+  const onboarded = activeStaff.filter((s) => fullyOnboarded(s)).length
+  const complianceItems = activeStaff.reduce((n, s) => {
     const pi = probationInfo(s)
     return n + expiringDocs(s).length + (pi && pi.due && !pi.cleared ? 1 : 0)
   }, 0)
   const pendingAccts = (data.pendingAccounts || []).filter((r) => r.status === 'pending').length
   const movers = [...scored].sort((a, b) => b.move - a.move)
+  // Filters. Options are derived from who is actually on the roster, so an
+  // empty department or a company nobody sits in never appears as a dead chip.
+  const [fCo, setFCo] = useState('all')
+  const [fDept, setFDept] = useState('all')
+  const coOptions = [...new Set(people.map(({ s }) => s.sub).filter(Boolean))].sort()
+  const deptOptions = [...new Set(
+    people.filter(({ s }) => fCo === 'all' || s.sub === fCo).map(({ s }) => s.dept).filter(Boolean)
+  )].sort()
+  const shownPeople = people.filter(({ s }) =>
+    (fCo === 'all' || s.sub === fCo) && (fDept === 'all' || s.dept === fDept))
   const up = movers.filter((p) => p.move > 0).slice(0, 3)
   const down = movers.filter((p) => p.move < 0).slice(-3).reverse()
 
@@ -3380,7 +3537,7 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
         <div className="fc-board-grid fc-dash-metrics">
           <Metric value={headcount} label="People on the roster" />
           <Metric value={naira(totalMonthly)} label="Monthly payroll" />
-          <Metric value={`${onboarded}/${data.staff.length}`} label="Fully onboarded" />
+          <Metric value={`${onboarded}/${headcount}`} label="Fully onboarded" />
           <Metric value={complianceItems + pendingAccts} label="Needing attention" />
         </div>
         <div className="fc-costgrid">
@@ -3441,12 +3598,36 @@ function Cockpit({ tenant, data, me, onSwitchWorkspace }) {
         </div>
       </section>
 
+      <TrendPanel tenantId={tenant.id} />
+
       {/* 2. Staff standing */}
       <section className="fc-cockpit-section">
         <h3 className="fc-cockpit-h">Staff standing</h3>
+        <div className="fc-filters">
+          <div className="fc-filter-group">
+            <span className="fc-filter-label">Company</span>
+            <button className={`fc-chip ${fCo === 'all' ? 'on' : ''}`} onClick={() => setFCo('all')}>All</button>
+            {coOptions.map((c) => (
+              <button key={c} className={`fc-chip ${fCo === c ? 'on' : ''}`} onClick={() => setFCo(c)}>{c}</button>
+            ))}
+          </div>
+          {deptOptions.length > 1 && (
+            <div className="fc-filter-group">
+              <span className="fc-filter-label">Department</span>
+              <button className={`fc-chip ${fDept === 'all' ? 'on' : ''}`} onClick={() => setFDept('all')}>All</button>
+              {deptOptions.map((d) => (
+                <button key={d} className={`fc-chip ${fDept === d ? 'on' : ''}`} onClick={() => setFDept(d)}>{d}</button>
+              ))}
+            </div>
+          )}
+          {(fCo !== 'all' || fDept !== 'all') && (
+            <button className="fc-chip fc-chip-clear" onClick={() => { setFCo('all'); setFDept('all') }}>Clear</button>
+          )}
+        </div>
         <div className="fc-staff-table">
           <div className="fc-stt-row fc-stt-head"><span>Name</span><span>Organisation</span><span>Score</span><span>Band</span><span>Move</span><span></span></div>
-          {people.sort((a, b) => b.total - a.total).map(({ s, total, band, move }) => (
+          {shownPeople.length === 0 && <p className="fc-empty">Nobody matches that filter.</p>}
+          {shownPeople.sort((a, b) => b.total - a.total).map(({ s, total, band, move }) => (
             <div key={s.id} className="fc-stt-row">
               <span className="fc-stt-name"><Avatar name={s.name} /> {s.name}</span>
               <span className="fc-muted">{s.sub}</span>
@@ -3839,15 +4020,21 @@ function LeaveStatus({ s }) {
   return <span className={`fc-status fc-status-${cls}`}>{label}</span>
 }
 function Leave({ data, me, onRequest, onDecide }) {
-  const name = (id) => (data.staff.find((s) => s.id === id) || {}).name || 'Someone'
+  // Resolve by roster id OR account id. Requests raised on an older build carry
+  // the auth UUID rather than the slug, and a failed lookup was showing the
+  // requester as "Someone" AND, worse, hiding that they were the MD, so the
+  // request fell to the general queue instead of going to the Chairman.
+  const person = (id) => data.staff.find((s) => s.id === id || (s.accountId && s.accountId === id)) || null
+  const name = (id) => (person(id) || {}).name || 'Someone'
   const bal = leaveBalance(data, me.id)
-  const myLeave = (data.leave || []).filter((l) => l.staffId === me.id).sort((a, b) => (a.start < b.start ? 1 : -1))
+  const isMine = (l) => l.staffId === me.id || (me.accountId && l.staffId === me.accountId)
+  const myLeave = (data.leave || []).filter(isMine).sort((a, b) => (a.start < b.start ? 1 : -1))
   const isMD = me.role === 'md'
   const canViewAll = me.role === 'hr' || me.role === 'admin'
   const pending = (data.leave || []).filter((l) => l.status === 'pending')
-  const roleOf = (id) => (data.staff.find((s) => s.id === id) || {}).role
+  const roleOf = (id) => (person(id) || {}).role
   const canApprove = (l) => {
-    if (l.staffId === me.id) return false
+    if (isMine(l)) return false
     return roleOf(l.staffId) === 'md' ? me.role === 'chairman' : ['md', 'hr', 'admin'].includes(me.role)
   }
   const myQueue = pending.filter(canApprove)
@@ -4590,8 +4777,39 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
     const shortAcct = uniqByPerson(rows.filter(({ s }) => s.account && String(s.account).replace(/\D/g, '').length !== 10))
     const zeroNet = rows.filter(({ pr }) => pr && pr.netM <= 0)
     const noEmail = uniqByPerson(rows.filter(({ s }) => !s.email))
-    return { noBank, shortAcct, zeroNet, noEmail }
+    // A gross that has moved by more than 3x since the last disbursed cycle is
+    // almost always a decimal in the wrong place, not a pay rise. Adebayo's
+    // gross was once corrupted to 10x (6,320,960 against a true 632,096) and
+    // nothing caught it. A real change of that size still passes: it just has
+    // to be seen and acknowledged first.
+    const DEVIATION = 3
+    const deviations = (() => {
+      const runsByC = data.payrollRuns || {}
+      const order = ['May 2026', 'June 2026', 'July 2026', 'August 2026', 'September 2026', 'October 2026', 'November 2026', 'December 2026']
+      const idx = order.indexOf(cycle)
+      let snap = null
+      for (let i = idx - 1; i >= 0; i--) {
+        const r = runsByC[order[i]]
+        if (r && r.snapshot && Object.keys(r.snapshot).length) { snap = r.snapshot; break }
+      }
+      if (!snap) return []
+      return rows.map((r) => {
+        // The stored snapshot records net, so that is the honest basis for
+        // comparison. Gross is recorded from this cycle onward for future runs.
+        const was = snap[r.key] && (snap[r.key].gross || snap[r.key].net)
+        const now = snap[r.key] && snap[r.key].gross ? r.gross : (r.pr ? r.pr.netM : 0)
+        if (!was || !now) return null
+        const ratio = now / was
+        if (ratio <= DEVIATION && ratio >= 1 / DEVIATION) return null
+        return { name: r.s.name, org: r.org, from: was, to: now, ratio }
+      }).filter(Boolean).sort((a, b) => b.ratio - a.ratio)
+    })()
+    return { noBank, shortAcct, zeroNet, noEmail, deviations }
   })()
+  // Disbursement is blocked while an unexplained deviation stands. Ticking the
+  // acknowledgement is a deliberate act by whoever is paying, and it is recorded.
+  const [devAck, setDevAck] = useState(false)
+  const deviationBlock = preflight.deviations.length > 0 && !devAck
 
   async function downloadForBank() {
     setDl(true)
@@ -4761,6 +4979,20 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
             </div>
           )}
           {isAcct && editable && status === 'approved' && <>
+            {preflight.deviations.length > 0 && (
+              <div className="fc-pay-warn fc-dev-warn">
+                <b>Hold on. {preflight.deviations.length === 1 ? 'One figure has' : `${preflight.deviations.length} figures have`} moved by more than 3x since the last run.</b>
+                <ul>
+                  {preflight.deviations.map((d, i) => (
+                    <li key={i}>{d.name} · {d.org}: {naira(Math.round(d.from))} → {naira(Math.round(d.to))} ({d.ratio >= 1 ? `${d.ratio.toFixed(1)}x higher` : `${(1 / d.ratio).toFixed(1)}x lower`})</li>
+                  ))}
+                </ul>
+                <label className="fc-dev-ack">
+                  <input type="checkbox" checked={devAck} onChange={(e) => setDevAck(e.target.checked)} />
+                  <span>I have checked {preflight.deviations.length === 1 ? 'this figure' : 'these figures'} and {preflight.deviations.length === 1 ? 'it is' : 'they are'} correct.</span>
+                </label>
+              </div>
+            )}
             <span className="fc-bankpick">
               <select className="fc-input fc-bankpick-sel" value={bankFormat} onChange={(e) => setBankFormat(e.target.value)}>
                 {Object.keys(BANK_FORMATS).map((k) => <option key={k} value={k}>{BANK_FORMATS[k].label}</option>)}
@@ -4768,7 +5000,7 @@ function Payroll({ data, me, tenant, onSetSalary, onDecideSalary, onSetEmail, on
               <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadBankFile}>Bank payment file</button>
             </span>
             <button className="fc-btn fc-btn-ghost fc-btn-sm" disabled={dl} onClick={downloadRemittance}>{dl ? 'Preparing…' : 'Remittance schedule'}</button>
-            <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!!busy || !docGateOk} onClick={disburseAndIssue}>{busy || 'Disburse and issue payslips'}</button>
+            <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!!busy || !docGateOk || deviationBlock} onClick={disburseAndIssue}>{busy || 'Disburse and issue payslips'}</button>
           </>}
           {status === 'disbursed' && <>
             <span className="fc-referred">Disbursed</span>
@@ -5991,8 +6223,10 @@ export default function App() {
             primeStaffCache(fresh); setData(fresh); return
           }
         }
-        const merged = await overlayProfileDocs(tenantId, dataRef.current)
-        if (!cancelled && merged && merged !== dataRef.current) setData(merged)
+        // Documents now live on the person's own row and arrive with the
+        // roster, so there is nothing left to overlay. Re-read instead.
+        const fresh = await loadData(tenantId)
+        if (!cancelled && fresh && fresh.staff && fresh.staff.length) { primeStaffCache(fresh); setData(fresh) }
       } catch (e) { /* leave the roster as loaded */ }
     })()
     return () => { cancelled = true }
@@ -6102,52 +6336,47 @@ export default function App() {
   }, [authUser])
 
   function enterProfile(profile, persistDemo = true) {
+    // The roster is the authority on a person's name. Accounts created without
+    // a matching `profiles` row used to fall back to showing the email address
+    // as the display name, which is how "exco@imadeforteholdings.com" once
+    // appeared as a person. Prefer the roster record's name whenever we can
+    // identify it.
+    try {
+      const cur = (dataRef.current && dataRef.current.staff) || []
+      const addr0 = String(profile.email || '').trim().toLowerCase()
+      const mine = cur.find((x) => x.accountId && x.accountId === profile.id)
+        || (addr0 ? cur.find((x) => String(x.email || '').trim().toLowerCase() === addr0) : null)
+      if (mine && mine.name) profile = { ...profile, name: mine.name, role: profile.role || mine.role }
+    } catch (e) { /* fall back to whatever the account carries */ }
     setMe(profile); setScreen('app')
     if (!LIVE && persistDemo) { try { localStorage.setItem(SKEY(tenantId), JSON.stringify(profile)) } catch { /* ignore */ } }
     setData((d) => {
       const addr = String(profile.email || '').trim().toLowerCase()
-      // Find the ONE roster record this account belongs to. Priority:
-      //   1. same email
-      //   2. same accountId
-      //   3. the Chairman record, when this signing-in account is the Chairman
-      //      (there is only ever one Chairman, so this is safe and stops the
-      //      duplicate-Chairman problem regardless of name spelling)
-      //   4. same exact name, only if that record has no email yet
-      // We pick a single winner and never scan again, so no duplicate is made.
-      let linkedId = null
-      const findWinner = () => {
-        let m = addr ? d.staff.find((x) => String(x.email || '').trim().toLowerCase() === addr) : null
-        if (m) return m
-        m = d.staff.find((x) => x.accountId && x.accountId === profile.id)
-        if (m) return m
-        const roleOf = (v) => String(v || '').trim().toLowerCase()
-        if (roleOf(profile.role) === 'chairman') { m = d.staff.find((x) => roleOf(x.role) === 'chairman'); if (m) return m }
-        m = d.staff.find((x) => !String(x.email || '').trim() && x.name && profile.name && x.name.trim().toLowerCase() === profile.name.trim().toLowerCase())
-        return m || null
-      }
-      const winner = findWinner()
+      // CONSOLIDATED SHAPE: the link between a login and a person is now a
+      // stored fact (people.account_id), not something guessed at sign-in.
+      // Match on the account first; fall back to email only to adopt an
+      // account the database has not linked yet. The old chairman-by-role and
+      // name-with-no-email rules are gone: those existed to paper over the
+      // staff/profiles split, and they are what produced the duplicate
+      // Chairman on 31 July 2026.
+      const winner =
+        d.staff.find((x) => x.accountId && x.accountId === profile.id) ||
+        (addr ? d.staff.find((x) => String(x.email || '').trim().toLowerCase() === addr) : null)
       if (winner) {
-        linkedId = winner.id
         const staff = d.staff.map((x) => {
           if (x.id !== winner.id) return x
           const patch = {}
-          // Only fill a blank email; never overwrite an existing good email with
-          // a different one (that is how names/emails got clobbered before).
           if (addr && !String(x.email || '').trim()) patch.email = profile.email
           if (x.accountId !== profile.id) patch.accountId = profile.id
           return Object.keys(patch).length ? { ...x, ...patch } : x
         })
         return { ...d, staff }
       }
-      // Genuinely no match: add the account as its own record. Two refusals
-      // first. If the roster has not loaded, "no match" means we cannot see the
-      // roster, not that the person is absent, and adding them here is what
-      // produced the duplicate Chairman. And a record whose name is just an
-      // email address is a shell, never a person.
-      if (d.staff.some((s) => s.id === profile.id)) return d
-      if (!_rosterLoadedFromDb || !d.staff.length) return d
-      if (String(profile.name || '').includes('@')) return d
-      return { ...d, staff: [...d.staff, { band: 'green', score: 0, prev: 0, ...profile }] }
+      // No match: this account has no person. The app NEVER invents a roster
+      // record to fill the gap. Creating people is an HR act, done deliberately
+      // in the app, not a side effect of somebody signing in.
+      try { console.warn('[Forte Compass] signed-in account has no roster record:', profile.email) } catch (e) { /* ignore */ }
+      return d
     })
   }
   function enter(profile) { enterProfile(profile) }
@@ -6254,6 +6483,29 @@ const CSS = `
 .fc-cap:hover{transform:translateY(-6px);box-shadow:0 18px 40px -24px rgba(14,34,64,.55)}
 .fc-cap-index{transition:color .4s ease}
 .fc-cap:hover .fc-cap-index{color:var(--gold,#B8924A)}
+/* Monthly trend */
+.fc-trend{border:1px solid var(--hairline);border-radius:8px;padding:1.1rem 1.25rem}
+.fc-trend-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem 2rem;margin-bottom:.9rem}
+.fc-trend-fig b{display:block;font-size:clamp(1.3rem,2.6vw,1.8rem);line-height:1.1;font-variant-numeric:tabular-nums}
+.fc-trend-fig span{display:block;margin-top:.2rem;font-size:.82rem;color:var(--muted)}
+.fc-trend-svg{width:100%;height:90px;display:block}
+.fc-trend-note{margin:.2rem 0 .4rem;font-size:.86rem;color:var(--muted);font-style:italic}
+.fc-trend-axis{display:flex;justify-content:space-between;margin-top:.45rem;font-size:.72rem;color:var(--muted);letter-spacing:.04em}
+/* Cockpit filters */
+.fc-filters{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem 1.4rem;margin:0 0 1rem}
+.fc-filter-group{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem}
+.fc-filter-label{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-right:.25rem}
+.fc-chip{border:1px solid var(--hairline);background:transparent;color:inherit;border-radius:999px;padding:.28rem .8rem;font-size:.82rem;cursor:pointer;transition:border-color .2s ease,background .2s ease,color .2s ease}
+.fc-chip:hover{border-color:#B8924A}
+.fc-chip.on{background:#B8924A;border-color:#B8924A;color:#0E2240;font-weight:600}
+.fc-chip-clear{opacity:.75;font-style:italic}
+/* Payroll deviation warning: deliberately loud, because the alternative is
+   paying somebody ten times their salary. */
+.fc-dev-warn{width:100%;border:1px solid #B8924A;border-left:4px solid #B8924A;border-radius:6px;padding:.9rem 1.1rem;margin:.4rem 0 .9rem}
+.fc-dev-warn ul{margin:.55rem 0 .7rem;padding-left:1.1rem}
+.fc-dev-warn li{margin:.2rem 0;font-variant-numeric:tabular-nums}
+.fc-dev-ack{display:flex;align-items:center;gap:.55rem;cursor:pointer;font-size:.9rem}
+.fc-dev-ack input{width:16px;height:16px;cursor:pointer}
 /* Live group figures on the pre-login page. Aggregates only. */
 .fc-livestrip{padding:clamp(2rem,5vw,3.25rem) clamp(1.5rem,6vw,5rem);border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline)}
 .fc-livestrip-label{display:block;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold,#B8924A);margin-bottom:1.4rem}
@@ -6696,6 +6948,8 @@ option{color:#111}
 .fc-krlist li{display:flex;align-items:center;gap:.6rem;font-size:.95rem}
 .fc-kr-st{flex:1}
 .fc-objcard-actions{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem}
+.fc-btn-danger{border-color:rgba(182,86,86,.55);color:#d98a8a}
+.fc-btn-danger:hover{border-color:var(--rag-r);color:#e9a3a3}
 .fc-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.4rem 0}
 .fc-field{display:flex;flex-direction:column;gap:.35rem}
 .fc-field span{font-size:.8rem;color:var(--muted)}

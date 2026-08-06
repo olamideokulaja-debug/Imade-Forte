@@ -16,7 +16,7 @@ const LIVE = !!supabase
 // deployed build. This tag ('data-safe-v1') is the one with all data-protection
 // fixes: live ignores localStorage, per-document verify merge, email self-heal,
 // and the richest-record resolver.
-try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v29-leaveid' } catch (e) { /* ignore */ }
+try { if (typeof window !== 'undefined') window.FC_BUILD = 'arch-v30-workingdays' } catch (e) { /* ignore */ }
 
 /* ---------------------------- Tenants ----------------------------- */
 // Imade Forte Holdings Limited is the parent. Its operating subsidiaries are the four
@@ -416,6 +416,24 @@ const daysBetween = (a, b) => {
   if (isNaN(d1) || isNaN(d2) || d2 < d1) return 0
   return Math.round((d2 - d1) / 86400000) + 1
 }
+// Leave is counted in WORKING days: Monday to Friday, minus any public holiday
+// on the calendar. Until 6 August 2026 this counted every calendar day, so a
+// fortnight off cost 16 days of a 20 day entitlement instead of 10.
+const isoDay = (d) => d.toISOString().slice(0, 10)
+const workingDays = (a, b, holidays) => {
+  const d1 = new Date(a), d2 = new Date(b)
+  if (isNaN(d1) || isNaN(d2) || d2 < d1) return 0
+  const hol = holidays instanceof Set ? holidays : new Set(holidays || [])
+  let n = 0
+  for (const cur = new Date(d1); cur <= d2; cur.setDate(cur.getDate() + 1)) {
+    const wd = cur.getUTCDay()
+    if (wd === 0 || wd === 6) continue
+    if (hol.has(isoDay(cur))) continue
+    n += 1
+  }
+  return n
+}
+const holidaySet = (data) => new Set(((data && data.holidays) || []).map((h) => h.date))
 function seedLeave() { return [] }
 
 function leaveBalance(data, id) {
@@ -811,7 +829,7 @@ function blankShared(tenantId) {
       : [{ id: 'c1', name: 'Current cycle', status: 'active' }],
     activeCycle: forte ? 'July 2026' : 'Current cycle',
     hrActions: [], payrollRun: { cycle: forte ? 'July 2026' : 'Current cycle', status: 'draft', trail: [], payslips: null },
-    payrollRuns: {}, absence: {}, pendingAccounts: [], salaryRequests: [], salaryLog: [], emailConfig: null,
+    payrollRuns: {}, absence: {}, pendingAccounts: [], salaryRequests: [], salaryLog: [], emailConfig: null, holidays: [],
   }
 }
 
@@ -2244,6 +2262,17 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
       checkins: (d.checkins || []).filter((c) => c.objectiveId !== id),
     }))
   }
+  // The public holiday calendar. Stored with the tenant's shared settings, so
+  // it is the same for everyone and saves through the normal path.
+  function addHoliday(date, name) {
+    setData((d) => {
+      const list = (d.holidays || []).filter((h) => h.date !== date)
+      return { ...d, holidays: [...list, { date, name }].sort((a, b) => (a.date < b.date ? -1 : 1)) }
+    })
+  }
+  function removeHoliday(date) {
+    setData((d) => ({ ...d, holidays: (d.holidays || []).filter((h) => h.date !== date) }))
+  }
   function clearProbation(staffId) {
     // This used to update the screen only, with no persistStaffField call, so
     // the tick reverted on the next load. Derive, save, then set, as elsewhere.
@@ -2710,7 +2739,7 @@ function AppShell({ tenant, me, data, setData, onSwitchTenant, onSignOut, onSwit
           {tab === 'organogram' && <Organogram tenant={tenant} data={data} me={me} />}
           {tab === 'reviews' && <Reviews data={data} me={me} cycle={activeCycle} onSaveReview={saveReview} onAckReview={ackReview} onGiveFeedback={giveFeedback} />}
           {tab === 'performance' && <Performance data={data} me={me} onRefer={referToHr} onResolve={resolveHrAction} />}
-          {tab === 'leave' && <Leave data={data} me={me} onRequest={requestLeave} onDecide={decideLeave} />}
+          {tab === 'leave' && <Leave data={data} me={me} onRequest={requestLeave} onDecide={decideLeave} onAddHoliday={addHoliday} onRemoveHoliday={removeHoliday} />}
           {tab === 'myonboarding' && <MyOnboardingPage data={data} me={me} onUploadDoc={uploadDoc} onSubmit={submitForReview} />}
           {tab === 'mypayslip' && <MyPayslip data={data} me={me} tenant={tenant} />}
           {tab === 'payroll' && <Payroll data={data} me={me} tenant={tenant} onSetSalary={requestSalaryChange} onDecideSalary={decideSalaryRequest} onSetEmail={setStaffEmail} onAdvance={advancePayroll} onReturn={returnPayroll} onRecordPayslips={recordPayslips} onSetEmailConfig={setEmailConfig} onSetAbsence={setAbsence} />}
@@ -4019,7 +4048,7 @@ function LeaveStatus({ s }) {
   const [label, cls] = m[s] || [s, 'draft']
   return <span className={`fc-status fc-status-${cls}`}>{label}</span>
 }
-function Leave({ data, me, onRequest, onDecide }) {
+function Leave({ data, me, onRequest, onDecide, onAddHoliday, onRemoveHoliday }) {
   // Resolve by roster id OR account id. Requests raised on an older build carry
   // the auth UUID rather than the slug, and a failed lookup was showing the
   // requester as "Someone" AND, worse, hiding that they were the MD, so the
@@ -4040,11 +4069,16 @@ function Leave({ data, me, onRequest, onDecide }) {
   const myQueue = pending.filter(canApprove)
   const canApproveAny = ['chairman', 'md', 'hr', 'admin'].includes(me.role)
   const allLeave = (data.leave || []).slice().sort((a, b) => (a.start < b.start ? 1 : -1))
+  const canManageHolidays = ['chairman', 'md', 'hr', 'admin'].includes(me && me.role)
+  const [holDate, setHolDate] = useState('')
+  const [holName, setHolName] = useState('')
   const [type, setType] = useState('annual')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [reason, setReason] = useState('')
-  const reqDays = daysBetween(start, end)
+  const hols = holidaySet(data)
+  const reqDays = workingDays(start, end, hols)
+  const calDays = daysBetween(start, end)
   const requests = me.role !== 'chairman'
 
   return (
@@ -4072,6 +4106,31 @@ function Leave({ data, me, onRequest, onDecide }) {
               Request{reqDays > 0 ? ` · ${reqDays} day${reqDays > 1 ? 's' : ''}` : ''}
             </button>
           </div>
+          {reqDays > 0 && (
+            <p className="fc-muted fc-leave-note">
+              {reqDays} working day{reqDays > 1 ? 's' : ''} counted across {calDays} calendar day{calDays > 1 ? 's' : ''}.
+              Weekends and public holidays on the calendar are not deducted.
+            </p>
+          )}
+        </section>
+      )}
+
+      {canManageHolidays && (
+        <section className="fc-panel">
+          <div className="fc-panel-head"><h3>Public holidays</h3><span className="fc-muted">{(data.holidays || []).length}</span></div>
+          <p className="fc-muted fc-leave-note">Days listed here are not deducted from anyone's leave. Add the ones government declares, including the moveable Islamic and Easter dates, as they are announced.</p>
+          <div className="fc-leave-form">
+            <label className="fc-field"><span>Date</span><input className="fc-input" type="date" value={holDate} onChange={(e) => setHolDate(e.target.value)} /></label>
+            <input className="fc-input" placeholder="Name, e.g. Independence Day" value={holName} onChange={(e) => setHolName(e.target.value)} />
+            <button className="fc-btn fc-btn-gold fc-btn-sm" disabled={!holDate || !holName.trim()}
+              onClick={() => { onAddHoliday(holDate, holName.trim()); setHolDate(''); setHolName('') }}>Add</button>
+          </div>
+          {((data.holidays || []).slice().sort((a, b) => (a.date < b.date ? -1 : 1))).map((h) => (
+            <div key={h.date} className="fc-cycle-row">
+              <span><b>{h.name}</b><span className="fc-muted"> · {h.date}</span></span>
+              <button className="fc-btn fc-btn-ghost fc-btn-sm fc-btn-danger" onClick={() => onRemoveHoliday(h.date)}>Remove</button>
+            </div>
+          ))}
         </section>
       )}
 
